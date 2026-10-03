@@ -5,6 +5,7 @@ import type {
   Tower,
   TowerDef,
   TowerKind,
+  Flyer,
 } from "./types";
 
 export const COLS = 16;
@@ -32,6 +33,13 @@ export const BANK_DEPOSIT_CHUNK = 25;
 
 /** Normal mode: wounded enemies restore full health after this many seconds without damage. */
 export const REGEN_DELAY = 3;
+
+/** Wasp flight speed in pixels per second. Drones are a little slower. */
+export const FLY_SPEED = 280;
+export const DRONE_SPEED = 230;
+export const DRONE_COUNT = 3;
+/** Mini drones deal this fraction of the wasp's shot damage. */
+export const DRONE_DAMAGE_RATIO = 0.4;
 
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
@@ -113,6 +121,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "Prints gold only while a wave is running",
     economy: true,
   },
+  wasp: {
+    kind: "wasp",
+    name: "Wasp",
+    cost: 90,
+    range: 0,
+    damage: 11,
+    fireRate: 1.8,
+    color: "#c46ad4",
+    projectileSpeed: 0,
+    description: "Flies to one enemy and stays until it falls",
+    flying: true,
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -136,6 +156,11 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     description: "Deposit coins. Each wave pays 25% of what is stored",
     costMultiplier: 1.4,
   },
+  wasp: {
+    name: "Drone Wing",
+    description: "Three mini drones. Each hunts an enemy until it is destroyed",
+    costMultiplier: 1.3,
+  },
 };
 
 /**
@@ -152,6 +177,23 @@ export function mintIncome(t: Tower): { amount: number; interval: number } {
 /** Gold an Investment Bank pays at the start of a wave. Principal stays stored. */
 export function bankPayout(banked: number): number {
   return Math.floor(banked * BANK_PAYOUT_RATE);
+}
+
+/** Parking spot for the wasp (slot < 0) or one mini drone. */
+export function nestPoint(
+  col: number,
+  row: number,
+  slot: number,
+): { x: number; y: number } {
+  const x = col * CELL + CELL / 2;
+  const y = row * CELL + CELL / 2 - 14;
+  if (slot < 0) return { x, y };
+  const ang = -Math.PI / 2 + (slot - 1) * 0.9;
+  return { x: x + Math.cos(ang) * 18, y: y + Math.sin(ang) * 12 };
+}
+
+export function makeFlyer(x: number, y: number, cooldown = 0): Flyer {
+  return { x, y, targetId: null, cooldown };
 }
 
 export function specialCost(kind: TowerKind): number {

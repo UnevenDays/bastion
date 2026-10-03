@@ -305,6 +305,52 @@ body {
 .swatch.mint {
   background: var(--gold);
 }
+.swatch.wasp {
+  background: #c46ad4;
+}
+
+.target-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 100%;
+}
+
+.target-row.hidden {
+  display: none;
+}
+
+.target-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+}
+
+.target-btn {
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-edge);
+  background: #152219;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.target-btn.selected {
+  color: var(--text);
+  border-color: var(--gold);
+  background: #243628;
+}
+
+.target-btn:hover {
+  border-color: var(--gold-dim);
+  color: var(--text);
+}
 .swatch.spikes {
   background: #c45c4a;
 }

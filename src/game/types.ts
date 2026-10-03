@@ -5,7 +5,10 @@ export type Difficulty = "normal" | "hard";
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon";
 
-export type TowerKind = "archer" | "cannon" | "frost" | "mint";
+export type TowerKind = "archer" | "cannon" | "frost" | "mint" | "wasp";
+
+/** Who a tower prefers. Auto means the nearest enemy. */
+export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
 
 export type EnemyKind =
   | "normal"
@@ -32,6 +35,16 @@ export interface TowerDef {
   description: string;
   /** Economy towers produce gold instead of fighting. */
   economy?: boolean;
+  /** Leaves its perch and hunts. No range circle. */
+  flying?: boolean;
+}
+
+/** A wasp or one of its mini drones. */
+export interface Flyer {
+  x: number;
+  y: number;
+  targetId: number | null;
+  cooldown: number;
 }
 
 export interface SpecialUpgradeDef {
@@ -63,6 +76,12 @@ export interface Tower {
   invested: number;
   /** Coins stored in an Investment Bank. Principal is not spent. */
   banked: number;
+  /** Which enemy this tower prefers. */
+  targeting: TargetMode;
+  /** Body of a flying tower. Null for towers that stay on their tile. */
+  flyer: Flyer | null;
+  /** Mini drones from the wasp special. */
+  drones: Flyer[];
 }
 
 export interface Enemy {

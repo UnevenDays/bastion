@@ -34,7 +34,7 @@ Temporary tunnel links expire when the cloud agent session ends.
 
 1. Pick **Bastion Defense** or **Dungeon Ambush**, then **Normal** / **Hard**, and start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
-3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**.
+3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest).
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins stored in an Investment Bank are returned in full.
 5. Press **Start Wave** when you are ready. Survive all 12 waves — wave 12 is the Final Boss.
 
@@ -50,6 +50,9 @@ Mints only print gold **while a wave is running**, not during the build time bet
 | Cannon | Focus Charge — more damage, shorter range            |
 | Frost  | Glacier Field — area freeze aura, no damage          |
 | Mint   | Investment Bank — deposit coins; each wave pays 25%  |
+| Wasp   | Drone Wing — three mini drones that hunt until their target falls |
+
+The **Wasp** has no range circle. It flies to one enemy and keeps attacking until that enemy is destroyed, then picks another. **Drone Wing** launches three smaller drones that do the same. They spread out when several enemies are on the path.
 
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|

@@ -3,7 +3,7 @@ import { BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { Game, type HudSnapshot } from "./game/engine";
-import type { Difficulty, GameMode, TowerKind } from "./game/types";
+import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
@@ -74,6 +74,14 @@ app.innerHTML = `
         <button class="btn btn-special" type="button" id="upgrade-special">Special</button>
         <button class="btn btn-special hidden" type="button" id="mint-deposit">Bank 25g</button>
         <button class="btn btn-upgrade hidden" type="button" id="mint-deposit-all">Bank All</button>
+      </div>
+      <div id="target-row" class="target-row hidden" role="group" aria-label="Target priority">
+        <span class="target-label">Aim</span>
+        <button class="target-btn" type="button" data-target="first" title="Enemy closest to the exit">First</button>
+        <button class="target-btn" type="button" data-target="strongest" title="Enemy with the most health">Strong</button>
+        <button class="target-btn" type="button" data-target="weakest" title="Enemy with the least health">Weak</button>
+        <button class="target-btn" type="button" data-target="last" title="Enemy closest to the entrance">Last</button>
+        <button class="target-btn" type="button" data-target="auto" title="Nearest enemy">Auto</button>
       </div>
       <div id="dungeon-upgrades" class="upgrade-actions hidden">
         <button class="btn btn-upgrade" type="button" id="dungeon-upgrade">+ Power</button>
@@ -169,6 +177,7 @@ const mintDepositAllBtn =
 const dungeonUpgradeBtn =
   document.querySelector<HTMLButtonElement>("#dungeon-upgrade")!;
 const sellBtn = document.querySelector<HTMLButtonElement>("#sell-btn")!;
+const targetRow = document.querySelector<HTMLElement>("#target-row")!;
 const carryBar = document.querySelector<HTMLElement>("#carry-bar")!;
 const carryText = document.querySelector<HTMLElement>("#carry-text")!;
 const carrySellBtn =
@@ -343,15 +352,23 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.textContent = `Bank ${BANK_DEPOSIT_CHUNK}g`;
       mintDepositBtn.disabled = !started || hud.gold < BANK_DEPOSIT_CHUNK;
       mintDepositAllBtn.disabled = !started || hud.gold <= 0;
+      syncTargeting(null);
     } else {
-      upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
+      upgradeStats.textContent = t.flying
+        ? `DMG ${t.damage} · SPD ${t.fireRate}/s · Hunts the whole map`
+        : `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
       upgradeDamageBtn.textContent =
         t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
-      hintEl.textContent = `${t.specialName}: ${t.specialDescription}`;
+      hintEl.textContent = t.flying
+        ? t.special
+          ? "The wasp and its three drones each stick to one enemy until that enemy is destroyed."
+          : "No range circle. The wasp flies to its target and stays until that enemy falls. Drone Wing adds three mini drones."
+        : `${t.specialName}: ${t.specialDescription}`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting);
     }
 
     upgradeDamageBtn.disabled =
@@ -371,6 +388,7 @@ function syncBastionHud(hud: HudSnapshot): void {
     upgradeBar.classList.add("hidden");
     mintDepositBtn.classList.add("hidden");
     mintDepositAllBtn.classList.add("hidden");
+    syncTargeting(null);
     if (hud.tool === "shovel") {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
@@ -385,8 +403,16 @@ function syncBastionHud(hud: HudSnapshot): void {
   showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "bastion");
 }
 
+function syncTargeting(mode: TargetMode | null): void {
+  targetRow.classList.toggle("hidden", mode === null);
+  for (const btn of targetRow.querySelectorAll<HTMLButtonElement>(".target-btn")) {
+    btn.classList.toggle("selected", btn.dataset.target === mode);
+  }
+}
+
 function syncDungeonHud(hud: DungeonHud): void {
   if (activeMode !== "dungeon") return;
+  syncTargeting(null);
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
@@ -530,6 +556,13 @@ upgradeSpeedBtn.addEventListener("click", () => {
 });
 upgradeSpecialBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.buySpecial();
+});
+targetRow.addEventListener("click", (event) => {
+  const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(
+    ".target-btn",
+  );
+  if (!btn?.dataset.target || !started || activeMode !== "bastion") return;
+  bastion.setTargeting(btn.dataset.target as TargetMode);
 });
 mintDepositBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.depositIntoSelected(false);

@@ -2,6 +2,10 @@ import {
   BANK_DEPOSIT_CHUNK,
   CELL,
   COLS,
+  DRONE_COUNT,
+  DRONE_DAMAGE_RATIO,
+  DRONE_SPEED,
+  FLY_SPEED,
   PATH,
   REGEN_DELAY,
   ROWS,
@@ -13,7 +17,9 @@ import {
   bankPayout,
   combatStats,
   enemyForWave,
+  makeFlyer,
   mintIncome,
+  nestPoint,
   sellValue,
   specialCost,
   spawnInterval,
@@ -26,8 +32,10 @@ import {
 import type {
   Difficulty,
   Enemy,
+  Flyer,
   Particle,
   Projectile,
+  TargetMode,
   Tower,
   TowerKind,
   Vec2,
@@ -62,6 +70,8 @@ export interface SelectedTowerInfo {
   banked: number;
   /** Gold the Investment Bank will pay when the next wave starts. */
   bankPayout: number;
+  targeting: TargetMode;
+  flying: boolean;
 }
 
 export interface HudSnapshot {
@@ -176,6 +186,8 @@ export class Game {
       goldInterval: income ? Math.round(income.interval * 10) / 10 : 0,
       banked: t.banked,
       bankPayout: t.kind === "mint" && t.special ? bankPayout(t.banked) : 0,
+      targeting: t.targeting,
+      flying: !!def.flying,
     };
   }
 
@@ -369,12 +381,20 @@ export class Game {
         special: false,
         invested: def.cost,
         banked: 0,
+        targeting: "auto",
+        flyer: null,
+        drones: [],
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
       special: false,
       invested: def.cost,
       banked: 0,
+      targeting: "auto",
+      flyer: def.flying
+        ? makeFlyer(nestPoint(col, row, -1).x, nestPoint(col, row, -1).y)
+        : null,
+      drones: [],
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -421,6 +441,12 @@ export class Game {
     this.gold -= cost;
     t.invested += cost;
     t.special = true;
+    if (t.kind === "wasp") {
+      t.drones = Array.from({ length: DRONE_COUNT }, (_, i) => {
+        const spot = nestPoint(t.col, t.row, i);
+        return makeFlyer(spot.x, spot.y, 0.12 * i);
+      });
+    }
     this.burst(
       t.col * CELL + CELL / 2,
       t.row * CELL + CELL / 2,
@@ -429,6 +455,16 @@ export class Game {
     );
     this.emitHud();
     return true;
+  }
+
+  /** Choose which enemy this tower prefers. Flyers keep their current prey. */
+  setTargeting(mode: TargetMode): void {
+    if (this.selectedTowerIndex === null) return;
+    if (this.phase === "won" || this.phase === "lost") return;
+    const t = this.towers[this.selectedTowerIndex];
+    if (!t || TOWER_DEFS[t.kind].economy) return;
+    t.targeting = mode;
+    this.emitHud();
   }
 
   /**
@@ -698,6 +734,11 @@ export class Game {
       const ty = t.row * CELL + CELL / 2;
       const rangePx = stats.range * CELL;
 
+      if (def.flying) {
+        this.updateFlyingTower(t, stats, dt);
+        continue;
+      }
+
       // Mint prints gold only while a wave is running, never between waves.
       if (def.economy) {
         if (!this.waveInProgress) continue;
@@ -739,16 +780,7 @@ export class Game {
         continue;
       }
 
-      let best: Enemy | null = null;
-      let bestDist = Infinity;
-      for (const e of this.enemies) {
-        if (e.hp <= 0) continue;
-        const d = dist({ x: tx, y: ty }, e);
-        if (d <= rangePx && d < bestDist) {
-          best = e;
-          bestDist = d;
-        }
-      }
+      const best = this.pickTarget({ x: tx, y: ty }, t.targeting, rangePx, new Set());
       if (!best) continue;
 
       const angle = Math.atan2(best.y - ty, best.x - tx);
@@ -779,6 +811,132 @@ export class Game {
     });
     if (spawned.length) this.enemies.push(...spawned);
     if (killed || minted) this.emitHud();
+  }
+
+  /** How far an enemy has walked. Higher means closer to the exit. */
+  private pathProgress(e: Enemy): number {
+    return e.pathIndex + e.progress;
+  }
+
+  /**
+   * Pick a living enemy inside range. An empty avoid set is ignored.
+   * If every candidate is avoided, fall back to the full list so a
+   * drone still attacks when only one enemy is left.
+   */
+  private pickTarget(
+    origin: Vec2,
+    mode: TargetMode,
+    rangePx: number,
+    avoid: Set<number>,
+  ): Enemy | null {
+    const inRange = this.enemies.filter(
+      (e) => e.hp > 0 && dist(origin, e) <= rangePx,
+    );
+    if (!inRange.length) return null;
+    const open = inRange.filter((e) => !avoid.has(e.id));
+    const list = open.length ? open : inRange;
+
+    if (mode === "first") {
+      return list.reduce((a, b) =>
+        this.pathProgress(b) > this.pathProgress(a) ? b : a,
+      );
+    }
+    if (mode === "last") {
+      return list.reduce((a, b) =>
+        this.pathProgress(b) < this.pathProgress(a) ? b : a,
+      );
+    }
+    if (mode === "strongest") {
+      return list.reduce((a, b) => (b.hp > a.hp ? b : a));
+    }
+    if (mode === "weakest") {
+      return list.reduce((a, b) => (b.hp < a.hp ? b : a));
+    }
+    return list.reduce((a, b) => (dist(origin, b) < dist(origin, a) ? b : a));
+  }
+
+  private steer(unit: Flyer, dest: Vec2, speed: number, dt: number): void {
+    const d = dist(unit, dest);
+    if (d < 1) return;
+    const step = Math.min(d, speed * dt);
+    unit.x += ((dest.x - unit.x) / d) * step;
+    unit.y += ((dest.y - unit.y) / d) * step;
+  }
+
+  /** Fly to the chosen enemy and keep hitting it until it is gone. */
+  private hunt(
+    tower: Tower,
+    unit: Flyer,
+    damage: number,
+    fireRate: number,
+    speed: number,
+    color: string,
+    slot: number,
+    avoid: Set<number>,
+    dt: number,
+  ): void {
+    let target =
+      this.enemies.find((e) => e.id === unit.targetId && e.hp > 0) ?? null;
+    if (!target) {
+      target = this.pickTarget(unit, tower.targeting, Infinity, avoid);
+      unit.targetId = target?.id ?? null;
+    }
+
+    if (!target) {
+      this.steer(unit, nestPoint(tower.col, tower.row, slot), speed, dt);
+      return;
+    }
+
+    if (dist(unit, target) > 28) {
+      this.steer(unit, target, speed, dt);
+      return;
+    }
+
+    const ang = slot < 0 ? -Math.PI / 2 : (slot * Math.PI * 2) / DRONE_COUNT;
+    unit.x = target.x + Math.cos(ang) * 12;
+    unit.y = target.y + Math.sin(ang) * 12;
+    unit.cooldown -= dt;
+    if (unit.cooldown > 0) return;
+    this.damageEnemy(target, damage);
+    unit.cooldown = 1 / Math.max(0.25, fireRate);
+    this.burst(target.x, target.y, color, slot < 0 ? 4 : 2);
+  }
+
+  private updateFlyingTower(
+    t: Tower,
+    stats: ReturnType<typeof combatStats>,
+    dt: number,
+  ): void {
+    if (!t.flyer) return;
+    const avoid = new Set<number>();
+    this.hunt(
+      t,
+      t.flyer,
+      stats.damage,
+      stats.fireRate,
+      FLY_SPEED,
+      stats.color,
+      -1,
+      avoid,
+      dt,
+    );
+    if (t.flyer.targetId !== null) avoid.add(t.flyer.targetId);
+    if (!t.special) return;
+    for (let i = 0; i < t.drones.length; i++) {
+      const drone = t.drones[i];
+      this.hunt(
+        t,
+        drone,
+        stats.damage * DRONE_DAMAGE_RATIO,
+        stats.fireRate * 0.9,
+        DRONE_SPEED,
+        "#e7b6f2",
+        i,
+        avoid,
+        dt,
+      );
+      if (drone.targetId !== null) avoid.add(drone.targetId);
+    }
   }
 
   private updateProjectiles(dt: number): void {
@@ -948,6 +1106,7 @@ export class Game {
     this.drawTowers(ctx);
     this.drawCarryingGhost(ctx);
     this.drawEnemies(ctx);
+    this.drawFlyers(ctx);
     this.drawProjectiles(ctx);
     this.drawParticles(ctx);
     this.drawBaseMarkers(ctx);
@@ -1118,7 +1277,7 @@ export class Game {
       const stats = combatStats(t);
       const selected = this.selectedTowerIndex === i;
 
-      if (!def.economy && (selected || t.special || t.cooldown < 0.15)) {
+      if (!def.economy && !def.flying && (selected || t.special || t.cooldown < 0.15)) {
         ctx.beginPath();
         ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
         if (t.special && t.kind === "frost") {
@@ -1201,6 +1360,14 @@ export class Game {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(investmentBank ? "B" : "G", 0, 1);
+    } else if (kind === "wasp") {
+      ctx.beginPath();
+      ctx.ellipse(-7, 0, 6, 2.4, -0.5, 0, Math.PI * 2);
+      ctx.ellipse(7, 0, 6, 2.4, 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+      ctx.fill();
     } else {
       ctx.beginPath();
       ctx.moveTo(0, -8);
@@ -1211,6 +1378,60 @@ export class Game {
       ctx.fill();
     }
     ctx.restore();
+  }
+
+  private drawCraft(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    color: string,
+    scale: number,
+  ): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(-8, 0, 7, 2.6, -0.45, 0, Math.PI * 2);
+    ctx.ellipse(8, 0, 7, 2.6, 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.beginPath();
+    ctx.arc(-1, -1, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawFlyers(ctx: CanvasRenderingContext2D): void {
+    for (const t of this.towers) {
+      if (!t.flyer) continue;
+      const pad = nestPoint(t.col, t.row, -1);
+      const selected = this.towers[this.selectedTowerIndex ?? -1] === t;
+      ctx.strokeStyle = selected
+        ? "rgba(196, 106, 212, 0.55)"
+        : "rgba(196, 106, 212, 0.28)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(pad.x, pad.y + 14);
+      ctx.lineTo(t.flyer.x, t.flyer.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      this.drawCraft(ctx, t.flyer.x, t.flyer.y, TOWER_DEFS.wasp.color, 1);
+      t.drones.forEach((d) => {
+        ctx.setLineDash([2, 4]);
+        ctx.strokeStyle = "rgba(231, 182, 242, 0.35)";
+        ctx.beginPath();
+        ctx.moveTo(t.flyer!.x, t.flyer!.y);
+        ctx.lineTo(d.x, d.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        this.drawCraft(ctx, d.x, d.y, "#e7b6f2", 0.62);
+      });
+    }
   }
 
   private drawEnemies(ctx: CanvasRenderingContext2D): void {
