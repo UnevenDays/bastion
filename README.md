@@ -5,7 +5,7 @@ A browser tower defense game with two modes:
 - **Bastion Defense** — classic roadside towers, upgrades, shovel, and bosses
 - **Dungeon Ambush** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
 
-## Play
+## Play locally
 
 ```bash
 npm install
@@ -13,6 +13,17 @@ npm run dev
 ```
 
 Open the URL Vite prints (default: `http://localhost:3847`).
+
+## Permanent hosting (GitHub Pages)
+
+This repo includes a GitHub Actions workflow that publishes the game to **GitHub Pages** on every push to `main`.
+
+1. Create / connect a **GitHub** repository for this project (in Cursor: use **Create repo** if you have not yet).
+2. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. Push to `main` (or re-run the **Deploy to GitHub Pages** workflow).
+4. Open the site URL GitHub shows (usually `https://<you>.github.io/<repo>/`).
+
+Until that is set up, temporary tunnel links from the cloud agent will expire when the session ends.
 
 ## How to play
 
