@@ -40,6 +40,8 @@ import {
   startingGold,
   startingLives,
   stormGuaranteesHit,
+  THIEF_STEAL,
+  thiefRefund,
   upgradeCost,
   waveEnemyCount,
 } from "./config";
@@ -736,6 +738,8 @@ export class Game {
       y,
       spawnTimer: def.kind === "spawner" ? 2.5 : 0,
       sinceDamage: 0,
+      stolen: 0,
+      stealTimer: 0,
     };
   }
 
@@ -855,6 +859,8 @@ export class Game {
         this.emitHud();
         continue;
       }
+
+      if (this.tickTheft(e, dt)) this.emitHud();
 
       if (e.hp > 0) survivors.push(e);
       else this.onEnemyDeath(e, spawned);
@@ -1438,8 +1444,26 @@ export class Game {
     e.sinceDamage = 0;
   }
 
+  /** A living thief takes a little loose gold once a second. */
+  private tickTheft(e: Enemy, dt: number): boolean {
+    if (e.kind !== "thief" || e.hp <= 0) return false;
+    e.stealTimer += dt;
+    let stole = false;
+    while (e.stealTimer >= 1) {
+      e.stealTimer -= 1;
+      const take = Math.min(THIEF_STEAL, this.gold);
+      if (take <= 0) continue;
+      this.gold -= take;
+      e.stolen += take;
+      stole = true;
+      this.burst(e.x, e.y - e.radius - 4, "#e8c547", 5);
+    }
+    return stole;
+  }
+
   private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
     this.gold += e.reward;
+    if (e.kind === "thief") this.gold += thiefRefund(e.stolen);
     const burstColor =
       e.kind === "challenger"
         ? "#d4a24a"
@@ -2127,6 +2151,16 @@ export class Game {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("SPAWN", e.x, e.y);
+      } else if (e.kind === "thief") {
+        ctx.fillStyle = "#e8c547";
+        ctx.beginPath();
+        ctx.arc(e.x + 5, e.y - 1, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a1408";
+        ctx.font = "700 8px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("$", e.x + 5, e.y - 1);
       }
 
       const barW = boss ? e.radius * 2.8 : e.radius * 2.2;

@@ -49,6 +49,13 @@ export const BANNER_CAP = 0.6;
 /** Wave-1 grunt health, before any wave scaling. */
 export const BASIC_GRUNT_HP = 40;
 
+/** Thief health before wave scaling. A step above the grunt. */
+export const THIEF_HP = 64;
+/** Loose gold a living thief takes once a second. */
+export const THIEF_STEAL = 1;
+/** Share of stolen gold paid back when a thief is killed. */
+export const THIEF_REFUND = 0.2;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -286,6 +293,11 @@ export function cloudStrikeDamage(damageLevel: number): number {
 /** Health a cloud loses each time an enemy in reach strikes back. */
 export function cloudStrikeBack(enemyMaxHp: number): number {
   return Math.max(6, Math.round(enemyMaxHp * 0.08));
+}
+
+/** Gold returned when a thief dies. A leak pays nothing back. */
+export function thiefRefund(stolen: number): number {
+  return Math.floor(Math.max(0, stolen) * THIEF_REFUND);
 }
 
 /** Cost to buy the next damage or speed upgrade for a tower. */
@@ -542,6 +554,13 @@ export function enemyForWave(
   const isSplitter = wave >= 3 && index % 6 === 3 && !isSpawner;
   const isTank = wave >= 4 && index % 5 === 4 && !isSpawner;
   const isFast = wave >= 3 && index % 4 === 2 && !isSplitter && !isSpawner;
+  const isThief =
+    wave >= 2 &&
+    index % 5 === 1 &&
+    !isSpawner &&
+    !isSplitter &&
+    !isTank &&
+    !isFast;
 
   if (isSpawner) {
     return applyHard(
@@ -597,6 +616,21 @@ export function enemyForWave(
         reward: 8 + Math.floor(wave / 2),
         radius: 9,
         color: "#d4a84b",
+        leakDamage: 1,
+      },
+      wave,
+      difficulty,
+    );
+  }
+  if (isThief) {
+    return applyHard(
+      {
+        kind: "thief",
+        hp: Math.round(THIEF_HP * scale),
+        speed: 110 + wave * 2,
+        reward: 10 + Math.floor(wave / 2),
+        radius: 12,
+        color: "#6e4b9a",
         leakDamage: 1,
       },
       wave,

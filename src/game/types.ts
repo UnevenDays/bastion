@@ -26,7 +26,8 @@ export type EnemyKind =
   | "spawner"
   | "boss"
   | "finalBoss"
-  | "challenger";
+  | "challenger"
+  | "thief";
 
 export interface TowerDef {
   kind: TowerKind;
@@ -122,6 +123,10 @@ export interface Enemy {
   spawnTimer: number;
   /** Seconds since this enemy last lost health. */
   sinceDamage: number;
+  /** Gold this thief has taken. Other enemies leave this at 0. */
+  stolen: number;
+  /** Seconds toward the next theft. */
+  stealTimer: number;
 }
 
 export interface Projectile {

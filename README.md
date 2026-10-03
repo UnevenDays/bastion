@@ -67,6 +67,7 @@ The **Wasp** costs 180 gold. It has no range circle. It flies a bit slower than 
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
 | Challenger | Endless only. Last enemy on waves 30, 40, 50, and every 10 after. On death, two bosses spawn |
+| Thief      | From wave 2. More health than a grunt, and faster than a runner. Steals 1 gold each second. Killing it returns 20% of the gold it took. If it leaks, that gold is gone |
 
 ### Level editor
 
