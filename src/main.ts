@@ -303,14 +303,30 @@ function syncBastionHud(hud: HudSnapshot): void {
     upgradeTitle.textContent = t.special
       ? `${t.name} · ${t.specialName}`
       : `${t.name} selected`;
-    upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
 
-    upgradeDamageBtn.textContent =
-      t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+    if (t.economy) {
+      const invested = bastion.towers[t.index]?.invested;
+      upgradeStats.textContent =
+        invested !== undefined
+          ? `Pays ${t.goldPerTick}g every ${t.goldInterval}s · Invested ${invested}g`
+          : `Pays ${t.goldPerTick}g every ${t.goldInterval}s`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Income Max" : `+ Income (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Rate Max" : `+ Payout Rate (${t.speedCost}g)`;
+      hintEl.textContent =
+        "Mint produces gold over time. Spend on Income / Rate / Midas Vault to earn more.";
+    } else {
+      upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
+      hintEl.textContent = `${t.specialName}: ${t.specialDescription}`;
+    }
+
     upgradeDamageBtn.disabled =
       !started || t.damageCost === null || !t.canAffordDamage;
-    upgradeSpeedBtn.textContent =
-      t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
     upgradeSpeedBtn.disabled =
       !started || t.speedCost === null || !t.canAffordSpeed;
     upgradeSpecialBtn.textContent =
@@ -322,7 +338,6 @@ function syncBastionHud(hud: HudSnapshot): void {
     upgradeSpecialBtn.title = t.specialDescription;
     sellBtn.textContent = `Sell (${t.sellRefund}g)`;
     sellBtn.disabled = !started || !hud.shovelReady;
-    hintEl.textContent = `${t.specialName}: ${t.specialDescription}`;
   } else if (!hud.carrying) {
     upgradeBar.classList.add("hidden");
     if (hud.tool === "shovel") {

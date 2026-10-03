@@ -292,6 +292,9 @@ body {
 .swatch.frost {
   background: var(--tower-frost);
 }
+.swatch.mint {
+  background: var(--gold);
+}
 .swatch.spikes {
   background: #c45c4a;
 }

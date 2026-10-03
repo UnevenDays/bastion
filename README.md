@@ -29,6 +29,7 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 | Archer | Hawk Eye — bigger range + attack aura, less shot dmg |
 | Cannon | Focus Charge — more damage, shorter range            |
 | Frost  | Glacier Field — area freeze aura, no damage          |
+| Mint   | Midas Vault — gold producer; invest to earn more     |
 
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|

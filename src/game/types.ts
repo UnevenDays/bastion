@@ -5,7 +5,7 @@ export type Difficulty = "normal" | "hard";
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon";
 
-export type TowerKind = "archer" | "cannon" | "frost";
+export type TowerKind = "archer" | "cannon" | "frost" | "mint";
 
 export type EnemyKind =
   | "normal"
@@ -29,6 +29,8 @@ export interface TowerDef {
   slow?: number; // multiplier, e.g. 0.5 = half speed
   slowDuration?: number;
   description: string;
+  /** Economy towers produce gold instead of fighting. */
+  economy?: boolean;
 }
 
 export interface SpecialUpgradeDef {

@@ -92,6 +92,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     slowDuration: 1.6,
     description: "Slows enemies on hit",
   },
+  mint: {
+    kind: "mint",
+    name: "Mint",
+    cost: 65,
+    range: 0,
+    damage: 0,
+    fireRate: 0.22,
+    color: "#e8c547",
+    projectileSpeed: 0,
+    description: "Produces gold; invest upgrades to earn more",
+    economy: true,
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -110,7 +122,21 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     description: "Area freeze aura, stops dealing damage",
     costMultiplier: 1.3,
   },
+  mint: {
+    name: "Midas Vault",
+    description: "Bigger payouts from every gold tick",
+    costMultiplier: 1.4,
+  },
 };
+
+/** Gold paid per Mint tick, and seconds between ticks. Scales with investment. */
+export function mintIncome(t: Tower): { amount: number; interval: number } {
+  const investBonus = Math.floor(t.invested / 90);
+  let amount = 5 + t.damageLevel * 4 + investBonus;
+  let interval = 4.2 / (1 + t.speedLevel * 0.28);
+  if (t.special) amount = Math.round(amount * 1.45);
+  return { amount, interval: Math.max(1.4, interval) };
+}
 
 export function specialCost(kind: TowerKind): number {
   return Math.round(
@@ -147,6 +173,24 @@ export interface CombatStats {
 
 export function combatStats(t: Tower): CombatStats {
   const def = TOWER_DEFS[t.kind];
+
+  if (def.economy) {
+    const income = mintIncome(t);
+    return {
+      range: 0,
+      damage: 0,
+      fireRate: 1 / income.interval,
+      splash: 0,
+      slow: 0,
+      slowDuration: 0,
+      auraDamage: 0,
+      auraFreeze: false,
+      firesProjectiles: false,
+      color: def.color,
+      projectileSpeed: 0,
+    };
+  }
+
   let range = def.range;
   let damage = def.damage * damageMultiplier(t.damageLevel);
   const fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);

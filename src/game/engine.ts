@@ -9,6 +9,7 @@ import {
   MAX_UPGRADE,
   combatStats,
   enemyForWave,
+  mintIncome,
   sellValue,
   specialCost,
   spawnInterval,
@@ -51,6 +52,9 @@ export interface SelectedTowerInfo {
   specialCost: number | null;
   canAffordSpecial: boolean;
   sellRefund: number;
+  economy: boolean;
+  goldPerTick: number;
+  goldInterval: number;
 }
 
 export interface HudSnapshot {
@@ -133,6 +137,7 @@ export class Game {
     const def = TOWER_DEFS[t.kind];
     const special = SPECIAL_UPGRADES[t.kind];
     const stats = combatStats(t);
+    const income = def.economy ? mintIncome(t) : null;
     const dCost =
       t.damageLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.damageLevel)
@@ -159,6 +164,9 @@ export class Game {
       specialCost: spCost,
       canAffordSpecial: spCost !== null && this.gold >= spCost,
       sellRefund: sellValue(t.invested),
+      economy: !!def.economy,
+      goldPerTick: income?.amount ?? 0,
+      goldInterval: income ? Math.round(income.interval * 10) / 10 : 0,
     };
   }
 
@@ -336,16 +344,26 @@ export class Game {
     if (this.gold < def.cost) return false;
 
     this.gold -= def.cost;
-    this.towers.push({
+    const tower: Tower = {
       col,
       row,
       kind: this.selected,
-      cooldown: 0,
+      cooldown: def.economy ? mintIncome({
+        col,
+        row,
+        kind: this.selected,
+        cooldown: 0,
+        damageLevel: 0,
+        speedLevel: 0,
+        special: false,
+        invested: def.cost,
+      }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
       special: false,
       invested: def.cost,
-    });
+    };
+    this.towers.push(tower);
     this.towerOccupied.add(key);
     this.selectedTowerIndex = this.towers.length - 1;
     this.burst(col * CELL + CELL / 2, row * CELL + CELL / 2, def.color, 8);
@@ -565,11 +583,26 @@ export class Game {
   }
 
   private updateTowers(dt: number): void {
+    let minted = false;
     for (const t of this.towers) {
+      const def = TOWER_DEFS[t.kind];
       const stats = combatStats(t);
       const tx = t.col * CELL + CELL / 2;
       const ty = t.row * CELL + CELL / 2;
       const rangePx = stats.range * CELL;
+
+      // Mint: invest upgrades → larger / faster gold payouts
+      if (def.economy) {
+        t.cooldown = Math.max(0, t.cooldown - dt);
+        if (t.cooldown <= 0) {
+          const income = mintIncome(t);
+          this.gold += income.amount;
+          t.cooldown = income.interval;
+          minted = true;
+          this.burst(tx, ty - 8, "#e8c547", 8);
+        }
+        continue;
+      }
 
       // Continuous auras (archer damage / frost freeze)
       if (stats.auraDamage > 0 || stats.auraFreeze) {
@@ -637,7 +670,7 @@ export class Game {
       return false;
     });
     if (spawned.length) this.enemies.push(...spawned);
-    if (killed) this.emitHud();
+    if (killed || minted) this.emitHud();
   }
 
   private updateProjectiles(dt: number): void {
@@ -933,13 +966,15 @@ export class Game {
     ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.2)" : "rgba(232, 93, 74, 0.25)";
     ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
 
-    ctx.beginPath();
-    ctx.arc(cx, cy, def.range * CELL, 0, Math.PI * 2);
-    ctx.strokeStyle = valid
-      ? "rgba(232, 197, 71, 0.45)"
-      : "rgba(232, 93, 74, 0.4)";
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    if (!def.economy && def.range > 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, def.range * CELL, 0, Math.PI * 2);
+      ctx.strokeStyle = valid
+        ? "rgba(232, 197, 71, 0.45)"
+        : "rgba(232, 93, 74, 0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
 
     ctx.fillStyle = valid ? def.color : "#666";
     ctx.globalAlpha = 0.7;
@@ -968,7 +1003,7 @@ export class Game {
       const stats = combatStats(t);
       const selected = this.selectedTowerIndex === i;
 
-      if (selected || t.special || t.cooldown < 0.15) {
+      if (!def.economy && (selected || t.special || t.cooldown < 0.15)) {
         ctx.beginPath();
         ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
         if (t.special && t.kind === "frost") {
@@ -1041,6 +1076,15 @@ export class Game {
       ctx.arc(0, 0, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillRect(2, -3, 10, 6);
+    } else if (kind === "mint") {
+      ctx.beginPath();
+      ctx.arc(0, 0, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1a1508";
+      ctx.font = "700 11px 'Chakra Petch', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("G", 0, 1);
     } else {
       ctx.beginPath();
       ctx.moveTo(0, -8);
