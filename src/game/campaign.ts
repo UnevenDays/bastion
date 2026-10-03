@@ -1,4 +1,5 @@
 import { PATH, TOTAL_WAVES } from "./config";
+import type { PatternKind } from "./types";
 
 export interface CampaignCell {
   col: number;
@@ -28,7 +29,22 @@ export interface CampaignLevel {
   road: { edge: string; fill: string; dash: string };
   /** Soft tint over the grass. Empty on the original four roads. */
   wash: string;
+  /** Three enemy patterns. Each one sends one to four kinds. */
+  warrants: readonly [LevelWarrant, LevelWarrant, LevelWarrant];
 }
+
+export interface LevelWarrant {
+  id: string;
+  name: string;
+  /** Spawn order. The first kind leads. One to four, with no repeats. */
+  enemies: WarrantEnemies;
+}
+
+type WarrantEnemies =
+  | readonly [PatternKind]
+  | readonly [PatternKind, PatternKind]
+  | readonly [PatternKind, PatternKind, PatternKind]
+  | readonly [PatternKind, PatternKind, PatternKind, PatternKind];
 
 const DIRT = {
   edge: "#5a4a35",
@@ -68,6 +84,11 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "tufts",
     road: DIRT,
     wash: "",
+    warrants: [
+      { id: "red-column", name: "Red Column", enemies: ["normal", "fast", "tank", "sapper"] },
+      { id: "cutpurse", name: "Cutpurse Line", enemies: ["normal", "thief", "splitter"] },
+      { id: "runner-nest", name: "Runner Nest", enemies: ["fast", "spawner"] },
+    ],
   },
   {
     id: "switchback",
@@ -87,6 +108,11 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "stripes",
     road: DIRT,
     wash: "",
+    warrants: [
+      { id: "sprinters", name: "Sprinters", enemies: ["fast", "thief"] },
+      { id: "iron-fold", name: "Iron Fold", enemies: ["tank", "splitter", "normal"] },
+      { id: "breach-crew", name: "Breach Crew", enemies: ["sapper", "fast", "tank", "thief"] },
+    ],
   },
   {
     id: "marsh",
@@ -128,6 +154,11 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "marsh",
     road: DIRT,
     wash: "",
+    warrants: [
+      { id: "bog-shields", name: "Bog Shields", enemies: ["tank", "spawner", "normal"] },
+      { id: "reed-split", name: "Reed Split", enemies: ["normal", "splitter", "sapper"] },
+      { id: "flood-purse", name: "Flood Purse", enemies: ["thief", "tank", "fast", "spawner"] },
+    ],
   },
   {
     id: "causeway",
@@ -149,6 +180,11 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "cobble",
     road: DIRT,
     wash: "",
+    warrants: [
+      { id: "long-split", name: "Long Split", enemies: ["splitter", "fast", "normal"] },
+      { id: "bulwark", name: "Bulwark", enemies: ["tank"] },
+      { id: "hole-hive", name: "Hole and Hive", enemies: ["sapper", "spawner", "thief"] },
+    ],
   },
   {
     id: "orchard",
@@ -174,6 +210,11 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(244, 190, 200, 0.4)",
     },
     wash: "rgba(255, 186, 196, 0.08)",
+    warrants: [
+      { id: "petal-rush", name: "Petal Rush", enemies: ["fast", "normal", "thief"] },
+      { id: "bloom-nest", name: "Bloom Nest", enemies: ["splitter", "spawner"] },
+      { id: "root-crew", name: "Root Crew", enemies: ["tank", "sapper", "splitter", "thief"] },
+    ],
   },
   {
     id: "quarry",
@@ -199,6 +240,11 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(214, 218, 210, 0.32)",
     },
     wash: "rgba(170, 196, 206, 0.07)",
+    warrants: [
+      { id: "stone-line", name: "Stone Line", enemies: ["tank", "normal", "splitter", "sapper"] },
+      { id: "dust-pockets", name: "Dust Pockets", enemies: ["thief", "splitter"] },
+      { id: "pit-hive", name: "Pit Hive", enemies: ["spawner", "tank"] },
+    ],
   },
   {
     id: "night",
@@ -224,6 +270,11 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(232, 208, 140, 0.4)",
     },
     wash: "rgba(16, 14, 36, 0.2)",
+    warrants: [
+      { id: "lantern-thieves", name: "Lantern Thieves", enemies: ["thief", "sapper", "fast"] },
+      { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"] },
+      { id: "single-spark", name: "Single Spark", enemies: ["fast"] },
+    ],
   },
 ];
 

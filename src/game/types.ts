@@ -35,6 +35,16 @@ export type EnemyKind =
   | "thief"
   | "sapper";
 
+/** Kinds a road warrant may send. Bosses are added by the wave, not by the warrant. */
+export type PatternKind =
+  | "normal"
+  | "fast"
+  | "tank"
+  | "splitter"
+  | "spawner"
+  | "thief"
+  | "sapper";
+
 export interface TowerDef {
   kind: TowerKind;
   name: string;

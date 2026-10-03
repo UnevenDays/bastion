@@ -9,7 +9,7 @@ import { LawnGame, type LawnHud } from "./game/lawnEngine";
 import { CAMPAIGN } from "./game/campaign";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
-import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
+import type { Difficulty, GameMode, PatternKind, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.classList.add("at-gate");
@@ -61,6 +61,7 @@ app.innerHTML = `
     <div class="brand-wrap">
       <div class="brand" id="brand-title">Bastion Breach</div>
       <span class="mode-badge hidden" id="mode-badge">Hard</span>
+      <span class="mode-badge warrant hidden" id="warrant-badge">Red Column</span>
     </div>
     <div class="stats" id="stats">
       <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
@@ -84,9 +85,12 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Seven roads. Each one after the first is longer, and each road has its own ground and tiles. Marsh has water you cannot build on.</p>
+            <p class="mode-blurb" id="start-desc">Seven roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Marsh has water you cannot build on.</p>
             <p class="roster-note" id="roster-note"></p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
+            <p class="warrant-label">Warrant</p>
+            <div class="warrant-picker" id="warrant-picker" role="group" aria-label="Warrant"></div>
+            <p class="warrant-blurb" id="warrant-blurb"></p>
             <div id="menu-board" class="score-board hidden">
               <p class="score-title">Endless leaderboard</p>
               <p class="score-note">Saved on this browser. Highest wave, then gold.</p>
@@ -316,6 +320,9 @@ const toolbarLawn = document.querySelector<HTMLElement>("#toolbar-lawn")!;
 const lawnCard = document.querySelector<HTMLButtonElement>("#minigame-lawn")!;
 const dungeonCard = document.querySelector<HTMLButtonElement>("#minigame-dungeon")!;
 const levelPicker = document.querySelector<HTMLElement>("#level-picker")!;
+const warrantPicker = document.querySelector<HTMLElement>("#warrant-picker")!;
+const warrantBlurb = document.querySelector<HTMLElement>("#warrant-blurb")!;
+const warrantBadge = document.querySelector<HTMLElement>("#warrant-badge")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
 const modeHardBtn = document.querySelector<HTMLButtonElement>("#mode-hard")!;
 const modeEndlessBtn =
@@ -375,6 +382,7 @@ function showStage(stage: "boot" | "home" | "draft" | "menu" | "play"): void {
   app.classList.toggle("at-gate", !inMatch);
   if (stage !== "menu") startOverlay.classList.add("hidden");
   if (stage === "menu") startOverlay.classList.remove("hidden");
+  if (stage !== "play") warrantBadge.classList.add("hidden");
 }
 
 function runLoad(then: () => void): void {
@@ -463,6 +471,7 @@ let started = false;
 let chosenDifficulty: Difficulty = "normal";
 let chosenMode: GameMode = "bastion";
 let chosenLevel = "road";
+const warrantByLevel = new Map<string, number>();
 let activeMode: GameMode = "bastion";
 let menuView: "classic" | "minigames" | "editor" = "classic";
 let activeLevel: CustomLevel | null = null;
@@ -632,6 +641,9 @@ function syncBastionHud(hud: HudSnapshot): void {
     modeBadge.classList.add("regen");
     modeBadge.textContent = "Regen";
   }
+
+  warrantBadge.textContent = hud.warrantName;
+  warrantBadge.classList.toggle("hidden", !started || hud.custom || !hud.warrantName);
 
   waveBtn.disabled =
     !started ||
@@ -895,6 +907,7 @@ function syncDungeonHud(hud: DungeonHud): void {
 
   modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
+  warrantBadge.classList.add("hidden");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
   dwaveBtn.disabled =
@@ -963,6 +976,7 @@ function syncLawnHud(hud: LawnHud): void {
 
   modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
+  warrantBadge.classList.add("hidden");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
   const peace = hud.peaceLeft > 0;
@@ -1091,6 +1105,23 @@ bastion.onHudChange = syncBastionHud;
 dungeon.onHudChange = syncDungeonHud;
 lawn.onHudChange = syncLawnHud;
 
+function patternLabel(kind: PatternKind): string {
+  if (kind === "normal") return "Grunts";
+  if (kind === "fast") return "Runners";
+  if (kind === "tank") return "Tanks";
+  if (kind === "splitter") return "Splitters";
+  if (kind === "spawner") return "Spawners";
+  if (kind === "thief") return "Thieves";
+  return "Sappers";
+}
+
+function patternList(kinds: readonly PatternKind[]): string {
+  const names = kinds.map(patternLabel);
+  if (names.length <= 1) return names[0] ?? "Grunts";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
 function paintLevels(): void {
   levelPicker.innerHTML = CAMPAIGN.map((level) => {
     const water = level.water.length > 0 ? " · water" : "";
@@ -1099,6 +1130,22 @@ function paintLevels(): void {
       <span class="level-meta">${level.waves} waves${water}</span>
     </button>`;
   }).join("");
+  paintWarrants();
+}
+
+function paintWarrants(): void {
+  const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
+  const picked = warrantByLevel.get(level.id) ?? 0;
+  warrantPicker.innerHTML = level.warrants
+    .map((warrant, index) => {
+      return `<button class="warrant-btn${index === picked ? " selected" : ""}" type="button" data-warrant="${index}">
+        <span class="level-name">${warrant.name}</span>
+        <span class="level-meta">${patternList(warrant.enemies)}</span>
+      </button>`;
+    })
+    .join("");
+  const warrant = level.warrants[picked] ?? level.warrants[0]!;
+  warrantBlurb.textContent = `${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.`;
 }
 
 syncGameModeButtons("bastion");
@@ -1111,6 +1158,15 @@ levelPicker.addEventListener("click", (event) => {
   if (!btn?.dataset.level) return;
   chosenLevel = btn.dataset.level;
   paintLevels();
+});
+
+warrantPicker.addEventListener("click", (event) => {
+  const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(".warrant-btn");
+  if (!btn?.dataset.warrant) return;
+  const index = Number(btn.dataset.warrant);
+  if (!Number.isInteger(index)) return;
+  warrantByLevel.set(chosenLevel, index);
+  paintWarrants();
 });
 
 modeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
@@ -1250,7 +1306,7 @@ function startChosen(): void {
   } else if (chosenMode === "bastion") {
     activeLevel = null;
     bastion.setRoster(loadout);
-    bastion.beginRun(chosenDifficulty, chosenLevel);
+    bastion.beginRun(chosenDifficulty, chosenLevel, warrantByLevel.get(chosenLevel) ?? 0);
     bastion.selectTower(loadout[0] ?? null);
   } else if (chosenMode === "lawn") {
     lawn.beginRun(chosenDifficulty);

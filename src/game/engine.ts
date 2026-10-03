@@ -152,6 +152,8 @@ export interface HudSnapshot {
   hasWater: boolean;
   /** Endless rule for this wave, or the next one while you are between waves. */
   mutator: EndlessMutator;
+  /** Warrant chosen for this road. Empty on an editor level. */
+  warrantName: string;
 }
 
 function pathKey(col: number, row: number): string {
@@ -200,6 +202,7 @@ export class Game {
   }));
   private custom: CustomLevel | null = null;
   private campaign: CampaignLevel = campaignById("road");
+  private warrantIndex = 0;
   private water = new Set<string>();
   private grassA = "#1e3a28";
   private grassB = "#1a3324";
@@ -334,6 +337,7 @@ export class Game {
         this.difficulty === "endless" && !this.custom
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
           : "none",
+      warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -810,10 +814,28 @@ export class Game {
     this.emitHud();
   }
 
-  beginRun(difficulty: Difficulty, levelId = "road"): void {
+  beginRun(difficulty: Difficulty, levelId = "road", warrant = 0): void {
     this.custom = null;
     this.applyCampaign(campaignById(levelId));
+    this.warrantIndex = this.clampWarrant(warrant);
     this.restart(difficulty);
+  }
+
+  /** The road's enemy pattern. 0, 1, or 2. */
+  setWarrant(index: number): void {
+    this.warrantIndex = this.clampWarrant(index);
+    this.emitHud();
+  }
+
+  private clampWarrant(index: number): number {
+    const count = this.campaign.warrants.length || 1;
+    if (!Number.isFinite(index)) return 0;
+    const next = Math.floor(index);
+    return ((next % count) + count) % count;
+  }
+
+  private activeWarrant() {
+    return this.campaign.warrants[this.warrantIndex] ?? this.campaign.warrants[0];
   }
 
   /** Play a road, purse, and enemy list from the level editor. */
@@ -961,7 +983,13 @@ export class Game {
     const index = this.queuedSpawns() - this.spawnQueue;
     const def = this.custom
       ? customEnemyAt(this.custom, this.wave, index)
-      : enemyForWave(this.wave, index, this.difficulty, this.campaign.waves);
+      : enemyForWave(
+          this.wave,
+          index,
+          this.difficulty,
+          this.campaign.waves,
+          this.activeWarrant()?.enemies,
+        );
     const start = this.waypoints[0];
     this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;

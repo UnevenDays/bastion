@@ -1,6 +1,7 @@
 import type {
   Difficulty,
   EnemyDef,
+  PatternKind,
   SpecialUpgradeDef,
   Tower,
   TowerDef,
@@ -759,14 +760,126 @@ export function bossDef(wave: number, difficulty: Difficulty = "normal"): EnemyD
   );
 }
 
+/**
+ * Which roster kind owns this spawn.
+ * The first kind takes every even slot. The other kinds take turns in the odd slots.
+ */
+export function patternEnemy(roster: readonly PatternKind[], index: number): PatternKind {
+  const lead = roster[0] ?? "normal";
+  if (roster.length <= 1) return lead;
+  if (index % 2 === 0) return lead;
+  const extra = roster.slice(1);
+  return extra[Math.floor(index / 2) % extra.length] ?? lead;
+}
+
+function legacyPattern(wave: number, index: number): PatternKind {
+  if (wave >= 4 && index === 0) return "sapper";
+  const isSpawner = wave >= 5 && index % 7 === 5;
+  const isSplitter = wave >= 3 && index % 6 === 3 && !isSpawner;
+  const isTank = wave >= 4 && index % 5 === 4 && !isSpawner;
+  const isFast = wave >= 3 && index % 4 === 2 && !isSplitter && !isSpawner;
+  const isThief =
+    wave >= 2 &&
+    index % 5 === 1 &&
+    !isSpawner &&
+    !isSplitter &&
+    !isTank &&
+    !isFast;
+  if (isSpawner) return "spawner";
+  if (isSplitter) return "splitter";
+  if (isTank) return "tank";
+  if (isFast) return "fast";
+  if (isThief) return "thief";
+  return "normal";
+}
+
+function fodderDef(kind: PatternKind, wave: number): EnemyDef {
+  const scale = 1 + (wave - 1) * 0.22;
+  if (kind === "sapper") {
+    return {
+      kind,
+      hp: Math.round(SAPPER_HP * scale),
+      speed: SAPPER_SPEED,
+      reward: 8 + wave,
+      radius: 13,
+      color: "#c46a2a",
+      leakDamage: 1,
+    };
+  }
+  if (kind === "spawner") {
+    return {
+      kind,
+      hp: Math.round(110 * scale),
+      speed: 38,
+      reward: 18 + wave * 2,
+      radius: 15,
+      color: "#6a7a3a",
+      leakDamage: 2,
+    };
+  }
+  if (kind === "splitter") {
+    return {
+      kind,
+      hp: Math.round(55 * scale),
+      speed: NORMAL_SPEED,
+      reward: 10 + wave,
+      radius: 13,
+      color: "#c978c0",
+      leakDamage: 1,
+    };
+  }
+  if (kind === "tank") {
+    return {
+      kind,
+      hp: Math.round(90 * scale),
+      speed: 42,
+      reward: 12 + wave,
+      radius: 14,
+      color: "#8b5a3c",
+      leakDamage: 1,
+    };
+  }
+  if (kind === "fast") {
+    return {
+      kind,
+      hp: Math.round(28 * scale),
+      speed: 95 + wave * 2,
+      reward: 8 + Math.floor(wave / 2),
+      radius: 9,
+      color: "#d4a84b",
+      leakDamage: 1,
+    };
+  }
+  if (kind === "thief") {
+    return {
+      kind,
+      hp: Math.round(THIEF_HP * scale),
+      speed: 110 + wave * 2,
+      reward: 10 + Math.floor(wave / 2),
+      radius: 12,
+      color: "#6e4b9a",
+      leakDamage: 1,
+    };
+  }
+  return {
+    kind: "normal",
+    hp: Math.round(BASIC_GRUNT_HP * scale),
+    speed: NORMAL_SPEED + wave,
+    reward: 6 + Math.floor(wave / 2),
+    radius: 11,
+    color: "#c45c4a",
+    leakDamage: 1,
+  };
+}
+
 export function enemyForWave(
   wave: number,
   index: number,
   difficulty: Difficulty = "normal",
   lastWave = TOTAL_WAVES,
+  roster?: readonly PatternKind[],
 ): EnemyDef {
   const count = waveEnemyCount(wave, difficulty);
-  const scale = 1 + (wave - 1) * 0.22;
 
   if (
     difficulty === "endless" &&
@@ -810,123 +923,11 @@ export function enemyForWave(
     return bossDef(wave, difficulty);
   }
 
-  // The lead enemy from wave 4 stops on one tower and opens a hole in a carpet.
-  if (wave >= 4 && index === 0) {
-    return applyHard(
-      {
-        kind: "sapper",
-        hp: Math.round(SAPPER_HP * scale),
-        speed: SAPPER_SPEED,
-        reward: 8 + wave,
-        radius: 13,
-        color: "#c46a2a",
-        leakDamage: 1,
-      },
-      wave,
-      difficulty,
-    );
-  }
-
-  const isSpawner = wave >= 5 && index % 7 === 5;
-  const isSplitter = wave >= 3 && index % 6 === 3 && !isSpawner;
-  const isTank = wave >= 4 && index % 5 === 4 && !isSpawner;
-  const isFast = wave >= 3 && index % 4 === 2 && !isSplitter && !isSpawner;
-  const isThief =
-    wave >= 2 &&
-    index % 5 === 1 &&
-    !isSpawner &&
-    !isSplitter &&
-    !isTank &&
-    !isFast;
-
-  if (isSpawner) {
-    return applyHard(
-      {
-        kind: "spawner",
-        hp: Math.round(110 * scale),
-        speed: 38,
-        reward: 18 + wave * 2,
-        radius: 15,
-        color: "#6a7a3a",
-        leakDamage: 2,
-      },
-      wave,
-      difficulty,
-    );
-  }
-  if (isSplitter) {
-    return applyHard(
-      {
-        kind: "splitter",
-        hp: Math.round(55 * scale),
-        speed: NORMAL_SPEED,
-        reward: 10 + wave,
-        radius: 13,
-        color: "#c978c0",
-        leakDamage: 1,
-      },
-      wave,
-      difficulty,
-    );
-  }
-  if (isTank) {
-    return applyHard(
-      {
-        kind: "tank",
-        hp: Math.round(90 * scale),
-        speed: 42,
-        reward: 12 + wave,
-        radius: 14,
-        color: "#8b5a3c",
-        leakDamage: 1,
-      },
-      wave,
-      difficulty,
-    );
-  }
-  if (isFast) {
-    return applyHard(
-      {
-        kind: "fast",
-        hp: Math.round(28 * scale),
-        speed: 95 + wave * 2,
-        reward: 8 + Math.floor(wave / 2),
-        radius: 9,
-        color: "#d4a84b",
-        leakDamage: 1,
-      },
-      wave,
-      difficulty,
-    );
-  }
-  if (isThief) {
-    return applyHard(
-      {
-        kind: "thief",
-        hp: Math.round(THIEF_HP * scale),
-        speed: 110 + wave * 2,
-        reward: 10 + Math.floor(wave / 2),
-        radius: 12,
-        color: "#6e4b9a",
-        leakDamage: 1,
-      },
-      wave,
-      difficulty,
-    );
-  }
-  return applyHard(
-    {
-      kind: "normal",
-      hp: Math.round(BASIC_GRUNT_HP * scale),
-      speed: NORMAL_SPEED + wave,
-      reward: 6 + Math.floor(wave / 2),
-      radius: 11,
-      color: "#c45c4a",
-      leakDamage: 1,
-    },
-    wave,
-    difficulty,
-  );
+  const kind =
+    roster && roster.length > 0
+      ? patternEnemy(roster, index)
+      : legacyPattern(wave, index);
+  return applyHard(fodderDef(kind, wave), wave, difficulty);
 }
 
 /** Children spawned when a splitter dies — normal speed, no further splits. */
