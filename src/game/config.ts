@@ -651,6 +651,35 @@ export function isChallengerWave(wave: number): boolean {
   return wave >= 30 && wave % 10 === 0;
 }
 
+/** A rule laid on top of the endless health ramp. Waves before 15 have none. */
+export type EndlessMutator = "none" | "armor" | "marked";
+
+/**
+ * From wave 15, every five waves alternate.
+ * Armor, then a marked pack, then armor again.
+ */
+export function endlessMutator(wave: number): EndlessMutator {
+  if (wave < 15) return "none";
+  const block = Math.floor((wave - 15) / 5);
+  return block % 2 === 0 ? "armor" : "marked";
+}
+
+/** Damage an armored enemy soaks from each hit. Bosses are not armored. */
+export function endlessArmor(wave: number): number {
+  if (endlessMutator(wave) !== "armor") return 0;
+  return 8 + Math.floor((wave - 15) / 10) * 2;
+}
+
+/**
+ * Subtract armor from a hit, but always leave at least a fifth of it
+ * so a small burn tick is weakened instead of erased or inflated.
+ */
+export function soakArmor(amount: number, armor: number): number {
+  if (armor <= 0 || amount <= 0) return amount;
+  const soaked = Math.min(armor, amount * 0.8);
+  return amount - soaked;
+}
+
 export function waveEnemyCount(
   wave: number,
   difficulty: Difficulty = "normal",

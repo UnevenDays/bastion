@@ -30,6 +30,10 @@ import {
   chompSleepSeconds,
   combatStats,
   endlessDrought,
+  endlessArmor,
+  endlessMutator,
+  soakArmor,
+  type EndlessMutator,
   enemyForWave,
   makeFlyer,
   mintIncome,
@@ -142,6 +146,8 @@ export interface HudSnapshot {
   levelName: string;
   /** This road has water that cannot hold a tower. */
   hasWater: boolean;
+  /** Endless rule for this wave, or the next one while you are between waves. */
+  mutator: EndlessMutator;
 }
 
 function pathKey(col: number, row: number): string {
@@ -317,6 +323,10 @@ export class Game {
       custom: this.custom !== null,
       levelName: this.custom ? "" : this.campaign.name,
       hasWater: !this.custom && this.campaign.water.length > 0,
+      mutator:
+        this.difficulty === "endless" && !this.custom
+          ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
+          : "none",
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -870,6 +880,7 @@ export class Game {
       stealTimer: 0,
       burnTimer: 0,
       burnDps: 0,
+      burnFromStrongest: false,
     };
   }
 
@@ -934,11 +945,12 @@ export class Game {
         e.slowTimer -= dt;
         e.burnTimer = 0;
         e.burnDps = 0;
+        e.burnFromStrongest = false;
         if (e.slowTimer <= 0) e.speed = e.baseSpeed;
       } else if (e.burnTimer > 0 && e.hp > 0) {
         const step = Math.min(dt, e.burnTimer);
         e.burnTimer -= dt;
-        this.damageEnemy(e, e.burnDps * step);
+        this.damageEnemy(e, e.burnDps * step, e.burnFromStrongest);
         if (e.burnTimer <= 0) {
           e.burnTimer = 0;
           e.burnDps = 0;
@@ -1108,14 +1120,17 @@ export class Game {
 
       // Continuous auras (archer damage / frost freeze)
       if (stats.auraDamage > 0 || stats.auraFreeze) {
+        const allowed = this.towerIsStrongest(t);
         for (const e of this.enemies) {
           if (dist({ x: tx, y: ty }, e) > rangePx) continue;
+          if (this.markedWave() && !allowed) continue;
           if (stats.auraDamage > 0) {
-            this.damageEnemy(e, stats.auraDamage * dt);
+            this.damageEnemy(e, stats.auraDamage * dt, allowed);
           }
           if (t.kind === "pyro" && e.hp > 0 && e.slowTimer <= 0) {
             e.burnTimer = Math.max(e.burnTimer, PYRO_BURN_TIME);
             e.burnDps = Math.max(e.burnDps, pyroBurnDps(stats.damage));
+            e.burnFromStrongest = allowed;
           }
           if (stats.auraFreeze) {
             e.speed = e.baseSpeed * stats.slow;
@@ -1163,6 +1178,7 @@ export class Game {
         life: def.sniper ? 8 : 1.2,
         fire: t.kind === "pyro",
         heavy: def.sniper,
+        strongest: this.towerIsStrongest(t),
       });
       t.cooldown = 1 / stats.fireRate;
     }
@@ -1191,6 +1207,7 @@ export class Game {
       if (t.cooldown === 0) this.emitHud();
       return;
     }
+    if (this.markedWave() && !this.towerIsStrongest(t)) return;
 
     const stats = this.effectiveStats(t);
     const tx = t.col * CELL + CELL / 2;
@@ -1239,7 +1256,7 @@ export class Game {
       const enemyAngle = Math.atan2(e.y - ty, e.x - tx);
       for (let i = 0; i < count; i++) {
         if (!maceSweepHits(prev + i * span, t.orbit + i * span, enemyAngle)) continue;
-        this.damageEnemy(e, stats.damage);
+        this.damageEnemy(e, stats.damage, this.towerIsStrongest(t));
         this.burst(e.x, e.y, stats.color, 3);
       }
     }
@@ -1253,7 +1270,7 @@ export class Game {
 
     t.cooldown = Math.max(0, t.cooldown - dt);
     if (t.cooldown <= 0) {
-      this.fireStorm(stats.damage, tx, ty);
+      this.fireStorm(t, stats.damage, tx, ty);
       t.cooldown = 1 / Math.max(0.05, stats.fireRate);
     }
 
@@ -1265,12 +1282,13 @@ export class Game {
   }
 
   /** A lightning sticker. One in four strikes is guaranteed to hit a living enemy. */
-  private fireStorm(damage: number, tx: number, ty: number): void {
+  private fireStorm(t: Tower, damage: number, tx: number, ty: number): void {
     const living = this.enemies.filter((e) => e.hp > 0);
+    const allowed = this.towerIsStrongest(t);
     const sure = stormGuaranteesHit(Math.random()) && living.length > 0;
     if (sure) {
       const foe = living[Math.floor(Math.random() * living.length)]!;
-      this.damageEnemy(foe, damage);
+      this.damageEnemy(foe, damage, allowed);
       this.addSticker(foe.x, foe.y, tx, ty, true);
       this.burst(foe.x, foe.y, "#d7f1ff", 8);
       return;
@@ -1282,7 +1300,7 @@ export class Game {
     let hit = false;
     for (const e of living) {
       if (dist({ x, y }, e) <= STORM_SPLASH) {
-        this.damageEnemy(e, damage);
+        this.damageEnemy(e, damage, allowed);
         hit = true;
       }
     }
@@ -1545,7 +1563,7 @@ export class Game {
     unit.y = target.y + Math.sin(ang) * 12;
     unit.cooldown -= dt;
     if (unit.cooldown > 0) return;
-    this.damageEnemy(target, damage);
+    this.damageEnemy(target, damage, this.towerIsStrongest(tower));
     unit.cooldown = 1 / Math.max(0.25, fireRate);
     this.burst(target.x, target.y, color, slot < 0 ? 4 : 2);
   }
@@ -1636,15 +1654,21 @@ export class Game {
       p.splash > 0
         ? this.enemies.filter((e) => dist(primary, e) <= p.splash)
         : [primary];
+    const allowed = !this.markedWave() || p.strongest;
 
     for (const e of targets) {
-      if (p.fire) this.applyFire(e, p.damage);
-      else this.damageEnemy(e, p.damage);
+      if (!allowed) {
+        this.burst(e.x, e.y, "#8a938c", 3);
+        continue;
+      }
+      if (p.fire) this.applyFire(e, p.damage, p.strongest);
+      else this.damageEnemy(e, p.damage, p.strongest);
       if (p.slow > 0) {
         e.speed = e.baseSpeed * p.slow;
         e.slowTimer = p.slowDuration;
         e.burnTimer = 0;
         e.burnDps = 0;
+        e.burnFromStrongest = false;
       }
       this.burst(e.x, e.y, p.color, p.splash > 0 ? 6 : 4);
     }
@@ -1660,22 +1684,50 @@ export class Game {
   }
 
   /** Ignite a target. Extra damage if it is not already burning. A slow refuses the burn. */
-  private applyFire(e: Enemy, damage: number): void {
+  private applyFire(e: Enemy, damage: number, strongest: boolean): void {
     if (e.slowTimer > 0) {
       e.burnTimer = 0;
       e.burnDps = 0;
+      e.burnFromStrongest = false;
     }
+    if (this.markedWave() && !strongest) return;
     const burning = e.burnTimer > 0;
-    this.damageEnemy(e, pyroHitDamage(damage, burning));
+    this.damageEnemy(e, pyroHitDamage(damage, burning), strongest);
     if (e.slowTimer > 0 || e.hp <= 0) return;
     e.burnTimer = PYRO_BURN_TIME;
     e.burnDps = Math.max(e.burnDps, pyroBurnDps(damage));
+    e.burnFromStrongest = strongest;
+  }
+
+  /** True on an endless Marked wave. Only Strongest towers can hurt that pack. */
+  private markedWave(): boolean {
+    return (
+      this.difficulty === "endless" &&
+      !this.custom &&
+      endlessMutator(this.wave) === "marked"
+    );
+  }
+
+  /** Strongest, and not flipped by Invert. */
+  private towerIsStrongest(t: Tower): boolean {
+    return t.targeting === "strongest" && !t.inverted;
+  }
+
+  /** Armor on this enemy for the current endless wave. Bosses are left bare. */
+  private armorValue(e: Enemy): number {
+    if (this.difficulty !== "endless" || this.custom) return 0;
+    if (endlessMutator(this.wave) !== "armor") return 0;
+    if (isBossKind(e.kind) || e.kind === "challenger") return 0;
+    return endlessArmor(this.wave);
   }
 
   /** HP loss resets the normal-mode regen clock. Slows alone do not. */
-  private damageEnemy(e: Enemy, amount: number): void {
+  private damageEnemy(e: Enemy, amount: number, strongest = false): void {
     if (amount <= 0 || e.hp <= 0) return;
-    e.hp -= amount;
+    if (this.markedWave() && !strongest) return;
+    const dealt = soakArmor(amount, this.armorValue(e));
+    if (dealt <= 0) return;
+    e.hp -= dealt;
     e.sinceDamage = 0;
   }
 
@@ -2568,6 +2620,36 @@ export class Game {
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
       }
       ctx.fill();
+
+      if (
+        this.difficulty === "endless" &&
+        !this.custom &&
+        endlessMutator(this.wave) === "armor" &&
+        !boss &&
+        e.kind !== "challenger"
+      ) {
+        ctx.strokeStyle = "rgba(186, 196, 206, 0.95)";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (
+        this.difficulty === "endless" &&
+        !this.custom &&
+        endlessMutator(this.wave) === "marked"
+      ) {
+        ctx.fillStyle = "#e8c547";
+        const tip = e.y - e.radius - 8;
+        ctx.beginPath();
+        ctx.moveTo(e.x, tip);
+        ctx.lineTo(e.x + 4, tip + 4);
+        ctx.lineTo(e.x, tip + 8);
+        ctx.lineTo(e.x - 4, tip + 4);
+        ctx.closePath();
+        ctx.fill();
+      }
 
       if (slowed) {
         ctx.strokeStyle = "#7ec8e0";

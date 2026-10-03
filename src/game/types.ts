@@ -150,6 +150,8 @@ export interface Enemy {
   burnTimer: number;
   /** Fire damage per second while burnTimer is running. */
   burnDps: number;
+  /** This burn was set by a tower aimed at Strongest. */
+  burnFromStrongest: boolean;
 }
 
 export interface Projectile {
@@ -168,6 +170,8 @@ export interface Projectile {
   fire: boolean;
   /** Sniper round. Slower, and drawn as a heavy slug. */
   heavy?: boolean;
+  /** Fired by a tower set to Strongest, without Invert. */
+  strongest: boolean;
 }
 
 export interface Particle {

@@ -323,7 +323,7 @@ function refreshBoards(): void {
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
   if (difficulty === "endless") {
-    return "No final wave. Speed is 1×, 2×, 5×, or 10×. Enemy health compounds by 10% of the current total at waves 15, 20, 25, 40, then every 15 waves. From wave 30, enemies drop no gold. A normal Mint is unchanged. Only a Midas Bank prints twice as slowly. A Challenger on waves 30, 40, and every 10 after leaves two bosses.";
+    return "No final wave. Speed is 1×, 2×, 5×, or 10×. Enemy health compounds by 10% of the current total at waves 15, 20, 25, 40, then every 15 waves. From wave 15, every five waves alternate: Armor soaks damage off each hit, then Marked, where only towers set to Strongest can hurt the pack. From wave 30, enemies drop no gold. A normal Mint is unchanged. Only a Midas Bank prints twice as slowly. A Challenger on waves 30, 40, and every 10 after leaves two bosses.";
   }
   if (difficulty === "hard") {
     return "More enemies, more health, and a steeper ramp. Only true gamers would choose this.";
@@ -442,15 +442,17 @@ function syncBastionHud(hud: HudSnapshot): void {
     btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
   }
 
-  modeBadge.classList.remove("hidden", "regen", "endless", "custom");
+  modeBadge.classList.remove("hidden", "regen", "endless", "custom", "armor", "marked");
   if (hud.custom) {
     modeBadge.classList.add("custom");
     modeBadge.textContent = "Custom";
   } else if (hud.difficulty === "hard") {
     modeBadge.textContent = "Hard";
   } else if (hud.difficulty === "endless") {
-    modeBadge.classList.add("endless");
-    modeBadge.textContent = "Endless";
+    const mutator =
+      hud.mutator === "armor" ? "Armor" : hud.mutator === "marked" ? "Marked" : "Endless";
+    modeBadge.classList.add(hud.mutator === "none" ? "endless" : hud.mutator);
+    modeBadge.textContent = mutator;
   } else {
     modeBadge.classList.add("regen");
     modeBadge.textContent = "Regen";
@@ -462,10 +464,12 @@ function syncBastionHud(hud: HudSnapshot): void {
     hud.carrying ||
     hud.phase === "won" ||
     hud.phase === "lost";
+  const mutatorTag =
+    hud.mutator === "armor" ? " · Armor" : hud.mutator === "marked" ? " · Marked" : "";
   waveBtn.textContent = hud.waveInProgress
-    ? `Wave ${hud.wave}…`
+    ? `Wave ${hud.wave}${mutatorTag}…`
     : hud.difficulty === "endless" || hud.wave < hud.totalWaves
-      ? `Start Wave ${hud.wave + 1}`
+      ? `Start Wave ${hud.wave + 1}${mutatorTag}`
       : "Complete";
 
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
@@ -706,7 +710,7 @@ function syncDungeonHud(hud: DungeonHud): void {
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
-  modeBadge.classList.remove("regen", "endless", "custom");
+  modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -774,7 +778,7 @@ function syncLawnHud(hud: LawnHud): void {
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
   goldLabel.textContent = "Sun";
 
-  modeBadge.classList.remove("regen", "endless", "custom");
+  modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 

@@ -109,6 +109,18 @@ body {
   border-color: #f0d78a;
 }
 
+.mode-badge.armor {
+  color: #14181c;
+  background: linear-gradient(180deg, #d5dde6 0%, #8a97a6 100%);
+  border-color: #eef3f8;
+}
+
+.mode-badge.marked {
+  color: #1a1408;
+  background: linear-gradient(180deg, #f0d78a 0%, #c47a3a 100%);
+  border-color: #ffe7a8;
+}
+
 .mode-badge.custom {
   color: #102018;
   background: linear-gradient(180deg, #7ec8e0 0%, #3d7f96 100%);
