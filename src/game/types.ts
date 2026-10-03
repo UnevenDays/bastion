@@ -1,5 +1,7 @@
 export type Vec2 = { x: number; y: number };
 
+export type Difficulty = "normal" | "hard";
+
 export type TowerKind = "archer" | "cannon" | "frost";
 
 export type EnemyKind =

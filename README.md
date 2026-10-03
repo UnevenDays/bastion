@@ -13,11 +13,13 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 
 ## How to play
 
-1. Click **Start Defense**.
+1. Pick **Normal** or **Hard**, then click **Start Defense**.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage** or **Attack Speed** (cost scales with that tower’s base price, up to 3 levels each).
 4. Press **Start Wave** when you are ready.
 5. Earn gold from kills and cleared waves. Survive all 12 waves with lives remaining.
+
+**Hard mode** ramps every wave: more enemy HP/speed/count, faster spawns, 100 starting gold and 15 lives. Bosses hit harder if they leak.
 
 | Tower  | Role                          |
 |--------|-------------------------------|

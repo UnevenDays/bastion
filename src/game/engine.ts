@@ -3,8 +3,6 @@ import {
   COLS,
   PATH,
   ROWS,
-  START_GOLD,
-  START_LIVES,
   TOTAL_WAVES,
   TOWER_DEFS,
   MAX_UPGRADE,
@@ -13,10 +11,13 @@ import {
   fireRateMultiplier,
   spawnInterval,
   splitlingFrom,
+  startingGold,
+  startingLives,
   upgradeCost,
   waveEnemyCount,
 } from "./config";
 import type {
+  Difficulty,
   Enemy,
   Particle,
   Projectile,
@@ -48,6 +49,7 @@ export interface HudSnapshot {
   wave: number;
   totalWaves: number;
   phase: GamePhase;
+  difficulty: Difficulty;
   selected: TowerKind | null;
   selectedTower: SelectedTowerInfo | null;
   waveInProgress: boolean;
@@ -74,8 +76,9 @@ export class Game {
     y: p.row * CELL + CELL / 2,
   }));
 
-  gold = START_GOLD;
-  lives = START_LIVES;
+  difficulty: Difficulty = "normal";
+  gold = startingGold("normal");
+  lives = startingLives("normal");
   wave = 0;
   phase: GamePhase = "ready";
   selected: TowerKind | null = "archer";
@@ -136,11 +139,17 @@ export class Game {
       wave: this.wave,
       totalWaves: TOTAL_WAVES,
       phase: this.phase,
+      difficulty: this.difficulty,
       selected: this.selected,
       selectedTower: this.selectedTowerInfo(),
       waveInProgress: this.waveInProgress,
       enemiesLeft: this.enemies.length + this.spawnQueue,
     });
+  }
+
+  setDifficulty(difficulty: Difficulty): void {
+    this.difficulty = difficulty;
+    this.emitHud();
   }
 
   selectTower(kind: TowerKind | null): void {
@@ -243,14 +252,15 @@ export class Game {
     this.wave += 1;
     this.phase = "playing";
     this.waveInProgress = true;
-    this.spawnQueue = waveEnemyCount(this.wave);
+    this.spawnQueue = waveEnemyCount(this.wave, this.difficulty);
     this.spawnTimer = 0.2;
     this.emitHud();
   }
 
-  restart(): void {
-    this.gold = START_GOLD;
-    this.lives = START_LIVES;
+  restart(difficulty: Difficulty = this.difficulty): void {
+    this.difficulty = difficulty;
+    this.gold = startingGold(difficulty);
+    this.lives = startingLives(difficulty);
     this.wave = 0;
     this.phase = "ready";
     this.selected = "archer";
@@ -265,6 +275,10 @@ export class Game {
     this.spawnTimer = 0;
     this.waveInProgress = false;
     this.emitHud();
+  }
+
+  beginRun(difficulty: Difficulty): void {
+    this.restart(difficulty);
   }
 
   screenToCell(sx: number, sy: number, canvas: HTMLCanvasElement): {
@@ -326,14 +340,15 @@ export class Game {
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
 
-    const index = waveEnemyCount(this.wave) - this.spawnQueue;
-    const def = enemyForWave(this.wave, index);
+    const index =
+      waveEnemyCount(this.wave, this.difficulty) - this.spawnQueue;
+    const def = enemyForWave(this.wave, index, this.difficulty);
     const start = this.waypoints[0];
     this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;
+    const interval = spawnInterval(this.wave, this.difficulty);
     // Bosses take longer between prior spawn and themselves
-    this.spawnTimer =
-      def.kind === "boss" ? spawnInterval(this.wave) + 0.8 : spawnInterval(this.wave);
+    this.spawnTimer = def.kind === "boss" ? interval + 0.8 : interval;
     this.emitHud();
   }
 
@@ -502,7 +517,7 @@ export class Game {
 
     if (e.kind !== "splitter") return;
 
-    const child = splitlingFrom(e.maxHp, this.wave);
+    const child = splitlingFrom(e.maxHp, this.wave, this.difficulty);
     // Slight path offsets so the two don't stack perfectly
     const offsets = [-0.08, 0.08];
     for (const off of offsets) {

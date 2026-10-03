@@ -1,4 +1,4 @@
-import type { EnemyDef, TowerDef, TowerKind } from "./types";
+import type { Difficulty, EnemyDef, TowerDef, TowerKind } from "./types";
 
 export const COLS = 16;
 export const ROWS = 10;
@@ -6,6 +6,8 @@ export const CELL = 48;
 
 export const START_GOLD = 120;
 export const START_LIVES = 20;
+export const HARD_START_GOLD = 100;
+export const HARD_START_LIVES = 15;
 export const TOTAL_WAVES = 12;
 
 export const MAX_UPGRADE = 3;
@@ -95,29 +97,70 @@ export function fireRateMultiplier(speedLevel: number): number {
   return 1 + speedLevel * 0.3;
 }
 
-export function waveEnemyCount(wave: number): number {
-  return 6 + wave * 2;
+/**
+ * Hard mode ramps every wave:
+ * wave 1 ~1.25× HP, wave 12 ~2.9× HP, plus speed/count pressure.
+ */
+export function hardWaveMultiplier(wave: number): number {
+  return 1.25 + (wave - 1) * 0.15;
+}
+
+export function waveEnemyCount(
+  wave: number,
+  difficulty: Difficulty = "normal",
+): number {
+  const base = 6 + wave * 2;
+  if (difficulty === "hard") return base + 2 + Math.floor(wave / 2);
+  return base;
 }
 
 export function isBossWave(wave: number): boolean {
   return wave === 6 || wave === 9 || wave === 12;
 }
 
-export function enemyForWave(wave: number, index: number): EnemyDef {
-  const count = waveEnemyCount(wave);
+function applyHard(
+  def: EnemyDef,
+  wave: number,
+  difficulty: Difficulty,
+): EnemyDef {
+  if (difficulty !== "hard") return def;
+  const m = hardWaveMultiplier(wave);
+  const speedBoost = 1.08 + (wave - 1) * 0.02;
+  return {
+    ...def,
+    hp: Math.round(def.hp * m * (def.kind === "boss" ? 1.2 : 1)),
+    speed: Math.round(def.speed * speedBoost),
+    reward: Math.round(def.reward * (1.15 + wave * 0.02)),
+    leakDamage:
+      def.kind === "boss"
+        ? (def.leakDamage ?? 5) + 2
+        : (def.leakDamage ?? 1),
+  };
+}
+
+export function enemyForWave(
+  wave: number,
+  index: number,
+  difficulty: Difficulty = "normal",
+): EnemyDef {
+  const count = waveEnemyCount(wave, difficulty);
   const scale = 1 + (wave - 1) * 0.22;
 
   // Boss as the last spawn on boss waves
   if (isBossWave(wave) && index === count - 1) {
-    return {
-      kind: "boss",
-      hp: Math.round(700 + wave * 180),
-      speed: NORMAL_SPEED * 0.72,
-      reward: 80 + wave * 10,
-      radius: 20,
-      color: "#6b2d8a",
-      leakDamage: 5,
-    };
+    return applyHard(
+      {
+        kind: "boss",
+        hp: Math.round(700 + wave * 180),
+        speed: NORMAL_SPEED * 0.72,
+        reward: 80 + wave * 10,
+        radius: 20,
+        color: "#6b2d8a",
+        leakDamage: 5,
+      },
+      wave,
+      difficulty,
+    );
   }
 
   const isSplitter = wave >= 3 && index % 6 === 3;
@@ -125,62 +168,99 @@ export function enemyForWave(wave: number, index: number): EnemyDef {
   const isFast = wave >= 3 && index % 4 === 2 && !isSplitter;
 
   if (isSplitter) {
-    return {
-      kind: "splitter",
-      hp: Math.round(55 * scale),
-      speed: NORMAL_SPEED,
-      reward: 10 + wave,
-      radius: 13,
-      color: "#c978c0",
-      leakDamage: 1,
-    };
+    return applyHard(
+      {
+        kind: "splitter",
+        hp: Math.round(55 * scale),
+        speed: NORMAL_SPEED,
+        reward: 10 + wave,
+        radius: 13,
+        color: "#c978c0",
+        leakDamage: 1,
+      },
+      wave,
+      difficulty,
+    );
   }
   if (isTank) {
-    return {
-      kind: "tank",
-      hp: Math.round(90 * scale),
-      speed: 42,
-      reward: 12 + wave,
-      radius: 14,
-      color: "#8b5a3c",
-      leakDamage: 1,
-    };
+    return applyHard(
+      {
+        kind: "tank",
+        hp: Math.round(90 * scale),
+        speed: 42,
+        reward: 12 + wave,
+        radius: 14,
+        color: "#8b5a3c",
+        leakDamage: 1,
+      },
+      wave,
+      difficulty,
+    );
   }
   if (isFast) {
-    return {
-      kind: "fast",
-      hp: Math.round(28 * scale),
-      speed: 95 + wave * 2,
-      reward: 8 + Math.floor(wave / 2),
-      radius: 9,
-      color: "#d4a84b",
-      leakDamage: 1,
-    };
+    return applyHard(
+      {
+        kind: "fast",
+        hp: Math.round(28 * scale),
+        speed: 95 + wave * 2,
+        reward: 8 + Math.floor(wave / 2),
+        radius: 9,
+        color: "#d4a84b",
+        leakDamage: 1,
+      },
+      wave,
+      difficulty,
+    );
   }
-  return {
-    kind: "normal",
-    hp: Math.round(40 * scale),
-    speed: NORMAL_SPEED + wave,
-    reward: 6 + Math.floor(wave / 2),
-    radius: 11,
-    color: "#c45c4a",
-    leakDamage: 1,
-  };
+  return applyHard(
+    {
+      kind: "normal",
+      hp: Math.round(40 * scale),
+      speed: NORMAL_SPEED + wave,
+      reward: 6 + Math.floor(wave / 2),
+      radius: 11,
+      color: "#c45c4a",
+      leakDamage: 1,
+    },
+    wave,
+    difficulty,
+  );
 }
 
 /** Children spawned when a splitter dies — normal speed, no further splits. */
-export function splitlingFrom(parentHp: number, wave: number): EnemyDef {
-  return {
-    kind: "splitling",
-    hp: Math.max(12, Math.round(parentHp * 0.35)),
-    speed: NORMAL_SPEED,
-    reward: 3 + Math.floor(wave / 3),
-    radius: 8,
-    color: "#e0a8d8",
-    leakDamage: 1,
-  };
+export function splitlingFrom(
+  parentHp: number,
+  wave: number,
+  difficulty: Difficulty = "normal",
+): EnemyDef {
+  return applyHard(
+    {
+      kind: "splitling",
+      hp: Math.max(12, Math.round(parentHp * 0.35)),
+      speed: NORMAL_SPEED,
+      reward: 3 + Math.floor(wave / 3),
+      radius: 8,
+      color: "#e0a8d8",
+      leakDamage: 1,
+    },
+    wave,
+    difficulty,
+  );
 }
 
-export function spawnInterval(wave: number): number {
-  return Math.max(0.35, 0.85 - wave * 0.04);
+export function spawnInterval(
+  wave: number,
+  difficulty: Difficulty = "normal",
+): number {
+  const base = Math.max(0.35, 0.85 - wave * 0.04);
+  if (difficulty === "hard") return Math.max(0.22, base * 0.75);
+  return base;
+}
+
+export function startingGold(difficulty: Difficulty): number {
+  return difficulty === "hard" ? HARD_START_GOLD : START_GOLD;
+}
+
+export function startingLives(difficulty: Difficulty): number {
+  return difficulty === "hard" ? HARD_START_LIVES : START_LIVES;
 }

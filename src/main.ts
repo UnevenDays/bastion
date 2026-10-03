@@ -1,13 +1,16 @@
 import "./style.css";
 import { MAX_UPGRADE, TOWER_DEFS } from "./game/config";
 import { Game, type HudSnapshot } from "./game/engine";
-import type { TowerKind } from "./game/types";
+import type { Difficulty, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 app.innerHTML = `
   <header class="top-bar">
-    <div class="brand">Bastion Breach</div>
+    <div class="brand-wrap">
+      <div class="brand">Bastion Breach</div>
+      <span class="mode-badge hidden" id="mode-badge">Hard</span>
+    </div>
     <div class="stats">
       <div class="stat"><span class="stat-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
       <div class="stat"><span class="stat-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
@@ -22,6 +25,11 @@ app.innerHTML = `
         <div class="overlay-card">
           <h2>Bastion Breach</h2>
           <p>Place towers, upgrade their damage and attack speed, and stop splitters and bosses before they reach the red gate. Survive all 12 waves.</p>
+          <div class="mode-picker" role="group" aria-label="Difficulty">
+            <button class="mode-btn selected" type="button" data-mode="normal" id="mode-normal">Normal</button>
+            <button class="mode-btn" type="button" data-mode="hard" id="mode-hard">Hard</button>
+          </div>
+          <p class="mode-blurb" id="mode-blurb">Standard pacing. Good for learning the path.</p>
           <button class="btn btn-primary" id="start-btn" type="button">Start Defense</button>
         </div>
       </div>
@@ -29,6 +37,10 @@ app.innerHTML = `
         <div class="overlay-card">
           <h2 id="end-title">Victory</h2>
           <p id="end-msg">The bastion holds.</p>
+          <div class="mode-picker" role="group" aria-label="Replay difficulty">
+            <button class="mode-btn selected" type="button" data-mode="normal" id="end-mode-normal">Normal</button>
+            <button class="mode-btn" type="button" data-mode="hard" id="end-mode-hard">Hard</button>
+          </div>
           <button class="btn btn-primary" id="restart-btn" type="button">Play Again</button>
         </div>
       </div>
@@ -88,13 +100,43 @@ const upgradeDamageBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-damage")!;
 const upgradeSpeedBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-speed")!;
+const modeBadge = document.querySelector<HTMLElement>("#mode-badge")!;
+const modeBlurb = document.querySelector<HTMLElement>("#mode-blurb")!;
+const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
+const modeHardBtn = document.querySelector<HTMLButtonElement>("#mode-hard")!;
+const endModeNormalBtn =
+  document.querySelector<HTMLButtonElement>("#end-mode-normal")!;
+const endModeHardBtn =
+  document.querySelector<HTMLButtonElement>("#end-mode-hard")!;
 
 let started = false;
+let chosenDifficulty: Difficulty = "normal";
+
+const MODE_BLURBS: Record<Difficulty, string> = {
+  normal: "Standard pacing. Good for learning the path.",
+  hard: "Enemy HP, speed, and count rise every wave. Fewer starting lives and gold.",
+};
+
+function syncModeButtons(difficulty: Difficulty): void {
+  chosenDifficulty = difficulty;
+  modeNormalBtn.classList.toggle("selected", difficulty === "normal");
+  modeHardBtn.classList.toggle("selected", difficulty === "hard");
+  endModeNormalBtn.classList.toggle("selected", difficulty === "normal");
+  endModeHardBtn.classList.toggle("selected", difficulty === "hard");
+  modeBlurb.textContent = MODE_BLURBS[difficulty];
+}
 
 function syncHud(hud: HudSnapshot): void {
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
+
+  if (hud.difficulty === "hard") {
+    modeBadge.classList.remove("hidden");
+    modeBadge.textContent = "Hard";
+  } else {
+    modeBadge.classList.add("hidden");
+  }
 
   waveBtn.disabled =
     !started || hud.waveInProgress || hud.phase === "won" || hud.phase === "lost";
@@ -148,12 +190,20 @@ function syncHud(hud: HudSnapshot): void {
   }
 
   if (hud.phase === "won") {
-    endTitle.textContent = "Victory";
-    endMsg.textContent = "All twelve waves broken. The bastion holds.";
+    endTitle.textContent = hud.difficulty === "hard" ? "Hard Victory" : "Victory";
+    endMsg.textContent =
+      hud.difficulty === "hard"
+        ? "You held the line on Hard. Every wave hit harder — and you still won."
+        : "All twelve waves broken. The bastion holds.";
+    syncModeButtons(hud.difficulty);
     endOverlay.classList.remove("hidden");
   } else if (hud.phase === "lost") {
     endTitle.textContent = "Breach";
-    endMsg.textContent = `The line fell on wave ${hud.wave}. Rebuild and try again.`;
+    endMsg.textContent =
+      hud.difficulty === "hard"
+        ? `Hard mode crushed the line on wave ${hud.wave}. Try again or drop to Normal.`
+        : `The line fell on wave ${hud.wave}. Rebuild and try again.`;
+    syncModeButtons(hud.difficulty);
     endOverlay.classList.remove("hidden");
   }
 }
@@ -165,11 +215,17 @@ syncHud({
   wave: game.wave,
   totalWaves: 12,
   phase: game.phase,
+  difficulty: game.difficulty,
   selected: game.selected,
   selectedTower: null,
   waveInProgress: false,
   enemiesLeft: 0,
 });
+
+modeNormalBtn.addEventListener("click", () => syncModeButtons("normal"));
+modeHardBtn.addEventListener("click", () => syncModeButtons("hard"));
+endModeNormalBtn.addEventListener("click", () => syncModeButtons("normal"));
+endModeHardBtn.addEventListener("click", () => syncModeButtons("hard"));
 
 for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
   document.querySelector(`#btn-${kind}`)!.addEventListener("click", () => {
@@ -198,13 +254,15 @@ waveBtn.addEventListener("click", () => {
 startBtn.addEventListener("click", () => {
   started = true;
   startOverlay.classList.add("hidden");
+  game.beginRun(chosenDifficulty);
   game.selectTower("archer");
 });
 
 restartBtn.addEventListener("click", () => {
   endOverlay.classList.add("hidden");
   started = true;
-  game.restart();
+  game.beginRun(chosenDifficulty);
+  game.selectTower("archer");
 });
 
 function pointerCell(e: PointerEvent) {

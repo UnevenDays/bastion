@@ -58,6 +58,13 @@ body {
   flex-wrap: wrap;
 }
 
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .brand {
   font-family: var(--font-display);
   font-weight: 700;
@@ -65,6 +72,71 @@ body {
   letter-spacing: 0.04em;
   color: var(--gold);
   text-shadow: 0 0 24px rgba(232, 197, 71, 0.25);
+}
+
+.mode-badge {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1a1008;
+  background: linear-gradient(180deg, #e85d4a 0%, #b83a2c 100%);
+  border: 1px solid #f08a7a;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.mode-badge.hidden {
+  display: none;
+}
+
+.mode-picker {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.mode-btn {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-edge);
+  background: #152219;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.mode-btn:hover {
+  color: var(--text);
+  border-color: var(--gold-dim);
+}
+
+.mode-btn.selected {
+  color: var(--text);
+  border-color: var(--gold);
+  background: #243628;
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.3);
+}
+
+.mode-btn[data-mode="hard"].selected {
+  border-color: #e85d4a;
+  box-shadow: 0 0 0 1px rgba(232, 93, 74, 0.35);
+  background: #2a1a18;
+}
+
+.mode-blurb {
+  color: var(--text-muted) !important;
+  font-size: 0.82rem !important;
+  margin-bottom: 16px !important;
 }
 
 .stats {
