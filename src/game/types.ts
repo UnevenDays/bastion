@@ -32,7 +32,8 @@ export type EnemyKind =
   | "boss"
   | "finalBoss"
   | "challenger"
-  | "thief";
+  | "thief"
+  | "sapper";
 
 export interface TowerDef {
   kind: TowerKind;
@@ -120,6 +121,8 @@ export interface Tower {
   supplyUses: number;
   /** Supply drop already called this wave. */
   supplyUsed: boolean;
+  /** Seconds left shut off by a sapper. The tower does nothing while this is above zero. */
+  silenced: number;
 }
 
 export interface Enemy {
@@ -152,6 +155,13 @@ export interface Enemy {
   burnDps: number;
   /** This burn was set by a tower aimed at Strongest. */
   burnFromStrongest: boolean;
+  /** Tower a sapper has stopped on. Null while it is still walking. */
+  sapperCol: number | null;
+  sapperRow: number | null;
+  /** Seconds left standing on that tower. */
+  sapperLeft: number;
+  /** This sapper already shut one tower off. */
+  sapperDone: boolean;
 }
 
 export interface Projectile {

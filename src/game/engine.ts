@@ -43,6 +43,8 @@ import {
   inNukeBlast,
   nestPoint,
   nukeRemainingHp,
+  SAPPER_REACH,
+  SAPPER_SILENCE,
   PYRO_BURN_TIME,
   pyroBurnDps,
   pyroHitDamage,
@@ -123,6 +125,8 @@ export interface SelectedTowerInfo {
   sleepSeconds: number;
   /** Enemies swallowed before the nap. 0 for other towers. */
   bites: number;
+  /** Seconds left before a sapper lets this tower work again. */
+  silenced: number;
 }
 
 export interface HudSnapshot {
@@ -307,6 +311,7 @@ export class Game {
         ? Math.round(chompSleepSeconds(t.speedLevel, received.rate) * 10) / 10
         : 0,
       bites: def.chomp ? chompBiteCount(t.special) : 0,
+      silenced: t.silenced,
     };
   }
 
@@ -562,6 +567,7 @@ export class Game {
         orbit: 0,
         supplyUses: 0,
         supplyUsed: false,
+        silenced: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -578,6 +584,7 @@ export class Game {
       orbit: 0,
       supplyUses: 0,
       supplyUsed: false,
+      silenced: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -881,6 +888,10 @@ export class Game {
       burnTimer: 0,
       burnDps: 0,
       burnFromStrongest: false,
+      sapperCol: null,
+      sapperRow: null,
+      sapperLeft: 0,
+      sapperDone: false,
     };
   }
 
@@ -972,7 +983,9 @@ export class Game {
         }
       }
 
-      let remaining = e.speed * dt;
+      const holding = e.hp > 0 && this.tickSapper(e, dt);
+
+      let remaining = holding ? 0 : e.speed * dt;
       while (remaining > 0 && e.pathIndex < this.waypoints.length - 1) {
         const a = this.waypoints[e.pathIndex];
         const b = this.waypoints[e.pathIndex + 1];
@@ -1029,7 +1042,7 @@ export class Game {
     let rate = 0;
     const pad = { x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2 };
     for (const banner of this.towers) {
-      if (banner.kind !== "banner" || banner === t) continue;
+      if (banner.kind !== "banner" || banner === t || banner.silenced > 0) continue;
       const bonus = bannerBonus(banner);
       if (banner.special) {
         damage += bonus.damage;
@@ -1072,6 +1085,12 @@ export class Game {
       const def = TOWER_DEFS[t.kind];
       const tx = t.col * CELL + CELL / 2;
       const ty = t.row * CELL + CELL / 2;
+
+      if (t.silenced > 0) {
+        t.silenced = Math.max(0, t.silenced - dt);
+        if (t.silenced === 0) this.emitHud();
+        continue;
+      }
 
       if (def.flying) {
         this.updateFlyingTower(t, this.effectiveStats(t), dt);
@@ -1731,6 +1750,66 @@ export class Game {
     e.sinceDamage = 0;
   }
 
+  /**
+   * A sapper stops on the first tower it reaches and shuts that tower off.
+   * Returns true while it is standing there and should not walk.
+   */
+  private tickSapper(e: Enemy, dt: number): boolean {
+    if (e.kind !== "sapper" || e.sapperDone) return false;
+
+    if (e.sapperCol !== null && e.sapperRow !== null) {
+      e.sapperLeft -= dt;
+      const tower = this.towers.find(
+        (t) => t.col === e.sapperCol && t.row === e.sapperRow,
+      );
+      if (!tower || e.sapperLeft <= 0) {
+        e.sapperDone = true;
+        e.sapperCol = null;
+        e.sapperRow = null;
+        e.sapperLeft = 0;
+        return false;
+      }
+      return true;
+    }
+
+    const tower = this.towerBeside(e.x, e.y);
+    if (!tower) return false;
+    tower.silenced = SAPPER_SILENCE;
+    e.sapperCol = tower.col;
+    e.sapperRow = tower.row;
+    e.sapperLeft = SAPPER_SILENCE;
+    this.burst(
+      tower.col * CELL + CELL / 2,
+      tower.row * CELL + CELL / 2,
+      "#e85d4a",
+      10,
+    );
+    this.emitHud();
+    return true;
+  }
+
+  /** Closest tower within reach. A tower that is still working wins over one already shut off. */
+  private towerBeside(x: number, y: number): Tower | null {
+    const reach = SAPPER_REACH * CELL;
+    let best: Tower | null = null;
+    let bestDist = reach;
+    let bestFresh = false;
+    for (const t of this.towers) {
+      const d = dist(
+        { x, y },
+        { x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2 },
+      );
+      if (d > reach) continue;
+      const fresh = t.silenced <= 0;
+      if (!best || (fresh && !bestFresh) || (fresh === bestFresh && d < bestDist)) {
+        best = t;
+        bestDist = d;
+        bestFresh = fresh;
+      }
+    }
+    return best;
+  }
+
   /** A living thief takes a little loose gold once a second. */
   private tickTheft(e: Enemy, dt: number): boolean {
     if (e.kind !== "thief" || e.hp <= 0) return false;
@@ -2217,7 +2296,24 @@ export class Game {
       ctx.fillStyle = def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint", asleep);
       ctx.restore();
-      if (def.mace) this.drawMaces(ctx, t, cx, cy);
+      if (t.silenced > 0) {
+        ctx.save();
+        ctx.fillStyle = "rgba(8, 12, 10, 0.55)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#e85d4a";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(cx - 7, cy - 7);
+        ctx.lineTo(cx + 7, cy + 7);
+        ctx.moveTo(cx + 7, cy - 7);
+        ctx.lineTo(cx - 7, cy + 7);
+        ctx.stroke();
+        ctx.restore();
+      } else if (def.mace) {
+        this.drawMaces(ctx, t, cx, cy);
+      }
 
       if (t.inverted) {
         ctx.fillStyle = "#e8c547";
@@ -2616,6 +2712,13 @@ export class Game {
           else ctx.lineTo(px, py);
         }
         ctx.closePath();
+      } else if (e.kind === "sapper") {
+        const r = e.radius;
+        ctx.moveTo(e.x - r, e.y - r * 0.72);
+        ctx.lineTo(e.x + r, e.y - r * 0.72);
+        ctx.lineTo(e.x + r, e.y + r * 0.72);
+        ctx.lineTo(e.x - r, e.y + r * 0.72);
+        ctx.closePath();
       } else {
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
       }
@@ -2695,6 +2798,26 @@ export class Game {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("$", e.x + 5, e.y - 1);
+      } else if (e.kind === "sapper") {
+        ctx.strokeStyle = "#2a140c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(e.x - 5, e.y - 4);
+        ctx.lineTo(e.x + 5, e.y + 4);
+        ctx.moveTo(e.x + 5, e.y - 4);
+        ctx.lineTo(e.x - 5, e.y + 4);
+        ctx.stroke();
+        if (e.sapperCol !== null && e.sapperRow !== null) {
+          ctx.save();
+          ctx.strokeStyle = "rgba(232, 93, 74, 0.9)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          ctx.moveTo(e.x, e.y);
+          ctx.lineTo(e.sapperCol * CELL + CELL / 2, e.sapperRow * CELL + CELL / 2);
+          ctx.stroke();
+          ctx.restore();
+        }
       }
 
       const barW = boss ? e.radius * 2.8 : e.radius * 2.2;

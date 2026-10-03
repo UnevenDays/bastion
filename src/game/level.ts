@@ -15,7 +15,8 @@ export type EditableKind =
   | "spawner"
   | "boss"
   | "challenger"
-  | "thief";
+  | "thief"
+  | "sapper";
 
 export const EDITABLE_KINDS: { kind: EditableKind; label: string }[] = [
   { kind: "normal", label: "Grunt" },
@@ -26,6 +27,7 @@ export const EDITABLE_KINDS: { kind: EditableKind; label: string }[] = [
   { kind: "boss", label: "Boss" },
   { kind: "challenger", label: "Challenger" },
   { kind: "thief", label: "Thief" },
+  { kind: "sapper", label: "Sapper" },
 ];
 
 export interface EnemyGroup {
@@ -56,6 +58,7 @@ const LOOKS: Record<EditableKind, { color: string; radius: number; leak: number 
   boss: { color: "#6b2d8a", radius: 20, leak: 5 },
   challenger: { color: "#d4a24a", radius: 18, leak: 4 },
   thief: { color: "#6e4b9a", radius: 12, leak: 1 },
+  sapper: { color: "#c46a2a", radius: 13, leak: 1 },
 };
 
 const KIND_SET = new Set<string>(EDITABLE_KINDS.map((k) => k.kind));

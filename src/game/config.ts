@@ -56,6 +56,15 @@ export const THIEF_STEAL = 1;
 /** Share of stolen gold paid back when a thief is killed. */
 export const THIEF_REFUND = 0.2;
 
+/** Sapper health before wave scaling. A step above the thief. */
+export const SAPPER_HP = 96;
+/** Slow enough that the pack catches the sapper while it works. */
+export const SAPPER_SPEED = 46;
+/** How long the tower it stops on stays shut off. */
+export const SAPPER_SILENCE = 4;
+/** Cell distance at which a sapper stops on a tower. Covers the next tile, including a diagonal. */
+export const SAPPER_REACH = 1.5;
+
 /** How long a Pyro burn lasts. A slow clears it immediately. */
 export const PYRO_BURN_TIME = 2.4;
 /** Burn damage per second, as a fraction of the hit that set it. */
@@ -799,6 +808,23 @@ export function enemyForWave(
   // Mid-game bosses
   if (isBossWave(wave) && index === count - 1) {
     return bossDef(wave, difficulty);
+  }
+
+  // The lead enemy from wave 4 stops on one tower and opens a hole in a carpet.
+  if (wave >= 4 && index === 0) {
+    return applyHard(
+      {
+        kind: "sapper",
+        hp: Math.round(SAPPER_HP * scale),
+        speed: SAPPER_SPEED,
+        reward: 8 + wave,
+        radius: 13,
+        color: "#c46a2a",
+        leakDamage: 1,
+      },
+      wave,
+      difficulty,
+    );
   }
 
   const isSpawner = wave >= 5 && index % 7 === 5;

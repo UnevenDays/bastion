@@ -642,6 +642,12 @@ function syncBastionHud(hud: HudSnapshot): void {
       syncTargeting(t.targeting, t.inverted);
     }
 
+    if (t.silenced > 0) {
+      upgradeStats.textContent += " · shut off";
+      hintEl.textContent =
+        "A sapper stopped on this tower. It stays shut off for a few seconds, then it works again.";
+    }
+
     const glacierLocked = t.kind === "frost" && t.special;
     upgradeDamageBtn.disabled =
       !started || glacierLocked || t.damageCost === null || !t.canAffordDamage;
