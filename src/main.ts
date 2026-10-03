@@ -26,25 +26,28 @@ app.innerHTML = `
       <canvas id="game" width="768" height="480"></canvas>
       <div class="overlay" id="start-overlay">
         <div class="overlay-card overlay-wide">
-          <h2 id="start-heading">Bastion Breach</h2>
-          <p id="start-desc">Choose how you want to play.</p>
+          <div class="menu-tabs" role="tablist" aria-label="Menu">
+            <button class="menu-tab selected" type="button" role="tab" id="tab-classic" aria-selected="true">Classic</button>
+            <button class="menu-tab" type="button" role="tab" id="tab-minigames" aria-selected="false">Minigames</button>
+          </div>
+          <h2 id="start-heading">Classic</h2>
 
-          <div class="mode-picker game-mode-picker" role="group" aria-label="Game mode">
-            <button class="mode-btn selected" type="button" data-gamemode="bastion" id="gm-bastion">
-              Bastion Defense
-            </button>
-            <button class="mode-btn" type="button" data-gamemode="dungeon" id="gm-dungeon">
-              Dungeon Ambush
+          <div id="panel-classic" class="menu-panel">
+            <p class="mode-blurb" id="start-desc">The original defense. Towers beside the path, upgrades, and a shovel.</p>
+          </div>
+          <div id="panel-minigames" class="menu-panel hidden">
+            <button class="minigame-card selected" type="button" id="minigame-dungeon">
+              <span class="minigame-name">Dungeon Crawler</span>
+              <span class="minigame-meta">Place traps and monsters on the zigzag road. Adventurers fight through and try to escape.</span>
             </button>
           </div>
-          <p class="mode-blurb" id="gamemode-blurb">Towers beside the path. Stop waves before they reach the gate.</p>
 
           <div class="mode-picker" role="group" aria-label="Difficulty">
             <button class="mode-btn selected" type="button" data-mode="normal" id="mode-normal">Normal</button>
             <button class="mode-btn" type="button" data-mode="hard" id="mode-hard">Hard</button>
           </div>
           <p class="mode-blurb" id="mode-blurb">Standard pacing. Good for learning the path.</p>
-          <button class="btn btn-primary" id="start-btn" type="button">Start Defense</button>
+          <button class="btn btn-primary" id="start-btn" type="button">Start Classic</button>
         </div>
       </div>
       <div class="overlay hidden" id="end-overlay">
@@ -56,7 +59,7 @@ app.innerHTML = `
             <button class="mode-btn" type="button" data-mode="hard" id="end-mode-hard">Hard</button>
           </div>
           <button class="btn btn-primary" id="restart-btn" type="button">Play Again</button>
-          <button class="btn btn-ghost" id="menu-btn" type="button" style="margin-top:8px;width:100%">Mode Select</button>
+          <button class="btn btn-ghost" id="menu-btn" type="button" style="margin-top:8px;width:100%">Main Menu</button>
         </div>
       </div>
     </div>
@@ -185,9 +188,11 @@ const carrySellBtn =
 const shovelBtn = document.querySelector<HTMLButtonElement>("#btn-shovel")!;
 const modeBadge = document.querySelector<HTMLElement>("#mode-badge")!;
 const modeBlurb = document.querySelector<HTMLElement>("#mode-blurb")!;
-const gamemodeBlurb = document.querySelector<HTMLElement>("#gamemode-blurb")!;
-const startDesc = document.querySelector<HTMLElement>("#start-desc")!;
 const startHeading = document.querySelector<HTMLElement>("#start-heading")!;
+const panelClassic = document.querySelector<HTMLElement>("#panel-classic")!;
+const panelMinigames = document.querySelector<HTMLElement>("#panel-minigames")!;
+const tabClassic = document.querySelector<HTMLButtonElement>("#tab-classic")!;
+const tabMinigames = document.querySelector<HTMLButtonElement>("#tab-minigames")!;
 const toolbarBastion = document.querySelector<HTMLElement>("#toolbar-bastion")!;
 const toolbarDungeon = document.querySelector<HTMLElement>("#toolbar-dungeon")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
@@ -196,8 +201,6 @@ const endModeNormalBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-normal")!;
 const endModeHardBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-hard")!;
-const gmBastionBtn = document.querySelector<HTMLButtonElement>("#gm-bastion")!;
-const gmDungeonBtn = document.querySelector<HTMLButtonElement>("#gm-dungeon")!;
 
 let started = false;
 let chosenDifficulty: Difficulty = "normal";
@@ -215,13 +218,6 @@ function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
     : "Wounded enemies heal to full health if nothing hits them for 3 seconds.";
 }
 
-const GAME_BLURBS: Record<GameMode, string> = {
-  bastion:
-    "Towers beside the path. Upgrade damage, speed, and specials. Survive 12 waves.",
-  dungeon:
-    "Place traps and monsters ON the zigzag road. Adventurers fight your monsters and try to escape.",
-};
-
 function syncDifficultyButtons(difficulty: Difficulty): void {
   chosenDifficulty = difficulty;
   modeNormalBtn.classList.toggle("selected", difficulty === "normal");
@@ -233,26 +229,28 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
 
 function syncGameModeButtons(mode: GameMode): void {
   chosenMode = mode;
-  gmBastionBtn.classList.toggle("selected", mode === "bastion");
-  gmDungeonBtn.classList.toggle("selected", mode === "dungeon");
-  gamemodeBlurb.textContent = GAME_BLURBS[mode];
+  const minigames = mode === "dungeon";
+  tabClassic.classList.toggle("selected", !minigames);
+  tabMinigames.classList.toggle("selected", minigames);
+  tabClassic.setAttribute("aria-selected", String(!minigames));
+  tabMinigames.setAttribute("aria-selected", String(minigames));
+  panelClassic.classList.toggle("hidden", minigames);
+  panelMinigames.classList.toggle("hidden", !minigames);
+  startHeading.textContent = minigames ? "Minigames" : "Classic";
+  startBtn.textContent = minigames ? "Play Dungeon Crawler" : "Start Classic";
   modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
-  startBtn.textContent =
-    mode === "bastion" ? "Start Defense" : "Start Ambush";
-  startHeading.textContent =
-    mode === "bastion" ? "Bastion Breach" : "Dungeon Ambush";
-  startDesc.textContent =
-    mode === "bastion"
-      ? "Hold the gate with roadside towers."
-      : "Line the zigzag road with traps and monsters.";
-  // Only show build buttons for the selected mode
+  if (!started) {
+    hintEl.textContent = minigames
+      ? "Select a trap or monster, then place it on the zigzag road."
+      : "Select a tower, then click an empty grass tile to build.";
+  }
   applyChrome(mode);
 }
 
 function applyChrome(mode: GameMode): void {
   activeMode = mode;
   brandTitle.textContent =
-    mode === "bastion" ? "Bastion Breach" : "Dungeon Ambush";
+    mode === "bastion" ? "Bastion Breach" : "Dungeon Crawler";
   toolbarBastion.classList.toggle("hidden", mode !== "bastion");
   toolbarDungeon.classList.toggle("hidden", mode !== "dungeon");
   shovelStatWrap.classList.toggle("hidden", mode !== "bastion");
@@ -486,7 +484,7 @@ function showEndIfNeeded(
     endTitle.textContent =
       mode === "dungeon"
         ? difficulty === "hard"
-          ? "Ambush Perfected"
+          ? "Crawler Cleared"
           : "Dungeon Cleared"
         : difficulty === "hard"
           ? "Hard Victory"
@@ -523,8 +521,11 @@ modeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 modeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 endModeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
-gmBastionBtn.addEventListener("click", () => syncGameModeButtons("bastion"));
-gmDungeonBtn.addEventListener("click", () => syncGameModeButtons("dungeon"));
+tabClassic.addEventListener("click", () => syncGameModeButtons("bastion"));
+tabMinigames.addEventListener("click", () => syncGameModeButtons("dungeon"));
+document
+  .querySelector("#minigame-dungeon")!
+  .addEventListener("click", () => syncGameModeButtons("dungeon"));
 
 for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
   document.querySelector(`#btn-${kind}`)!.addEventListener("click", () => {

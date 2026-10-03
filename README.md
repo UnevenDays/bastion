@@ -1,9 +1,9 @@
 # Bastion Breach
 
-A browser tower defense game with two modes:
+A browser tower defense game. **Classic** is the main game. **Minigames** holds extra modes.
 
-- **Bastion Defense** — classic roadside towers, upgrades, shovel, and bosses
-- **Dungeon Ambush** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
+- **Classic** — roadside towers, upgrades, shovel, and bosses
+- **Minigames → Dungeon Crawler** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
 
 ## Play locally
 
@@ -32,7 +32,7 @@ Temporary tunnel links expire when the cloud agent session ends.
 
 ## How to play
 
-1. Pick **Bastion Defense** or **Dungeon Ambush**, then **Normal** / **Hard**, and start.
+1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler**. Pick **Normal** / **Hard**, then start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest).
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins stored in an Investment Bank are returned in full.
@@ -61,7 +61,7 @@ The **Wasp** has no range circle. It flies to one enemy and keeps attacking unti
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
 
-### Dungeon Ambush
+### Dungeon Crawler
 
 Place **Spike Traps**, **Snares**, **Goblins**, and **Ogres** on the zigzag road only. Adventurers walk the path, take trap damage, and stop to fight monsters (they deal damage back). If they reach the exit, you lose lives. Survive 10 waves; the last spawns an Ogre Slayer.
 
