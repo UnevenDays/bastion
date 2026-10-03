@@ -30,7 +30,7 @@ npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
 
 ## How to play
 
-1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler** or **Sun Lawn**. Pick **Normal**, **Hard**, or (Classic only) **Endless**, then start.
+1. Stay on **Classic** for the main game, open **Minigames** for **Dungeon Crawler** or **Sun Lawn**, or open **Editor** to build a road. Pick **Normal**, **Hard**, or (Classic only) **Endless**, then start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest). **Invert** flips that choice: First becomes Last, Strong becomes Weak, and Auto aims at the farthest enemy.
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
@@ -42,7 +42,7 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 
 **Hard mode**, on Classic and both minigames: more enemies, more health, and a steeper ramp. Only true gamers would choose this.
 
-**Endless** is Classic only. There is no victory screen. Buttons on the toolbar set the game speed to **1×, 2×, 5×, or 10×**. Enemy count, health, speed, and bounty use the same ramp shape as before, but each step compounds: 10% of the current total. The steps are still wave 15, wave 20, wave 25, wave 40, then every 15 waves (wave 15 is 110% health, wave 20 is 121%, wave 25 is 133.1%). From wave 30, enemies drop no gold. A normal Mint keeps printing on its usual timer. Only a Midas Bank prints twice as slowly from that wave. Its 25% deposit payout does not change.
+**Endless** is Classic only. There is no victory screen. When the run ends, type a name to save the wave and gold on the leaderboard stored in this browser. The top 10 are ranked by wave, then gold. Buttons on the toolbar set the game speed to **1×, 2×, 5×, or 10×**. Enemy count, health, speed, and bounty use the same ramp shape as before, but each step compounds: 10% of the current total. The steps are still wave 15, wave 20, wave 25, wave 40, then every 15 waves (wave 15 is 110% health, wave 20 is 121%, wave 25 is 133.1%). From wave 30, enemies drop no gold. A normal Mint keeps printing on its usual timer. Only a Midas Bank prints twice as slowly from that wave. Its 25% deposit payout does not change.
 
 | Tower  | Special upgrade                                      |
 |--------|------------------------------------------------------|
@@ -64,6 +64,10 @@ The **Wasp** costs 180 gold. It has no range circle. It flies a bit slower than 
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
 | Challenger | Endless only. Last enemy on waves 30, 40, 50, and every 10 after. On death, two bosses spawn |
+
+### Level editor
+
+The **Editor** tab lays a Classic road. Click tiles in order. Click a tile already on the road to pull the end back. Set starting **gold** and **lives**, then set each wave's enemies: kind, count, health, speed, and the gold they drop. Clearing the last wave wins. The draft stays in this browser.
 
 ### Dungeon Crawler
 

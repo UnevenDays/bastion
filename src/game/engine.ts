@@ -33,6 +33,7 @@ import {
   upgradeCost,
   waveEnemyCount,
 } from "./config";
+import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   Difficulty,
   Enemy,
@@ -100,6 +101,8 @@ export interface HudSnapshot {
   shovelReady: boolean;
   carrying: boolean;
   carrySellRefund: number;
+  /** A level from the editor, with its own road and waves. */
+  custom: boolean;
 }
 
 function pathKey(col: number, row: number): string {
@@ -125,6 +128,7 @@ export class Game {
     x: p.col * CELL + CELL / 2,
     y: p.row * CELL + CELL / 2,
   }));
+  private custom: CustomLevel | null = null;
 
   difficulty: Difficulty = "normal";
   gold = startingGold("normal");
@@ -220,7 +224,12 @@ export class Game {
       gold: this.gold,
       lives: this.lives,
       wave: this.wave,
-      totalWaves: this.difficulty === "endless" ? 0 : TOTAL_WAVES,
+      totalWaves: this.custom
+        ? this.custom.waves.length
+        : this.difficulty === "endless"
+          ? 0
+          : TOTAL_WAVES,
+      custom: this.custom !== null,
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -544,13 +553,15 @@ export class Game {
   startWave(): void {
     if (this.phase === "won" || this.phase === "lost") return;
     if (this.waveInProgress) return;
-    if (this.difficulty !== "endless" && this.wave >= TOTAL_WAVES) return;
+    if (this.custom) {
+      if (this.wave >= this.custom.waves.length) return;
+    } else if (this.difficulty !== "endless" && this.wave >= TOTAL_WAVES) return;
     if (this.carrying) return; // must finish shovel move/sell first
 
     this.wave += 1;
     this.phase = "playing";
     this.waveInProgress = true;
-    this.spawnQueue = waveEnemyCount(this.wave, this.difficulty);
+    this.spawnQueue = this.queuedSpawns();
     this.spawnTimer = 0.2;
     this.payInvestmentBanks();
     this.emitHud();
@@ -597,7 +608,34 @@ export class Game {
   }
 
   beginRun(difficulty: Difficulty): void {
+    this.custom = null;
+    this.usePath(PATH);
     this.restart(difficulty);
+  }
+
+  /** Play a road, purse, and enemy list from the level editor. */
+  beginCustom(level: CustomLevel): void {
+    const next = normalizeLevel(level);
+    this.custom = next;
+    this.usePath(next.path);
+    this.restart("normal");
+    this.gold = next.gold;
+    this.lives = next.lives;
+    this.emitHud();
+  }
+
+  private usePath(path: { col: number; row: number }[]): void {
+    this.pathSet = new Set(path.map((p) => pathKey(p.col, p.row)));
+    this.waypoints = path.map((p) => ({
+      x: p.col * CELL + CELL / 2,
+      y: p.row * CELL + CELL / 2,
+    }));
+  }
+
+  private queuedSpawns(): number {
+    return this.custom
+      ? customSpawnCount(this.custom, this.wave)
+      : waveEnemyCount(this.wave, this.difficulty);
   }
 
   screenToCell(sx: number, sy: number, canvas: HTMLCanvasElement): {
@@ -697,9 +735,10 @@ export class Game {
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
 
-    const index =
-      waveEnemyCount(this.wave, this.difficulty) - this.spawnQueue;
-    const def = enemyForWave(this.wave, index, this.difficulty);
+    const index = this.queuedSpawns() - this.spawnQueue;
+    const def = this.custom
+      ? customEnemyAt(this.custom, this.wave, index)
+      : enemyForWave(this.wave, index, this.difficulty);
     const start = this.waypoints[0];
     this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;
@@ -1224,11 +1263,10 @@ export class Game {
     this.waveInProgress = false;
     this.gold += 25 + this.wave * 5;
     this.shovelReady = true; // one shovel action available again
-    if (this.difficulty === "endless" || this.wave < TOTAL_WAVES) {
-      this.phase = "ready";
-    } else {
-      this.phase = "won";
-    }
+    const cleared = this.custom
+      ? this.wave >= this.custom.waves.length
+      : this.difficulty !== "endless" && this.wave >= TOTAL_WAVES;
+    this.phase = cleared ? "won" : "ready";
     this.emitHud();
   }
 

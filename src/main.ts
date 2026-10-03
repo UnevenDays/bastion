@@ -2,9 +2,12 @@ import "./style.css";
 import { BANNER_CAP, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
+import { mountEditor } from "./editorPanel";
 import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
+import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
+import type { CustomLevel } from "./game/level";
 import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -31,12 +34,19 @@ app.innerHTML = `
           <div class="menu-tabs" role="tablist" aria-label="Menu">
             <button class="menu-tab selected" type="button" role="tab" id="tab-classic" aria-selected="true">Classic</button>
             <button class="menu-tab" type="button" role="tab" id="tab-minigames" aria-selected="false">Minigames</button>
+            <button class="menu-tab" type="button" role="tab" id="tab-editor" aria-selected="false">Editor</button>
           </div>
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
             <p class="mode-blurb" id="start-desc">The original defense. Towers beside the path, upgrades, and a shovel.</p>
+            <div id="menu-board" class="score-board hidden">
+              <p class="score-title">Endless leaderboard</p>
+              <p class="score-note">Saved on this browser. Highest wave, then gold.</p>
+              <ol id="menu-score-list"></ol>
+            </div>
           </div>
+          <div id="panel-editor" class="menu-panel hidden"></div>
           <div id="panel-minigames" class="menu-panel hidden">
             <button class="minigame-card selected" type="button" id="minigame-dungeon">
               <span class="minigame-name">Dungeon Crawler</span>
@@ -61,7 +71,12 @@ app.innerHTML = `
         <div class="overlay-card">
           <h2 id="end-title">Victory</h2>
           <p id="end-msg">The bastion holds.</p>
-          <div class="mode-picker" role="group" aria-label="Replay difficulty">
+          <div id="endless-score" class="score-board hidden">
+            <label class="score-name">Name <input id="score-name" maxlength="16" value="Warden" /></label>
+            <button class="btn btn-primary" type="button" id="score-save">Save score</button>
+            <ol id="end-score-list"></ol>
+          </div>
+          <div class="mode-picker" id="end-mode-picker" role="group" aria-label="Replay difficulty">
             <button class="mode-btn selected" type="button" data-mode="normal" id="end-mode-normal">Normal</button>
             <button class="mode-btn" type="button" data-mode="hard" id="end-mode-hard">Hard</button>
             <button class="mode-btn" type="button" data-mode="endless" id="end-mode-endless">Endless</button>
@@ -236,6 +251,16 @@ const panelClassic = document.querySelector<HTMLElement>("#panel-classic")!;
 const panelMinigames = document.querySelector<HTMLElement>("#panel-minigames")!;
 const tabClassic = document.querySelector<HTMLButtonElement>("#tab-classic")!;
 const tabMinigames = document.querySelector<HTMLButtonElement>("#tab-minigames")!;
+const tabEditor = document.querySelector<HTMLButtonElement>("#tab-editor")!;
+const panelEditor = document.querySelector<HTMLElement>("#panel-editor")!;
+const menuBoard = document.querySelector<HTMLElement>("#menu-board")!;
+const menuScoreList = document.querySelector<HTMLOListElement>("#menu-score-list")!;
+const endlessScore = document.querySelector<HTMLElement>("#endless-score")!;
+const endScoreList = document.querySelector<HTMLOListElement>("#end-score-list")!;
+const scoreNameInput = document.querySelector<HTMLInputElement>("#score-name")!;
+const scoreSaveBtn = document.querySelector<HTMLButtonElement>("#score-save")!;
+const endModePicker = document.querySelector<HTMLElement>("#end-mode-picker")!;
+const modePicker = document.querySelector<HTMLElement>(".mode-picker")!;
 const toolbarBastion = document.querySelector<HTMLElement>("#toolbar-bastion")!;
 const toolbarDungeon = document.querySelector<HTMLElement>("#toolbar-dungeon")!;
 const toolbarLawn = document.querySelector<HTMLElement>("#toolbar-lawn")!;
@@ -263,6 +288,34 @@ let started = false;
 let chosenDifficulty: Difficulty = "normal";
 let chosenMode: GameMode = "bastion";
 let activeMode: GameMode = "bastion";
+let menuView: "classic" | "minigames" | "editor" = "classic";
+let activeLevel: CustomLevel | null = null;
+let savedThisRun = false;
+let pendingScore: { wave: number; gold: number } | null = null;
+
+function renderScoreList(list: HTMLOListElement, scores: EndlessScore[]): void {
+  list.innerHTML = scores.length
+    ? scores
+        .map(
+          (score, index) =>
+            `<li><span>${index + 1}. ${escapeHtml(score.name)}</span><span>Wave ${score.wave} · ${score.gold}g</span></li>`,
+        )
+        .join("")
+    : `<li class="empty">No endless runs yet.</li>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function refreshBoards(): void {
+  const scores = loadScores(localStorage);
+  renderScoreList(menuScoreList, scores);
+  renderScoreList(endScoreList, scores);
+}
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
   if (difficulty === "endless") {
@@ -289,41 +342,63 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
   endModeHardBtn.classList.toggle("selected", difficulty === "hard");
   endModeEndlessBtn.classList.toggle("selected", difficulty === "endless");
   modeBlurb.textContent = difficultyBlurb(chosenMode, difficulty);
+  menuBoard.classList.toggle(
+    "hidden",
+    menuView !== "classic" || difficulty !== "endless",
+  );
 }
 
 function syncGameModeButtons(mode: GameMode): void {
   chosenMode = mode;
-  const minigames = mode !== "bastion";
-  tabClassic.classList.toggle("selected", !minigames);
-  tabMinigames.classList.toggle("selected", minigames);
-  tabClassic.setAttribute("aria-selected", String(!minigames));
-  tabMinigames.setAttribute("aria-selected", String(minigames));
-  panelClassic.classList.toggle("hidden", minigames);
-  panelMinigames.classList.toggle("hidden", !minigames);
+  const editor = menuView === "editor";
+  const minigames = !editor && mode !== "bastion";
+  tabClassic.classList.toggle("selected", menuView === "classic");
+  tabMinigames.classList.toggle("selected", menuView === "minigames");
+  tabEditor.classList.toggle("selected", editor);
+  tabClassic.setAttribute("aria-selected", String(menuView === "classic"));
+  tabMinigames.setAttribute("aria-selected", String(menuView === "minigames"));
+  tabEditor.setAttribute("aria-selected", String(editor));
+  panelClassic.classList.toggle("hidden", menuView !== "classic");
+  panelMinigames.classList.toggle("hidden", menuView !== "minigames");
+  panelEditor.classList.toggle("hidden", !editor);
+  startOverlay.classList.toggle("editor-open", editor && !started);
+  modePicker.classList.toggle("hidden", editor);
+  modeBlurb.classList.toggle("hidden", editor);
+  startBtn.classList.toggle("hidden", editor);
   dungeonCard.classList.toggle("selected", mode === "dungeon");
   lawnCard.classList.toggle("selected", mode === "lawn");
-  modeEndlessBtn.classList.toggle("hidden", minigames);
-  endModeEndlessBtn.classList.toggle("hidden", minigames);
+  modeEndlessBtn.classList.toggle("hidden", minigames || editor);
+  endModeEndlessBtn.classList.toggle("hidden", minigames || editor);
   if (minigames && chosenDifficulty === "endless") {
     syncDifficultyButtons("normal");
   }
-  startHeading.textContent = minigames ? "Minigames" : "Classic";
+  menuBoard.classList.toggle(
+    "hidden",
+    menuView !== "classic" || chosenDifficulty !== "endless",
+  );
+  startHeading.textContent = editor ? "Level Editor" : minigames ? "Minigames" : "Classic";
   startBtn.textContent =
     mode === "lawn"
       ? "Play Sun Lawn"
       : mode === "dungeon"
         ? "Play Dungeon Crawler"
         : "Start Classic";
-  modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
+  if (!editor) modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
   if (!started) {
-    hintEl.textContent =
-      mode === "lawn"
-        ? "Plant on the lawn. Sunblooms and the sky pay 25 sun every 20 seconds."
+    hintEl.textContent = editor
+      ? "Lay the road, set gold and lives, then set the enemies in each wave."
+      : mode === "lawn"
+        ? "Plant on the lawn. The first 30 seconds have no zombies."
         : mode === "dungeon"
           ? "Select a trap or monster, then place it on the zigzag road."
           : "Select a tower, then click an empty grass tile to build.";
   }
-  applyChrome(mode);
+  applyChrome(editor ? "bastion" : mode);
+  if (editor && !started) {
+    toolbarBastion.classList.add("hidden");
+    toolbarDungeon.classList.add("hidden");
+    toolbarLawn.classList.add("hidden");
+  }
 }
 
 function applyChrome(mode: GameMode): void {
@@ -358,13 +433,16 @@ function syncBastionHud(hud: HudSnapshot): void {
   shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
   shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
 
-  speedRow.classList.toggle("hidden", hud.difficulty !== "endless");
+  speedRow.classList.toggle("hidden", hud.difficulty !== "endless" || hud.custom);
   for (const btn of speedButtons) {
     btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
   }
 
-  modeBadge.classList.remove("hidden", "regen", "endless");
-  if (hud.difficulty === "hard") {
+  modeBadge.classList.remove("hidden", "regen", "endless", "custom");
+  if (hud.custom) {
+    modeBadge.classList.add("custom");
+    modeBadge.textContent = "Custom";
+  } else if (hud.difficulty === "hard") {
     modeBadge.textContent = "Hard";
   } else if (hud.difficulty === "endless") {
     modeBadge.classList.add("endless");
@@ -520,7 +598,7 @@ function syncBastionHud(hud: HudSnapshot): void {
     }
   }
 
-  showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "bastion");
+  showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "bastion", hud.custom, hud.gold);
 }
 
 function syncTargeting(mode: TargetMode | null, inverted = false): void {
@@ -542,7 +620,7 @@ function syncDungeonHud(hud: DungeonHud): void {
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
-  modeBadge.classList.remove("regen", "endless");
+  modeBadge.classList.remove("regen", "endless", "custom");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -610,7 +688,7 @@ function syncLawnHud(hud: LawnHud): void {
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
   goldLabel.textContent = "Sun";
 
-  modeBadge.classList.remove("regen", "endless");
+  modeBadge.classList.remove("regen", "endless", "custom");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -672,7 +750,17 @@ function showEndIfNeeded(
   difficulty: Difficulty,
   wave: number,
   mode: GameMode,
+  custom = false,
+  gold = 0,
 ): void {
+  const endlessLoss = phase === "lost" && mode === "bastion" && difficulty === "endless" && !custom;
+  endlessScore.classList.toggle("hidden", !endlessLoss);
+  endModePicker.classList.toggle("hidden", custom);
+  if (endlessLoss) {
+    pendingScore = { wave, gold };
+    scoreSaveBtn.disabled = savedThisRun;
+    refreshBoards();
+  }
   if (phase === "won") {
     endTitle.textContent =
       mode === "lawn"
@@ -683,32 +771,44 @@ function showEndIfNeeded(
           ? difficulty === "hard"
             ? "Crawler Cleared"
             : "Dungeon Cleared"
-          : difficulty === "hard"
-            ? "Hard Victory"
-            : "Victory";
+          : custom
+            ? "Level Clear"
+            : difficulty === "hard"
+              ? "Hard Victory"
+              : "Victory";
     endMsg.textContent =
       mode === "lawn"
         ? "The last shambler fell before it reached the house."
         : mode === "dungeon"
           ? "No adventurer escaped the zigzag. Your traps and monsters held the road."
-          : difficulty === "hard"
-            ? "You held the line on Hard — even against the Final Boss."
-            : "The Final Boss fell. The bastion holds.";
+          : custom
+            ? "Every wave on your road is down."
+            : difficulty === "hard"
+              ? "You held the line on Hard — even against the Final Boss."
+              : "The Final Boss fell. The bastion holds.";
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   } else if (phase === "lost") {
     endTitle.textContent =
-      mode === "lawn" ? "They Reached the House" : mode === "dungeon" ? "Breach Escape" : "Breach";
+      mode === "lawn"
+        ? "They Reached the House"
+        : mode === "dungeon"
+          ? "Breach Escape"
+          : custom
+            ? "Road Fell"
+            : "Breach";
     endMsg.textContent =
       mode === "lawn"
         ? `Shamblers crossed on wave ${wave}. Plant earlier and hold the lanes.`
         : mode === "dungeon"
           ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
-          : difficulty === "endless"
-            ? `The endless run ended on wave ${wave}.`
-            : difficulty === "hard"
-              ? `Hard mode crushed the line on wave ${wave}.`
-              : `The line fell on wave ${wave}. Rebuild and try again.`;
+          : custom
+            ? `Your level fell on wave ${wave}.`
+            : difficulty === "endless"
+              ? `The endless run ended on wave ${wave}. Put your name on the board.`
+              : difficulty === "hard"
+                ? `Hard mode crushed the line on wave ${wave}.`
+                : `The line fell on wave ${wave}. Rebuild and try again.`;
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   }
@@ -742,10 +842,20 @@ endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 endModeEndlessBtn.addEventListener("click", () =>
   syncDifficultyButtons("endless"),
 );
-tabClassic.addEventListener("click", () => syncGameModeButtons("bastion"));
-tabMinigames.addEventListener("click", () =>
-  syncGameModeButtons(chosenMode === "lawn" ? "lawn" : "dungeon"),
-);
+tabClassic.addEventListener("click", () => {
+  menuView = "classic";
+  activeLevel = null;
+  syncGameModeButtons("bastion");
+});
+tabMinigames.addEventListener("click", () => {
+  menuView = "minigames";
+  activeLevel = null;
+  syncGameModeButtons(chosenMode === "lawn" ? "lawn" : "dungeon");
+});
+tabEditor.addEventListener("click", () => {
+  menuView = "editor";
+  syncGameModeButtons("bastion");
+});
 dungeonCard.addEventListener("click", () => syncGameModeButtons("dungeon"));
 lawnCard.addEventListener("click", () => syncGameModeButtons("lawn"));
 
@@ -835,10 +945,17 @@ lwaveBtn.addEventListener("click", () => {
 
 function startChosen(): void {
   started = true;
+  savedThisRun = false;
+  pendingScore = null;
+  startOverlay.classList.remove("editor-open");
   startOverlay.classList.add("hidden");
   endOverlay.classList.add("hidden");
   applyChrome(chosenMode);
-  if (chosenMode === "bastion") {
+  if (chosenMode === "bastion" && activeLevel && menuView === "editor") {
+    bastion.beginCustom(activeLevel);
+    bastion.selectTower("archer");
+  } else if (chosenMode === "bastion") {
+    activeLevel = null;
     bastion.beginRun(chosenDifficulty);
     bastion.selectTower("archer");
   } else if (chosenMode === "lawn") {
@@ -857,8 +974,28 @@ menuBtn.addEventListener("click", () => {
   startOverlay.classList.remove("hidden");
   started = false;
   modeBadge.classList.add("hidden");
-  syncGameModeButtons(chosenMode);
+  syncGameModeButtons(menuView === "editor" ? "bastion" : chosenMode);
 });
+scoreSaveBtn.addEventListener("click", () => {
+  if (!pendingScore || savedThisRun || pendingScore.wave < 1) return;
+  const scores = saveScore(localStorage, {
+    name: scoreNameInput.value,
+    wave: pendingScore.wave,
+    gold: pendingScore.gold,
+    at: Date.now(),
+  });
+  savedThisRun = true;
+  scoreSaveBtn.disabled = true;
+  renderScoreList(menuScoreList, scores);
+  renderScoreList(endScoreList, scores);
+});
+mountEditor(panelEditor, (level) => {
+  activeLevel = level;
+  menuView = "editor";
+  chosenMode = "bastion";
+  startChosen();
+});
+refreshBoards();
 
 function pointerCell(e: PointerEvent) {
   if (activeMode === "bastion") {
