@@ -1028,6 +1028,31 @@ body {
     align-items: flex-start;
   }
 
+  /* The start and end cards are taller than the board. Let the page
+     scroll them instead of trapping Start inside the canvas. */
+  .canvas-wrap:has(#start-overlay:not(.hidden)),
+  .canvas-wrap:has(#end-overlay:not(.hidden)) {
+    overflow: visible;
+    height: auto;
+    flex: none;
+  }
+
+  .canvas-wrap:has(#start-overlay:not(.hidden)) #game,
+  .canvas-wrap:has(#end-overlay:not(.hidden)) #game {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .canvas-wrap:has(#start-overlay:not(.hidden)) .overlay:not(.hidden),
+  .canvas-wrap:has(#end-overlay:not(.hidden)) .overlay:not(.hidden) {
+    position: relative;
+    inset: auto;
+    min-height: 320px;
+    overflow: visible;
+  }
+
   .actions {
     margin-left: 0;
     width: 100%;
