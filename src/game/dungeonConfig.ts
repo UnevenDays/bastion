@@ -97,7 +97,7 @@ export const DUNGEON_BUILDS: Record<DungeonBuildKind, DungeonBuildDef> = {
     name: "Goblin",
     cost: 70,
     color: "#4a9b6e",
-    description: "Sturdier fighter on the road",
+    description: "Fights its tile and one tile ahead",
     role: "monster",
     damage: 18,
     hp: 125,

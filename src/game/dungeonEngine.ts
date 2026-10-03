@@ -385,6 +385,27 @@ export class DungeonGame {
     return null;
   }
 
+  /**
+   * Goblin on the next path tile. It faces incoming adventurers and
+   * strikes one tile ahead of itself, so this is the tile it threatens.
+   */
+  private goblinReachingTile(pathIndex: number): RoadUnit | null {
+    for (const u of this.units) {
+      if (u.kind !== "goblin" || u.hp <= 0) continue;
+      if (u.pathIndex - 1 === pathIndex) return u;
+    }
+    return null;
+  }
+
+  private holdOnTile(a: Adventurer, progress: number): void {
+    a.progress = progress;
+    const p0 = this.waypoints[a.pathIndex];
+    const p1 =
+      this.waypoints[Math.min(a.pathIndex + 1, this.waypoints.length - 1)];
+    a.x = p0.x + (p1.x - p0.x) * a.progress;
+    a.y = p0.y + (p1.y - p0.y) * a.progress;
+  }
+
   private updateAdventurers(dt: number): void {
     const survivors: Adventurer[] = [];
     for (const a of this.adventurers) {
@@ -402,6 +423,15 @@ export class DungeonGame {
         const wp = this.waypoints[a.pathIndex];
         a.x = wp.x;
         a.y = wp.y;
+        survivors.push(a);
+        continue;
+      }
+
+      // Goblin reaches one tile ahead of itself, toward the entrance.
+      const reach = this.goblinReachingTile(a.pathIndex);
+      if (reach && a.progress >= 0.45) {
+        a.fightingUnitId = this.unitId(reach);
+        this.holdOnTile(a, Math.min(Math.max(a.progress, 0.62), 0.72));
         survivors.push(a);
         continue;
       }
@@ -709,6 +739,10 @@ export class DungeonGame {
         valid ? def.color : "#666",
       );
       ctx.globalAlpha = 1;
+      if (this.selected === "goblin") {
+        const idx = this.pathIndexAt.get(key);
+        if (idx !== undefined) this.drawReachAt(ctx, idx, true);
+      }
     }
   }
 
@@ -745,6 +779,8 @@ export class DungeonGame {
         ctx.fillText(`+${u.damageLevel}`, cx, cy + 18);
       }
 
+      if (u.kind === "goblin") this.drawReachAt(ctx, u.pathIndex, selected);
+
       if (def.role === "monster") {
         const barW = 28;
         const bx = cx - barW / 2;
@@ -755,6 +791,37 @@ export class DungeonGame {
         ctx.fillRect(bx, by, barW * Math.max(0, u.hp / u.maxHp), 4);
       }
     });
+  }
+
+  /** Dashed mark on the tile a goblin strikes ahead of itself. */
+  private drawReachAt(
+    ctx: CanvasRenderingContext2D,
+    goblinPathIndex: number,
+    selected: boolean,
+  ): void {
+    const ahead = goblinPathIndex - 1;
+    if (ahead < 0) return;
+    const cell = ZIGZAG_PATH[ahead];
+    const x = cell.col * DCELL;
+    const y = cell.row * DCELL;
+    ctx.save();
+    ctx.strokeStyle = selected
+      ? "rgba(74, 155, 110, 0.95)"
+      : "rgba(74, 155, 110, 0.55)";
+    ctx.fillStyle = selected
+      ? "rgba(74, 155, 110, 0.16)"
+      : "rgba(74, 155, 110, 0.08)";
+    ctx.lineWidth = selected ? 2 : 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.fillRect(x + 6, y + 6, DCELL - 12, DCELL - 12);
+    ctx.strokeRect(x + 6, y + 6, DCELL - 12, DCELL - 12);
+    ctx.setLineDash([]);
+    ctx.fillStyle = selected ? "#d7f5e4" : "rgba(215, 245, 228, 0.8)";
+    ctx.font = "600 9px 'Chakra Petch', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("AHEAD", x + DCELL / 2, y + DCELL / 2);
+    ctx.restore();
   }
 
   private drawUnitGlyph(

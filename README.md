@@ -62,7 +62,7 @@ Mints only print gold **while a wave is running**, not during the build time bet
 
 Place **Spike Traps**, **Snares**, **Goblins**, and **Ogres** on the zigzag road only. Adventurers walk the path, take trap damage, and stop to fight monsters (they deal damage back). If they reach the exit, you lose lives. Survive 10 waves; the last spawns an Ogre Slayer.
 
-Adventurers are softer than the defenses they walk into: less health, slower hits, and a milder hard-mode bonus. Spikes and snares hit harder, and goblins and ogres have more health and damage. Hard ambush starts with 120 gold and 10 lives.
+Adventurers are softer than the defenses they walk into: less health, slower hits, and a milder hard-mode bonus. Spikes and snares hit harder, and goblins and ogres have more health and damage. A goblin also attacks one tile ahead of itself, toward the entrance, so adventurers stop and fight before they step on it. Hard ambush starts with 120 gold and 10 lives.
 
 ## Build
 

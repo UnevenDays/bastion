@@ -431,9 +431,11 @@ function syncDungeonHud(hud: DungeonHud): void {
     sellBtn.textContent = `Sell (${u.sellRefund}g)`;
     sellBtn.disabled = !started || !hud.shovelReady;
     hintEl.textContent =
-      u.role === "monster"
-        ? "Adventurers will stop and fight this monster. Upgrade its power or sell with shovel charge."
-        : "Trap triggers on adventurers walking this tile. Upgrade power or sell (1× per wave).";
+      u.kind === "goblin"
+        ? "Goblin attacks this tile and one tile ahead, toward incoming adventurers. They stop there and fight back."
+        : u.role === "monster"
+          ? "Adventurers will stop and fight this monster. Upgrade its power or sell with shovel charge."
+          : "Trap triggers on adventurers walking this tile. Upgrade power or sell (1× per wave).";
   } else {
     upgradeBar.classList.add("hidden");
     if (hud.selected) {
