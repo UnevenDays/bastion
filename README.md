@@ -1,3 +1,32 @@
-# simple-tower-defense-game
+# Bastion Breach
 
-This project was created by a Cursor cloud agent.
+A simple browser tower defense game. Place Archer, Cannon, and Frost towers along a winding trail and stop twelve waves of enemies before they reach the gate.
+
+## Play
+
+```bash
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (default: `http://localhost:3847`).
+
+## How to play
+
+1. Click **Start Defense**.
+2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
+3. Press **Start Wave** when you are ready.
+4. Earn gold from kills and cleared waves. Survive all 12 waves with lives remaining.
+
+| Tower  | Role                          |
+|--------|-------------------------------|
+| Archer | Cheap, fast single-target     |
+| Cannon | Slow, splash damage           |
+| Frost  | Slows enemies on hit          |
+
+## Build
+
+```bash
+npm run build
+npm run preview
+```
