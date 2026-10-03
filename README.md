@@ -14,16 +14,20 @@ npm run dev
 
 Open the URL Vite prints (default: `http://localhost:3847`).
 
-## Permanent hosting (GitHub Pages)
+## Permanent hosting (easiest on phone: Netlify Drop)
 
-This repo includes a GitHub Actions workflow that publishes the game to **GitHub Pages** on every push to `main`.
+GitHub’s **mobile app does not show Pages** in Settings. Use Netlify Drop instead:
 
-1. Create / connect a **GitHub** repository for this project (in Cursor: use **Create repo** if you have not yet).
-2. On GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-3. Push to `main` (or re-run the **Deploy to GitHub Pages** workflow).
-4. Open the site URL GitHub shows (usually `https://<you>.github.io/<repo>/`).
+1. Download `bastion_breach_site.zip` from the agent artifacts (or run `npm run build` and zip the `dist` folder).
+2. On your phone open **https://app.netlify.com/drop** in Safari/Chrome.
+3. Upload the zip (free signup if asked).
+4. You get a permanent link like `https://something.netlify.app`.
 
-Until that is set up, temporary tunnel links from the cloud agent will expire when the session ends.
+### Optional: GitHub Pages (needs desktop site)
+
+After **Create repo** in Cursor, open the repo in Safari → **Request Desktop Website** → **Settings → Pages → Source: GitHub Actions**.
+
+Temporary tunnel links expire when the cloud agent session ends.
 
 ## How to play
 
