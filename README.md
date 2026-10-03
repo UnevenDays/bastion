@@ -34,11 +34,11 @@ Temporary tunnel links expire when the cloud agent session ends.
 
 1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler**. Pick **Normal** / **Hard**, then start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
-3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest).
-4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins stored in an Investment Bank are returned in full.
+3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest). **Invert** flips that choice: First becomes Last, Strong becomes Weak, and Auto aims at the farthest enemy.
+4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
 5. Press **Start Wave** when you are ready. Survive all 12 waves — wave 12 is the Final Boss.
 
-Mints only print gold **while a wave is running**, not during the build time between waves. Income and payout-rate upgrades still raise each tick. **Investment Bank** lets you deposit extra coins into that mint; when the next wave starts it pays 25% of the stored amount and keeps the deposit.
+Mints cost 130 gold and only print gold **between waves**, after the first wave has ended. They stop printing while a wave is running. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
 
 **Normal mode** enemies regenerate. If a unit takes no damage for 3 seconds, it restores all of its health. A second bar under the health bar fills until the heal.
 
@@ -48,9 +48,12 @@ Mints only print gold **while a wave is running**, not during the build time bet
 |--------|------------------------------------------------------|
 | Archer | Hawk Eye — bigger range + attack aura, less shot dmg |
 | Cannon | Focus Charge — more damage, shorter range            |
-| Frost  | Glacier Field — area freeze aura, no damage          |
-| Mint   | Investment Bank — deposit coins; each wave pays 25%  |
+| Frost  | Glacier Field — area freeze. Damage upgrades are refunded |
+| Mint   | Midas Bank — deposit coins; each wave pays 25% and that gold leaves the bank |
 | Wasp   | Drone Wing — three mini drones that hunt until their target falls |
+| Banner | Grand Banner — the same damage and attack-speed buff reaches every tower |
+
+The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). **Grand Banner** applies the same buff to every tower on the map. Several banners stack, up to +60% damage and +60% attack speed.
 
 The **Wasp** has no range circle. It flies to one enemy and keeps attacking until that enemy is destroyed, then picks another. **Drone Wing** launches three smaller drones that do the same. They spread out when several enemies are on the path.
 

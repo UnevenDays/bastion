@@ -1,4 +1,5 @@
 import {
+  BANNER_CAP,
   BANK_DEPOSIT_CHUNK,
   CELL,
   COLS,
@@ -15,6 +16,7 @@ import {
   MAX_UPGRADE,
   NORMAL_SPEED,
   bankPayout,
+  bannerBonus,
   combatStats,
   enemyForWave,
   makeFlyer,
@@ -68,10 +70,17 @@ export interface SelectedTowerInfo {
   goldPerTick: number;
   goldInterval: number;
   banked: number;
-  /** Gold the Investment Bank will pay when the next wave starts. */
+  /** Gold the Midas Bank will pay when the next wave starts. That gold then leaves the bank. */
   bankPayout: number;
   targeting: TargetMode;
   flying: boolean;
+  support: boolean;
+  /** Flips this tower's aim. */
+  inverted: boolean;
+  /** Damage bonus fraction from banners, or the bonus this banner gives. */
+  buffDamage: number;
+  /** Attack-speed bonus fraction from banners, or the bonus this banner gives. */
+  buffRate: number;
 }
 
 export interface HudSnapshot {
@@ -153,8 +162,10 @@ export class Game {
     if (!t) return null;
     const def = TOWER_DEFS[t.kind];
     const special = SPECIAL_UPGRADES[t.kind];
-    const stats = combatStats(t);
+    const stats = this.effectiveStats(t);
     const income = def.economy ? mintIncome(t) : null;
+    const given = def.support ? bannerBonus(t) : null;
+    const received = this.bannerBuffFor(t);
     const dCost =
       t.damageLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.damageLevel)
@@ -188,6 +199,10 @@ export class Game {
       bankPayout: t.kind === "mint" && t.special ? bankPayout(t.banked) : 0,
       targeting: t.targeting,
       flying: !!def.flying,
+      support: !!def.support,
+      inverted: t.inverted,
+      buffDamage: given ? given.damage : received.damage,
+      buffRate: given ? given.rate : received.rate,
     };
   }
 
@@ -384,6 +399,7 @@ export class Game {
         targeting: "auto",
         flyer: null,
         drones: [],
+        inverted: false,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -395,6 +411,7 @@ export class Game {
         ? makeFlyer(nestPoint(col, row, -1).x, nestPoint(col, row, -1).y)
         : null,
       drones: [],
+      inverted: false,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -411,6 +428,7 @@ export class Game {
     if (!t) return false;
 
     const def = TOWER_DEFS[t.kind];
+    if (stat === "damage" && t.kind === "frost" && t.special) return false;
     const level = stat === "damage" ? t.damageLevel : t.speedLevel;
     if (level >= MAX_UPGRADE) return false;
 
@@ -441,6 +459,17 @@ export class Game {
     this.gold -= cost;
     t.invested += cost;
     t.special = true;
+    if (t.kind === "frost") {
+      let refund = 0;
+      for (let i = 0; i < t.damageLevel; i++) {
+        refund += upgradeCost(TOWER_DEFS.frost.cost, i);
+      }
+      if (refund > 0) {
+        this.gold += refund;
+        t.invested = Math.max(0, t.invested - refund);
+        t.damageLevel = 0;
+      }
+    }
     if (t.kind === "wasp") {
       t.drones = Array.from({ length: DRONE_COUNT }, (_, i) => {
         const spot = nestPoint(t.col, t.row, i);
@@ -462,14 +491,24 @@ export class Game {
     if (this.selectedTowerIndex === null) return;
     if (this.phase === "won" || this.phase === "lost") return;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || TOWER_DEFS[t.kind].economy) return;
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support) return;
     t.targeting = mode;
     this.emitHud();
   }
 
+  /** Flip First/Last, Strong/Weak, and nearest/farthest for the selected tower. */
+  toggleInvert(): void {
+    if (this.selectedTowerIndex === null) return;
+    if (this.phase === "won" || this.phase === "lost") return;
+    const t = this.towers[this.selectedTowerIndex];
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support) return;
+    t.inverted = !t.inverted;
+    this.emitHud();
+  }
+
   /**
-   * Store gold in the selected Mint's Investment Bank.
-   * Pass `all` to deposit every coin currently held.
+   * Store gold in the selected Mint's Midas Bank.
+   * The coins leave the player's gold. Pass `all` to deposit every coin held.
    */
   depositIntoSelected(all = false): boolean {
     if (this.selectedTowerIndex === null) return false;
@@ -508,13 +547,14 @@ export class Game {
     this.emitHud();
   }
 
-  /** Each wave, Investment Banks pay 25% of stored coins. The deposit stays. */
+  /** Each wave, a Midas Bank pays 25% of stored coins, and that gold leaves the bank. */
   private payInvestmentBanks(): void {
     for (const t of this.towers) {
       if (t.kind !== "mint" || !t.special || t.banked <= 0) continue;
       const payout = bankPayout(t.banked);
       if (payout <= 0) continue;
       this.gold += payout;
+      t.banked -= payout;
       this.burst(
         t.col * CELL + CELL / 2,
         t.row * CELL + CELL / 2 - 10,
@@ -725,23 +765,68 @@ export class Game {
     this.enemies = survivors;
   }
 
+  /** Damage and attack-speed bonus banners apply to a fighting tower. */
+  private bannerBuffFor(t: Tower): { damage: number; rate: number } {
+    const def = TOWER_DEFS[t.kind];
+    if (def.economy || def.support) return { damage: 0, rate: 0 };
+    let damage = 0;
+    let rate = 0;
+    const pad = { x: t.col * CELL + CELL / 2, y: t.row * CELL + CELL / 2 };
+    for (const banner of this.towers) {
+      if (banner.kind !== "banner" || banner === t) continue;
+      const bonus = bannerBonus(banner);
+      if (banner.special) {
+        damage += bonus.damage;
+        rate += bonus.rate;
+        continue;
+      }
+      const reach = combatStats(banner).range * CELL;
+      const origin = {
+        x: banner.col * CELL + CELL / 2,
+        y: banner.row * CELL + CELL / 2,
+      };
+      if (dist(pad, origin) <= reach) {
+        damage += bonus.damage;
+        rate += bonus.rate;
+      }
+    }
+    return {
+      damage: Math.min(BANNER_CAP, damage),
+      rate: Math.min(BANNER_CAP, rate),
+    };
+  }
+
+  /** Shot stats with banner bonuses applied. Mints and banners are unchanged. */
+  private effectiveStats(t: Tower): ReturnType<typeof combatStats> {
+    const stats = combatStats(t);
+    const def = TOWER_DEFS[t.kind];
+    if (def.economy || def.support) return stats;
+    const buff = this.bannerBuffFor(t);
+    return {
+      ...stats,
+      damage: stats.damage * (1 + buff.damage),
+      fireRate: stats.fireRate * (1 + buff.rate),
+      auraDamage: stats.auraDamage * (1 + buff.damage),
+    };
+  }
+
   private updateTowers(dt: number): void {
     let minted = false;
     for (const t of this.towers) {
       const def = TOWER_DEFS[t.kind];
-      const stats = combatStats(t);
       const tx = t.col * CELL + CELL / 2;
       const ty = t.row * CELL + CELL / 2;
-      const rangePx = stats.range * CELL;
 
       if (def.flying) {
-        this.updateFlyingTower(t, stats, dt);
+        this.updateFlyingTower(t, this.effectiveStats(t), dt);
         continue;
       }
 
-      // Mint prints gold only while a wave is running, never between waves.
+      // Mint prints only in the build time after a wave has finished.
       if (def.economy) {
-        if (!this.waveInProgress) continue;
+        const betweenWaves =
+          !this.waveInProgress && this.wave > 0 && this.phase === "ready";
+        if (!betweenWaves) continue;
         t.cooldown = Math.max(0, t.cooldown - dt);
         if (t.cooldown <= 0) {
           const income = mintIncome(t);
@@ -752,6 +837,11 @@ export class Game {
         }
         continue;
       }
+
+      if (def.support) continue;
+
+      const stats = this.effectiveStats(t);
+      const rangePx = stats.range * CELL;
 
       // Continuous auras (archer damage / frost freeze)
       if (stats.auraDamage > 0 || stats.auraFreeze) {
@@ -780,7 +870,13 @@ export class Game {
         continue;
       }
 
-      const best = this.pickTarget({ x: tx, y: ty }, t.targeting, rangePx, new Set());
+      const best = this.pickTarget(
+        { x: tx, y: ty },
+        t.targeting,
+        rangePx,
+        new Set(),
+        t.inverted,
+      );
       if (!best) continue;
 
       const angle = Math.atan2(best.y - ty, best.x - tx);
@@ -828,6 +924,7 @@ export class Game {
     mode: TargetMode,
     rangePx: number,
     avoid: Set<number>,
+    inverted = false,
   ): Enemy | null {
     const inRange = this.enemies.filter(
       (e) => e.hp > 0 && dist(origin, e) <= rangePx,
@@ -836,21 +933,33 @@ export class Game {
     const open = inRange.filter((e) => !avoid.has(e.id));
     const list = open.length ? open : inRange;
 
-    if (mode === "first") {
+    let aimed = mode;
+    if (inverted) {
+      if (mode === "first") aimed = "last";
+      else if (mode === "last") aimed = "first";
+      else if (mode === "strongest") aimed = "weakest";
+      else if (mode === "weakest") aimed = "strongest";
+    }
+    const farthest = inverted && mode === "auto";
+
+    if (aimed === "first") {
       return list.reduce((a, b) =>
         this.pathProgress(b) > this.pathProgress(a) ? b : a,
       );
     }
-    if (mode === "last") {
+    if (aimed === "last") {
       return list.reduce((a, b) =>
         this.pathProgress(b) < this.pathProgress(a) ? b : a,
       );
     }
-    if (mode === "strongest") {
+    if (aimed === "strongest") {
       return list.reduce((a, b) => (b.hp > a.hp ? b : a));
     }
-    if (mode === "weakest") {
+    if (aimed === "weakest") {
       return list.reduce((a, b) => (b.hp < a.hp ? b : a));
+    }
+    if (farthest) {
+      return list.reduce((a, b) => (dist(origin, b) > dist(origin, a) ? b : a));
     }
     return list.reduce((a, b) => (dist(origin, b) < dist(origin, a) ? b : a));
   }
@@ -878,7 +987,13 @@ export class Game {
     let target =
       this.enemies.find((e) => e.id === unit.targetId && e.hp > 0) ?? null;
     if (!target) {
-      target = this.pickTarget(unit, tower.targeting, Infinity, avoid);
+      target = this.pickTarget(
+        unit,
+        tower.targeting,
+        Infinity,
+        avoid,
+        tower.inverted,
+      );
       unit.targetId = target?.id ?? null;
     }
 
@@ -1277,7 +1392,24 @@ export class Game {
       const stats = combatStats(t);
       const selected = this.selectedTowerIndex === i;
 
-      if (!def.economy && !def.flying && (selected || t.special || t.cooldown < 0.15)) {
+      if (def.support && (selected || t.special)) {
+        if (t.special) {
+          ctx.save();
+          ctx.strokeStyle = selected
+            ? "rgba(212, 162, 74, 0.75)"
+            : "rgba(212, 162, 74, 0.35)";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.strokeRect(3, 3, this.width - 6, this.height - 6);
+          ctx.restore();
+        } else {
+          ctx.beginPath();
+          ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(212, 162, 74, 0.5)";
+          ctx.lineWidth = selected ? 2 : 1;
+          ctx.stroke();
+        }
+      } else if (!def.economy && !def.flying && (selected || t.special || t.cooldown < 0.15)) {
         ctx.beginPath();
         ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
         if (t.special && t.kind === "frost") {
@@ -1317,6 +1449,14 @@ export class Game {
 
       ctx.fillStyle = def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint");
+
+      if (t.inverted) {
+        ctx.fillStyle = "#e8c547";
+        ctx.font = "700 9px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "bottom";
+        ctx.fillText("INV", cx, cy - size - 1);
+      }
 
       const total = t.damageLevel + t.speedLevel + (t.special ? 1 : 0);
       if (total > 0) {
@@ -1367,6 +1507,14 @@ export class Game {
       ctx.fill();
       ctx.beginPath();
       ctx.arc(0, 0, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (kind === "banner") {
+      ctx.fillRect(-1.5, -10, 3, 18);
+      ctx.beginPath();
+      ctx.moveTo(1.5, -10);
+      ctx.lineTo(11, -5);
+      ctx.lineTo(1.5, 0);
+      ctx.closePath();
       ctx.fill();
     } else {
       ctx.beginPath();

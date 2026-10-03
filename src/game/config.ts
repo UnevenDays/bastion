@@ -25,7 +25,7 @@ export const NORMAL_SPEED = 62;
 /** Sell refund fraction of invested gold. Bank deposits are returned in full. */
 export const SELL_REFUND = 0.5;
 
-/** Investment Bank pays this fraction of stored coins at the start of each wave. */
+/** Midas Bank pays this fraction of stored coins when a wave starts, then that gold leaves the bank. */
 export const BANK_PAYOUT_RATE = 0.25;
 
 /** Chunk size for the Bank button. */
@@ -40,6 +40,11 @@ export const DRONE_SPEED = 230;
 export const DRONE_COUNT = 3;
 /** Mini drones deal this fraction of the wasp's shot damage. */
 export const DRONE_DAMAGE_RATIO = 0.4;
+
+/** Each Banner adds this much damage and attack speed. Upgrades raise it. */
+export const BANNER_BUFF = 0.2;
+/** Combined banner bonus cannot exceed this, so several banners stay bounded. */
+export const BANNER_CAP = 0.6;
 
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
@@ -112,13 +117,13 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   mint: {
     kind: "mint",
     name: "Mint",
-    cost: 65,
+    cost: 130,
     range: 0,
     damage: 0,
     fireRate: 0.22,
     color: "#e8c547",
     projectileSpeed: 0,
-    description: "Prints gold only while a wave is running",
+    description: "Prints gold between waves, not during them",
     economy: true,
   },
   wasp: {
@@ -132,6 +137,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     projectileSpeed: 0,
     description: "Flies to one enemy and stays until it falls",
     flying: true,
+  },
+  banner: {
+    kind: "banner",
+    name: "Banner",
+    cost: 75,
+    range: 2.6,
+    damage: 0,
+    fireRate: 0,
+    color: "#d4a24a",
+    projectileSpeed: 0,
+    description: "Buffs damage and attack speed of towers in range",
+    support: true,
   },
 };
 
@@ -148,12 +165,12 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   frost: {
     name: "Glacier Field",
-    description: "Area freeze aura, stops dealing damage",
+    description: "Area freeze. Damage upgrades are refunded",
     costMultiplier: 1.3,
   },
   mint: {
-    name: "Investment Bank",
-    description: "Deposit coins. Each wave pays 25% of what is stored",
+    name: "Midas Bank",
+    description: "Deposit coins. Each wave pays 25%, and that gold leaves the bank",
     costMultiplier: 1.4,
   },
   wasp: {
@@ -161,11 +178,16 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     description: "Three mini drones. Each hunts an enemy until it is destroyed",
     costMultiplier: 1.3,
   },
+  banner: {
+    name: "Grand Banner",
+    description: "The same buff reaches every tower on the map",
+    costMultiplier: 1.35,
+  },
 };
 
 /**
  * Gold paid per Mint tick, and seconds between ticks.
- * Ticks only run while a wave is in progress.
+ * Ticks run only in the build time between waves.
  */
 export function mintIncome(t: Tower): { amount: number; interval: number } {
   const investBonus = Math.floor(t.invested / 90);
@@ -174,9 +196,17 @@ export function mintIncome(t: Tower): { amount: number; interval: number } {
   return { amount, interval: Math.max(1.4, interval) };
 }
 
-/** Gold an Investment Bank pays at the start of a wave. Principal stays stored. */
+/** Gold a Midas Bank pays at the start of a wave. That amount then leaves the bank. */
 export function bankPayout(banked: number): number {
   return Math.floor(banked * BANK_PAYOUT_RATE);
+}
+
+/** Damage and attack-speed bonus one Banner gives. Upgrades raise each side. */
+export function bannerBonus(t: Tower): { damage: number; rate: number } {
+  return {
+    damage: BANNER_BUFF * (1 + t.damageLevel * 0.35),
+    rate: BANNER_BUFF * (1 + t.speedLevel * 0.35),
+  };
 }
 
 /** Parking spot for the wasp (slot < 0) or one mini drone. */

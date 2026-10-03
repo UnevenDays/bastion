@@ -1,5 +1,5 @@
 import "./style.css";
-import { BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
+import { BANNER_CAP, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { Game, type HudSnapshot } from "./game/engine";
@@ -85,6 +85,7 @@ app.innerHTML = `
         <button class="target-btn" type="button" data-target="weakest" title="Enemy with the least health">Weak</button>
         <button class="target-btn" type="button" data-target="last" title="Enemy closest to the entrance">Last</button>
         <button class="target-btn" type="button" data-target="auto" title="Nearest enemy">Auto</button>
+        <button class="target-btn invert" type="button" data-invert="1" title="Flip First and Last, Strong and Weak, and nearest and farthest">Invert</button>
       </div>
       <div id="dungeon-upgrades" class="upgrade-actions hidden">
         <button class="btn btn-upgrade" type="button" id="dungeon-upgrade">+ Power</button>
@@ -320,7 +321,7 @@ function syncBastionHud(hud: HudSnapshot): void {
     carryText.textContent = `Tower picked up — click grass to move, or sell for ${hud.carrySellRefund}g.`;
     carrySellBtn.textContent = `Sell (${hud.carrySellRefund}g)`;
     hintEl.textContent =
-      "Shovel: place on empty grass to move, or sell. Banked coins come back in full.";
+      "Shovel: place on empty grass to move, or sell. Coins left in a Midas Bank come back in full.";
   } else {
     carryBar.classList.add("hidden");
   }
@@ -334,16 +335,16 @@ function syncBastionHud(hud: HudSnapshot): void {
 
     if (t.economy) {
       const bankLine = t.special
-        ? ` · Bank ${t.banked}g → +${t.bankPayout}g next wave`
+        ? ` · Bank ${t.banked}g → +${t.bankPayout}g next wave, then it leaves the bank`
         : "";
-      upgradeStats.textContent = `During waves: ${t.goldPerTick}g / ${t.goldInterval}s${bankLine}`;
+      upgradeStats.textContent = `Between waves: ${t.goldPerTick}g / ${t.goldInterval}s${bankLine}`;
       upgradeDamageBtn.textContent =
         t.damageCost === null ? "Income Max" : `+ Income (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Rate Max" : `+ Payout Rate (${t.speedCost}g)`;
       hintEl.textContent = t.special
-        ? "Investment Bank pays 25% of stored coins when a wave starts. Selling returns the deposit in full."
-        : "Mints only print gold while a wave is running. Investment Bank stores coins for 25% back each wave.";
+        ? "Midas Bank takes coins off your gold. Each wave pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever is left."
+        : "Mints print gold only between waves, after wave 1. Midas Bank stores coins and pays 25% of them at the start of each wave.";
       const showBank = t.special;
       mintDepositBtn.classList.toggle("hidden", !showBank);
       mintDepositAllBtn.classList.toggle("hidden", !showBank);
@@ -351,26 +352,53 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.disabled = !started || hud.gold < BANK_DEPOSIT_CHUNK;
       mintDepositAllBtn.disabled = !started || hud.gold <= 0;
       syncTargeting(null);
-    } else {
-      upgradeStats.textContent = t.flying
-        ? `DMG ${t.damage} · SPD ${t.fireRate}/s · Hunts the whole map`
-        : `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
+    } else if (t.support) {
+      const dmg = Math.round(t.buffDamage * 100);
+      const spd = Math.round(t.buffRate * 100);
+      upgradeStats.textContent = t.special
+        ? `Buff +${dmg}% DMG · +${spd}% SPD · every tower`
+        : `Buff +${dmg}% DMG · +${spd}% SPD · RNG ${t.range}`;
       upgradeDamageBtn.textContent =
-        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+        t.damageCost === null ? "Damage Buff Max" : `+ Damage Buff (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Speed Buff Max" : `+ Speed Buff (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? `Grand Banner raises damage and attack speed of every tower. Banners stack, up to +${Math.round(BANNER_CAP * 100)}% each.`
+        : "Banner does not shoot. Towers inside its range hit harder and faster.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(null);
+    } else {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG +${Math.round(t.buffRate * 100)}% SPD`
+          : "";
+      upgradeStats.textContent = t.flying
+        ? `DMG ${t.damage} · SPD ${t.fireRate}/s · Hunts the whole map${buffLine}`
+        : `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}${buffLine}`;
+      const glacier = t.kind === "frost" && t.special;
+      upgradeDamageBtn.textContent = glacier
+        ? "Damage refunded"
+        : t.damageCost === null
+          ? "Damage Max"
+          : `+ Damage (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
       hintEl.textContent = t.flying
         ? t.special
           ? "The wasp and its three drones each stick to one enemy until that enemy is destroyed."
           : "No range circle. The wasp flies to its target and stays until that enemy falls. Drone Wing adds three mini drones."
-        : `${t.specialName}: ${t.specialDescription}`;
+        : glacier
+          ? "Glacier Field freezes in an area and refunds every damage upgrade on this tower."
+          : `${t.specialName}: ${t.specialDescription}`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
-      syncTargeting(t.targeting);
+      syncTargeting(t.targeting, t.inverted);
     }
 
+    const glacierLocked = t.kind === "frost" && t.special;
     upgradeDamageBtn.disabled =
-      !started || t.damageCost === null || !t.canAffordDamage;
+      !started || glacierLocked || t.damageCost === null || !t.canAffordDamage;
     upgradeSpeedBtn.disabled =
       !started || t.speedCost === null || !t.canAffordSpeed;
     upgradeSpecialBtn.textContent =
@@ -401,9 +429,13 @@ function syncBastionHud(hud: HudSnapshot): void {
   showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "bastion");
 }
 
-function syncTargeting(mode: TargetMode | null): void {
+function syncTargeting(mode: TargetMode | null, inverted = false): void {
   targetRow.classList.toggle("hidden", mode === null);
   for (const btn of targetRow.querySelectorAll<HTMLButtonElement>(".target-btn")) {
+    if (btn.dataset.invert) {
+      btn.classList.toggle("selected", inverted);
+      continue;
+    }
     btn.classList.toggle("selected", btn.dataset.target === mode);
   }
 }
@@ -562,7 +594,12 @@ targetRow.addEventListener("click", (event) => {
   const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(
     ".target-btn",
   );
-  if (!btn?.dataset.target || !started || activeMode !== "bastion") return;
+  if (!btn || !started || activeMode !== "bastion") return;
+  if (btn.dataset.invert) {
+    bastion.toggleInvert();
+    return;
+  }
+  if (!btn.dataset.target) return;
   bastion.setTargeting(btn.dataset.target as TargetMode);
 });
 mintDepositBtn.addEventListener("click", () => {

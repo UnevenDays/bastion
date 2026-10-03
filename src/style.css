@@ -369,6 +369,9 @@ body {
 .swatch.wasp {
   background: #c46ad4;
 }
+.swatch.banner {
+  background: #d4a24a;
+}
 
 .target-row {
   display: flex;
@@ -406,6 +409,16 @@ body {
   color: var(--text);
   border-color: var(--gold);
   background: #243628;
+}
+
+.target-btn.invert {
+  margin-left: 6px;
+}
+
+.target-btn.invert.selected {
+  color: #1a1508;
+  background: var(--gold);
+  border-color: var(--gold);
 }
 
 .target-btn:hover {

@@ -5,7 +5,7 @@ export type Difficulty = "normal" | "hard";
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon";
 
-export type TowerKind = "archer" | "cannon" | "frost" | "mint" | "wasp";
+export type TowerKind = "archer" | "cannon" | "frost" | "mint" | "wasp" | "banner";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
 export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
@@ -37,6 +37,8 @@ export interface TowerDef {
   economy?: boolean;
   /** Leaves its perch and hunts. No range circle. */
   flying?: boolean;
+  /** Buffs other towers instead of shooting. */
+  support?: boolean;
 }
 
 /** A wasp or one of its mini drones. */
@@ -74,7 +76,7 @@ export interface Tower {
   special: boolean;
   /** Gold sunk into this tower (for sell refund). */
   invested: number;
-  /** Coins stored in an Investment Bank. Principal is not spent. */
+  /** Coins stored in a Midas Bank. Each wave pays 25%, and that gold leaves the bank. */
   banked: number;
   /** Which enemy this tower prefers. */
   targeting: TargetMode;
@@ -82,6 +84,8 @@ export interface Tower {
   flyer: Flyer | null;
   /** Mini drones from the wasp special. */
   drones: Flyer[];
+  /** Flips First/Last, Strong/Weak, and nearest/farthest. */
+  inverted: boolean;
 }
 
 export interface Enemy {
