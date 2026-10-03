@@ -30,17 +30,19 @@ npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
 
 ## How to play
 
-1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler** or **Sun Lawn**. Pick **Normal** / **Hard**, then start.
+1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler** or **Sun Lawn**. Pick **Normal**, **Hard**, or (Classic only) **Endless**, then start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest). **Invert** flips that choice: First becomes Last, Strong becomes Weak, and Auto aims at the farthest enemy.
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
-5. Press **Start Wave** when you are ready. Survive all 12 waves — wave 12 is the Final Boss.
+5. Press **Start Wave** when you are ready. Normal and Hard end after 12 waves — wave 12 is the Final Boss. **Endless** keeps going until your lives hit 0.
 
-Mints cost 130 gold and only print gold **while a wave is running**. They stop between waves. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
+Mints cost 100 gold and only print gold **while a wave is running**. They stop between waves. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
 
-**Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate.
+**Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate. Endless uses the same tank regen.
 
 **Hard mode**, on Classic and both minigames: more enemies, more health, and a steeper ramp. Only true gamers would choose this.
+
+**Endless** is Classic only. There is no victory screen. From wave 15 enemies gain an extra 10% ramp, 20% at wave 20, 30% at wave 25, and 40% at wave 40. After that the ramp climbs another 10% every 15 waves. Count, health, speed, and bounty all rise with that ramp.
 
 | Tower  | Special upgrade                                      |
 |--------|------------------------------------------------------|
@@ -53,7 +55,7 @@ Mints cost 130 gold and only print gold **while a wave is running**. They stop b
 
 The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). **Grand Banner** applies the same buff to every tower on the map. Several banners stack, up to +60% damage and +60% attack speed.
 
-The **Wasp** has no range circle. It flies to one enemy and keeps attacking until that enemy is destroyed, then picks another. **Drone Wing** launches three smaller drones that do the same. They spread out when several enemies are on the path.
+The **Wasp** costs 180 gold. It has no range circle. It flies a bit slower than before, hits for less, and stays on one enemy until that enemy is destroyed, then picks another. **Drone Wing** launches three smaller drones that do the same at 30% of the wasp's shot damage. They spread out when several enemies are on the path.
 
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|
@@ -61,6 +63,7 @@ The **Wasp** has no range circle. It flies to one enemy and keeps attacking unti
 | Spawner    | Summons extra enemies every few seconds       |
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
+| Challenger | Endless only. Last enemy on waves 30, 40, 50, and every 10 after. On death, two bosses spawn |
 
 ### Dungeon Crawler
 

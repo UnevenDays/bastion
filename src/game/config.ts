@@ -35,11 +35,11 @@ export const BANK_DEPOSIT_CHUNK = 25;
 export const REGEN_DELAY = 3;
 
 /** Wasp flight speed in pixels per second. Drones are a little slower. */
-export const FLY_SPEED = 280;
-export const DRONE_SPEED = 230;
+export const FLY_SPEED = 240;
+export const DRONE_SPEED = 190;
 export const DRONE_COUNT = 3;
 /** Mini drones deal this fraction of the wasp's shot damage. */
-export const DRONE_DAMAGE_RATIO = 0.4;
+export const DRONE_DAMAGE_RATIO = 0.3;
 
 /** Each Banner adds this much damage and attack speed. Upgrades raise it. */
 export const BANNER_BUFF = 0.2;
@@ -117,7 +117,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   mint: {
     kind: "mint",
     name: "Mint",
-    cost: 130,
+    cost: 100,
     range: 0,
     damage: 0,
     fireRate: 0.22,
@@ -129,10 +129,10 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   wasp: {
     kind: "wasp",
     name: "Wasp",
-    cost: 90,
+    cost: 180,
     range: 0,
-    damage: 11,
-    fireRate: 1.8,
+    damage: 8,
+    fireRate: 1.4,
     color: "#c46ad4",
     projectileSpeed: 0,
     description: "Flies to one enemy and stays until it falls",
@@ -332,12 +332,32 @@ export function hardWaveMultiplier(wave: number): number {
   return 1.15 + (wave - 1) * 0.11;
 }
 
+/**
+ * Extra Endless multiplier. 10% from wave 15, 20% at 20, 30% at 25,
+ * 40% at 40, then another 10% every 15 waves.
+ */
+export function endlessRamp(wave: number): number {
+  if (wave < 15) return 0;
+  if (wave < 20) return 0.1;
+  if (wave < 25) return 0.2;
+  if (wave < 40) return 0.3;
+  return 0.4 + Math.floor((wave - 40) / 15) * 0.1;
+}
+
+/** Endless waves 30, 40, 50… send a Challenger as the last enemy. */
+export function isChallengerWave(wave: number): boolean {
+  return wave >= 30 && wave % 10 === 0;
+}
+
 export function waveEnemyCount(
   wave: number,
   difficulty: Difficulty = "normal",
 ): number {
   const base = 6 + wave * 2;
   if (difficulty === "hard") return base + 1 + Math.floor(wave / 3);
+  if (difficulty === "endless") {
+    return Math.max(base, Math.round(base * (1 + endlessRamp(wave))));
+  }
   return base;
 }
 
@@ -354,19 +374,47 @@ function applyHard(
   wave: number,
   difficulty: Difficulty,
 ): EnemyDef {
-  if (difficulty !== "hard") return def;
-  const m = hardWaveMultiplier(wave);
-  const speedBoost = 1.05 + (wave - 1) * 0.012;
-  const isBoss = def.kind === "boss" || def.kind === "finalBoss";
-  return {
-    ...def,
-    hp: Math.round(def.hp * m * (isBoss ? 1.15 : 1)),
-    speed: Math.round(def.speed * speedBoost),
-    reward: Math.round(def.reward * (1.15 + wave * 0.02)),
-    leakDamage: isBoss
-      ? (def.leakDamage ?? 5) + 1
-      : (def.leakDamage ?? 1),
-  };
+  let next = def;
+  if (difficulty === "hard") {
+    const m = hardWaveMultiplier(wave);
+    const speedBoost = 1.05 + (wave - 1) * 0.012;
+    const isBoss = def.kind === "boss" || def.kind === "finalBoss";
+    next = {
+      ...def,
+      hp: Math.round(def.hp * m * (isBoss ? 1.15 : 1)),
+      speed: Math.round(def.speed * speedBoost),
+      reward: Math.round(def.reward * (1.15 + wave * 0.02)),
+      leakDamage: isBoss
+        ? (def.leakDamage ?? 5) + 1
+        : (def.leakDamage ?? 1),
+    };
+  }
+  if (difficulty === "endless") {
+    const ramp = endlessRamp(wave);
+    next = {
+      ...next,
+      hp: Math.round(next.hp * (1 + ramp)),
+      speed: Math.round(next.speed * (1 + ramp * 0.5)),
+      reward: Math.round(next.reward * (1 + ramp * 0.2)),
+    };
+  }
+  return next;
+}
+
+export function bossDef(wave: number, difficulty: Difficulty = "normal"): EnemyDef {
+  return applyHard(
+    {
+      kind: "boss",
+      hp: Math.round(700 + wave * 180),
+      speed: NORMAL_SPEED * 0.72,
+      reward: 80 + wave * 10,
+      radius: 20,
+      color: "#6b2d8a",
+      leakDamage: 5,
+    },
+    wave,
+    difficulty,
+  );
 }
 
 export function enemyForWave(
@@ -377,8 +425,28 @@ export function enemyForWave(
   const count = waveEnemyCount(wave, difficulty);
   const scale = 1 + (wave - 1) * 0.22;
 
-  // Final boss — last spawn on wave 12, much more health
-  if (isFinalBossWave(wave) && index === count - 1) {
+  if (
+    difficulty === "endless" &&
+    isChallengerWave(wave) &&
+    index === count - 1
+  ) {
+    return applyHard(
+      {
+        kind: "challenger",
+        hp: Math.round(520 + wave * 110),
+        speed: NORMAL_SPEED * 0.6,
+        reward: 60 + wave * 4,
+        radius: 18,
+        color: "#d4a24a",
+        leakDamage: 4,
+      },
+      wave,
+      difficulty,
+    );
+  }
+
+  // Final boss — last spawn on wave 12, much more health. Endless keeps going.
+  if (difficulty !== "endless" && isFinalBossWave(wave) && index === count - 1) {
     return applyHard(
       {
         kind: "finalBoss",
@@ -396,19 +464,7 @@ export function enemyForWave(
 
   // Mid-game bosses
   if (isBossWave(wave) && index === count - 1) {
-    return applyHard(
-      {
-        kind: "boss",
-        hp: Math.round(700 + wave * 180),
-        speed: NORMAL_SPEED * 0.72,
-        reward: 80 + wave * 10,
-        radius: 20,
-        color: "#6b2d8a",
-        leakDamage: 5,
-      },
-      wave,
-      difficulty,
-    );
+    return bossDef(wave, difficulty);
   }
 
   const isSpawner = wave >= 5 && index % 7 === 5;

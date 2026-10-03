@@ -1,6 +1,6 @@
 export type Vec2 = { x: number; y: number };
 
-export type Difficulty = "normal" | "hard";
+export type Difficulty = "normal" | "hard" | "endless";
 
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon" | "lawn";
@@ -18,7 +18,8 @@ export type EnemyKind =
   | "splitling"
   | "spawner"
   | "boss"
-  | "finalBoss";
+  | "finalBoss"
+  | "challenger";
 
 export interface TowerDef {
   kind: TowerKind;

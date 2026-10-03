@@ -51,6 +51,7 @@ app.innerHTML = `
           <div class="mode-picker" role="group" aria-label="Difficulty">
             <button class="mode-btn selected" type="button" data-mode="normal" id="mode-normal">Normal</button>
             <button class="mode-btn" type="button" data-mode="hard" id="mode-hard">Hard</button>
+            <button class="mode-btn" type="button" data-mode="endless" id="mode-endless">Endless</button>
           </div>
           <p class="mode-blurb" id="mode-blurb">Standard pacing. Good for learning the path.</p>
           <button class="btn btn-primary" id="start-btn" type="button">Start Classic</button>
@@ -63,6 +64,7 @@ app.innerHTML = `
           <div class="mode-picker" role="group" aria-label="Replay difficulty">
             <button class="mode-btn selected" type="button" data-mode="normal" id="end-mode-normal">Normal</button>
             <button class="mode-btn" type="button" data-mode="hard" id="end-mode-hard">Hard</button>
+            <button class="mode-btn" type="button" data-mode="endless" id="end-mode-endless">Endless</button>
           </div>
           <button class="btn btn-primary" id="restart-btn" type="button">Play Again</button>
           <button class="btn btn-ghost" id="menu-btn" type="button" style="margin-top:8px;width:100%">Main Menu</button>
@@ -234,10 +236,14 @@ const lawnCard = document.querySelector<HTMLButtonElement>("#minigame-lawn")!;
 const dungeonCard = document.querySelector<HTMLButtonElement>("#minigame-dungeon")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
 const modeHardBtn = document.querySelector<HTMLButtonElement>("#mode-hard")!;
+const modeEndlessBtn =
+  document.querySelector<HTMLButtonElement>("#mode-endless")!;
 const endModeNormalBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-normal")!;
 const endModeHardBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-hard")!;
+const endModeEndlessBtn =
+  document.querySelector<HTMLButtonElement>("#end-mode-endless")!;
 
 let started = false;
 let chosenDifficulty: Difficulty = "normal";
@@ -245,6 +251,9 @@ let chosenMode: GameMode = "bastion";
 let activeMode: GameMode = "bastion";
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
+  if (difficulty === "endless") {
+    return "No last wave. From wave 15 the ramp is 10%, 20% at 20, 30% at 25, 40% at 40, then another 10% every 15 waves. A Challenger arrives on waves 30, 40, and every 10 after. Two bosses walk out when it falls.";
+  }
   if (difficulty === "hard") {
     return "More enemies, more health, and a steeper ramp. Only true gamers would choose this.";
   }
@@ -261,8 +270,10 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
   chosenDifficulty = difficulty;
   modeNormalBtn.classList.toggle("selected", difficulty === "normal");
   modeHardBtn.classList.toggle("selected", difficulty === "hard");
+  modeEndlessBtn.classList.toggle("selected", difficulty === "endless");
   endModeNormalBtn.classList.toggle("selected", difficulty === "normal");
   endModeHardBtn.classList.toggle("selected", difficulty === "hard");
+  endModeEndlessBtn.classList.toggle("selected", difficulty === "endless");
   modeBlurb.textContent = difficultyBlurb(chosenMode, difficulty);
 }
 
@@ -277,6 +288,11 @@ function syncGameModeButtons(mode: GameMode): void {
   panelMinigames.classList.toggle("hidden", !minigames);
   dungeonCard.classList.toggle("selected", mode === "dungeon");
   lawnCard.classList.toggle("selected", mode === "lawn");
+  modeEndlessBtn.classList.toggle("hidden", minigames);
+  endModeEndlessBtn.classList.toggle("hidden", minigames);
+  if (minigames && chosenDifficulty === "endless") {
+    syncDifficultyButtons("normal");
+  }
   startHeading.textContent = minigames ? "Minigames" : "Classic";
   startBtn.textContent =
     mode === "lawn"
@@ -318,7 +334,8 @@ function syncBastionHud(hud: HudSnapshot): void {
   if (activeMode !== "bastion") return;
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
-  waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
+  waveEl.textContent =
+    hud.difficulty === "endless" ? String(hud.wave) : `${hud.wave} / ${hud.totalWaves}`;
   shovelStatEl.textContent = hud.carrying
     ? "Carrying"
     : hud.shovelReady
@@ -327,10 +344,12 @@ function syncBastionHud(hud: HudSnapshot): void {
   shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
   shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
 
-  modeBadge.classList.remove("hidden");
+  modeBadge.classList.remove("hidden", "regen", "endless");
   if (hud.difficulty === "hard") {
-    modeBadge.classList.remove("regen");
     modeBadge.textContent = "Hard";
+  } else if (hud.difficulty === "endless") {
+    modeBadge.classList.add("endless");
+    modeBadge.textContent = "Endless";
   } else {
     modeBadge.classList.add("regen");
     modeBadge.textContent = "Regen";
@@ -344,9 +363,9 @@ function syncBastionHud(hud: HudSnapshot): void {
     hud.phase === "lost";
   waveBtn.textContent = hud.waveInProgress
     ? `Wave ${hud.wave}…`
-    : hud.wave >= hud.totalWaves
-      ? "Complete"
-      : `Start Wave ${hud.wave + 1}`;
+    : hud.difficulty === "endless" || hud.wave < hud.totalWaves
+      ? `Start Wave ${hud.wave + 1}`
+      : "Complete";
 
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
     const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
@@ -501,7 +520,7 @@ function syncDungeonHud(hud: DungeonHud): void {
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
-  modeBadge.classList.remove("regen");
+  modeBadge.classList.remove("regen", "endless");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -568,7 +587,7 @@ function syncLawnHud(hud: LawnHud): void {
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
   goldLabel.textContent = "Sun";
 
-  modeBadge.classList.remove("regen");
+  modeBadge.classList.remove("regen", "endless");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -655,9 +674,11 @@ function showEndIfNeeded(
         ? `Shamblers crossed on wave ${wave}. Plant earlier and hold the lanes.`
         : mode === "dungeon"
           ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
-          : difficulty === "hard"
-          ? `Hard mode crushed the line on wave ${wave}.`
-          : `The line fell on wave ${wave}. Rebuild and try again.`;
+          : difficulty === "endless"
+            ? `The endless run ended on wave ${wave}.`
+            : difficulty === "hard"
+              ? `Hard mode crushed the line on wave ${wave}.`
+              : `The line fell on wave ${wave}. Rebuild and try again.`;
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   }
@@ -673,8 +694,12 @@ applyChrome("bastion");
 
 modeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 modeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
+modeEndlessBtn.addEventListener("click", () => syncDifficultyButtons("endless"));
 endModeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
+endModeEndlessBtn.addEventListener("click", () =>
+  syncDifficultyButtons("endless"),
+);
 tabClassic.addEventListener("click", () => syncGameModeButtons("bastion"));
 tabMinigames.addEventListener("click", () =>
   syncGameModeButtons(chosenMode === "lawn" ? "lawn" : "dungeon"),

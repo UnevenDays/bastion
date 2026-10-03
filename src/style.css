@@ -97,6 +97,12 @@ body {
   border-color: #8ee0b0;
 }
 
+.mode-badge.endless {
+  color: #1a1408;
+  background: linear-gradient(180deg, #e8c547 0%, #b8862a 100%);
+  border-color: #f0d78a;
+}
+
 .menu-tabs {
   display: flex;
   gap: 0;
@@ -203,6 +209,16 @@ body {
   border-color: #e85d4a;
   box-shadow: 0 0 0 1px rgba(232, 93, 74, 0.35);
   background: #2a1a18;
+}
+
+.mode-btn[data-mode="endless"].selected {
+  border-color: #d4a24a;
+  box-shadow: 0 0 0 1px rgba(212, 162, 74, 0.4);
+  background: #2a2414;
+}
+
+.mode-btn.hidden {
+  display: none;
 }
 
 .mode-blurb {

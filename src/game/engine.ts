@@ -17,6 +17,7 @@ import {
   NORMAL_SPEED,
   bankPayout,
   bannerBonus,
+  bossDef,
   combatStats,
   enemyForWave,
   makeFlyer,
@@ -211,7 +212,7 @@ export class Game {
       gold: this.gold,
       lives: this.lives,
       wave: this.wave,
-      totalWaves: TOTAL_WAVES,
+      totalWaves: this.difficulty === "endless" ? 0 : TOTAL_WAVES,
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -535,7 +536,7 @@ export class Game {
   startWave(): void {
     if (this.phase === "won" || this.phase === "lost") return;
     if (this.waveInProgress) return;
-    if (this.wave >= TOTAL_WAVES) return;
+    if (this.difficulty !== "endless" && this.wave >= TOTAL_WAVES) return;
     if (this.carrying) return; // must finish shovel move/sell first
 
     this.wave += 1;
@@ -694,12 +695,14 @@ export class Game {
     this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;
     const interval = spawnInterval(this.wave, this.difficulty);
-    this.spawnTimer = isBossKind(def.kind) ? interval + 1.0 : interval;
+    this.spawnTimer =
+      isBossKind(def.kind) || def.kind === "challenger" ? interval + 1.0 : interval;
     this.emitHud();
   }
 
   private updateEnemies(dt: number): void {
     const survivors: Enemy[] = [];
+    const spawned: Enemy[] = [];
     for (const e of this.enemies) {
       if (e.slowTimer > 0) {
         e.slowTimer -= dt;
@@ -708,7 +711,7 @@ export class Game {
 
       // Normal mode: only tanks heal back if nothing hurts them for a few seconds.
       if (
-        this.difficulty === "normal" &&
+        this.difficulty !== "hard" &&
         e.kind === "tank" &&
         e.hp > 0 &&
         e.hp < e.maxHp
@@ -762,8 +765,10 @@ export class Game {
       }
 
       if (e.hp > 0) survivors.push(e);
+      else this.onEnemyDeath(e, spawned);
     }
     this.enemies = survivors;
+    if (spawned.length) this.enemies.push(...spawned);
   }
 
   /** Damage and attack-speed bonus banners apply to a fighting tower. */
@@ -1135,31 +1140,61 @@ export class Game {
   private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
     this.gold += e.reward;
     const burstColor =
-      e.kind === "finalBoss"
-        ? "#e8c547"
-        : e.kind === "boss"
+      e.kind === "challenger"
+        ? "#d4a24a"
+        : e.kind === "finalBoss"
           ? "#e8c547"
-          : e.kind === "splitter"
-            ? "#c978c0"
-            : "#e8c547";
+          : e.kind === "boss"
+            ? "#e8c547"
+            : e.kind === "splitter"
+              ? "#c978c0"
+              : "#e8c547";
     this.burst(
       e.x,
       e.y,
       burstColor,
-      e.kind === "finalBoss" ? 28 : isBossKind(e.kind) ? 22 : 12,
+      e.kind === "challenger" || e.kind === "finalBoss"
+        ? 28
+        : isBossKind(e.kind)
+          ? 22
+          : 12,
     );
 
-    if (e.kind !== "splitter") return;
+    if (e.kind === "splitter") {
+      this.spawnOffspring(
+        e,
+        spawned,
+        splitlingFrom(e.maxHp, this.wave, this.difficulty),
+        [-0.08, 0.08],
+      );
+      return;
+    }
 
-    const child = splitlingFrom(e.maxHp, this.wave, this.difficulty);
-    const offsets = [-0.08, 0.08];
+    if (e.kind === "challenger") {
+      this.spawnOffspring(
+        e,
+        spawned,
+        bossDef(this.wave, this.difficulty),
+        [-0.12, 0.12],
+      );
+    }
+  }
+
+  /** Drop children on the path so a death does not end the wave immediately. */
+  private spawnOffspring(
+    e: Enemy,
+    spawned: Enemy[],
+    child: ReturnType<typeof splitlingFrom>,
+    offsets: number[],
+  ): void {
     for (const off of offsets) {
       let pathIndex = e.pathIndex;
-      let progress = Math.min(0.98, Math.max(0, e.progress + off));
+      let progress = e.progress + off;
       if (progress < 0 && pathIndex > 0) {
         pathIndex -= 1;
         progress = 0.9;
       }
+      progress = Math.min(0.98, Math.max(0, progress));
       const a = this.waypoints[pathIndex];
       const b =
         this.waypoints[Math.min(pathIndex + 1, this.waypoints.length - 1)];
@@ -1176,10 +1211,10 @@ export class Game {
     this.waveInProgress = false;
     this.gold += 25 + this.wave * 5;
     this.shovelReady = true; // one shovel action available again
-    if (this.wave >= TOTAL_WAVES) {
-      this.phase = "won";
-    } else {
+    if (this.difficulty === "endless" || this.wave < TOTAL_WAVES) {
       this.phase = "ready";
+    } else {
+      this.phase = "won";
     }
     this.emitHud();
   }
@@ -1596,6 +1631,11 @@ export class Game {
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius + 6, 0, Math.PI * 2);
         ctx.fill();
+      } else if (e.kind === "challenger") {
+        ctx.fillStyle = "rgba(212, 162, 74, 0.3)";
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 8, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       if (e.kind === "splitter") {
@@ -1633,6 +1673,16 @@ export class Game {
         ctx.lineTo(e.x + r * 0.7, e.y + r);
         ctx.lineTo(e.x - r * 0.7, e.y + r);
         ctx.closePath();
+      } else if (e.kind === "challenger") {
+        const r = e.radius;
+        for (let i = 0; i < 6; i++) {
+          const a = -Math.PI / 2 + (i * Math.PI) / 3;
+          const px = e.x + Math.cos(a) * r;
+          const py = e.y + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
       } else {
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
       }
@@ -1660,6 +1710,12 @@ export class Game {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("BOSS", e.x, e.y);
+      } else if (e.kind === "challenger") {
+        ctx.fillStyle = "#1a1408";
+        ctx.font = "700 8px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("RIVAL", e.x, e.y);
       } else if (e.kind === "spawner") {
         ctx.fillStyle = "#e8efe6";
         ctx.font = "700 8px 'Chakra Petch', sans-serif";
@@ -1680,12 +1736,14 @@ export class Game {
           ? "#e8a0b8"
           : e.kind === "boss"
             ? "#c47ae0"
-            : pct > 0.4
-              ? "#5ecf8a"
-              : "#e85d4a";
+            : e.kind === "challenger"
+              ? "#e8c547"
+              : pct > 0.4
+                ? "#5ecf8a"
+                : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
 
-      if (this.difficulty === "normal" && e.kind === "tank") {
+      if (this.difficulty !== "hard" && e.kind === "tank") {
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(94, 207, 138, 0.85)";
@@ -1695,7 +1753,7 @@ export class Game {
         ctx.setLineDash([]);
       }
 
-      if (this.difficulty === "normal" && e.kind === "tank" && e.hp < e.maxHp) {
+      if (this.difficulty !== "hard" && e.kind === "tank" && e.hp < e.maxHp) {
         const regenPct = Math.min(1, e.sinceDamage / REGEN_DELAY);
         const ry = by + barH + 2;
         ctx.fillStyle = "rgba(0,0,0,0.45)";
