@@ -556,7 +556,6 @@ export class DungeonGame {
       if (def.role !== "monster") continue;
 
       a.fightCooldown -= dt;
-      unit.cooldown = Math.max(0, unit.cooldown - dt);
 
       const strike = this.strikeCell(unit);
 
@@ -567,13 +566,33 @@ export class DungeonGame {
         this.burst(strike.x, strike.y, a.color, 4);
       }
 
-      // Monster strikes that same tile.
-      if (unit.cooldown <= 0 && unit.hp > 0) {
-        const mdmg = def.damage * (1 + unit.damageLevel * 0.3);
-        a.hp -= mdmg;
-        unit.cooldown = 1 / (def.fireRate ?? 1);
-        this.burst(strike.x, strike.y, def.color, 4);
+      // Ogres duel one attacker. A crowded ogre still swings faster.
+      if (unit.kind !== "goblin") {
+        unit.cooldown = Math.max(0, unit.cooldown - dt);
+        if (unit.cooldown <= 0 && unit.hp > 0) {
+          const mdmg = def.damage * (1 + unit.damageLevel * 0.3);
+          a.hp -= mdmg;
+          unit.cooldown = 1 / (def.fireRate ?? 1);
+          this.burst(strike.x, strike.y, def.color, 4);
+        }
       }
+    }
+
+    // A goblin's swing lands on the whole strike tile.
+    for (const unit of this.units) {
+      if (unit.kind !== "goblin" || unit.hp <= 0) continue;
+      const foes = this.adventurers.filter(
+        (a) => a.hp > 0 && a.fightingUnitId === this.unitId(unit),
+      );
+      if (foes.length === 0) continue;
+      unit.cooldown = Math.max(0, unit.cooldown - dt);
+      if (unit.cooldown > 0) continue;
+      const def = DUNGEON_BUILDS.goblin;
+      const mdmg = def.damage * (1 + unit.damageLevel * 0.3);
+      const strike = this.strikeCell(unit);
+      for (const a of foes) a.hp -= mdmg;
+      unit.cooldown = 1 / (def.fireRate ?? 1);
+      this.burst(strike.x, strike.y, def.color, 6);
     }
 
     // Dead monsters
