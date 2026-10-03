@@ -31,6 +31,9 @@ import {
   enemyForWave,
   makeFlyer,
   mintIncome,
+  MACE_PERIOD,
+  maceCount,
+  maceSweepHits,
   inNukeBlast,
   nestPoint,
   nukeRemainingHp,
@@ -520,6 +523,7 @@ export class Game {
         drones: [],
         inverted: false,
         summonTimer: 0,
+        orbit: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -533,6 +537,7 @@ export class Game {
       drones: [],
       inverted: false,
       summonTimer: 0,
+      orbit: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -613,7 +618,7 @@ export class Game {
     if (this.selectedTowerIndex === null) return;
     if (this.phase === "won" || this.phase === "lost") return;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm) return;
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm || TOWER_DEFS[t.kind].mace) return;
     t.targeting = mode;
     this.emitHud();
   }
@@ -623,7 +628,7 @@ export class Game {
     if (this.selectedTowerIndex === null) return;
     if (this.phase === "won" || this.phase === "lost") return;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm) return;
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm || TOWER_DEFS[t.kind].mace) return;
     t.inverted = !t.inverted;
     this.emitHud();
   }
@@ -1038,6 +1043,11 @@ export class Game {
 
       if (def.nuke) continue;
 
+      if (def.mace) {
+        this.updateMace(t, dt);
+        continue;
+      }
+
       const stats = this.effectiveStats(t);
       const rangePx = stats.range * CELL;
 
@@ -1116,6 +1126,30 @@ export class Game {
     });
     if (spawned.length) this.enemies.push(...spawned);
     return killed;
+  }
+
+  /** Sweep one or three maces through the circle and strike whatever they pass. */
+  private updateMace(t: Tower, dt: number): void {
+    const stats = this.effectiveStats(t);
+    const tx = t.col * CELL + CELL / 2;
+    const ty = t.row * CELL + CELL / 2;
+    const prev = t.orbit;
+    t.orbit = prev + ((Math.PI * 2) / MACE_PERIOD) * dt;
+    const count = maceCount(t.special);
+    const span = (Math.PI * 2) / count;
+    const rangePx = stats.range * CELL;
+
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      if (dist({ x: tx, y: ty }, e) > rangePx + e.radius * 0.2) continue;
+      const enemyAngle = Math.atan2(e.y - ty, e.x - tx);
+      for (let i = 0; i < count; i++) {
+        if (!maceSweepHits(prev + i * span, t.orbit + i * span, enemyAngle)) continue;
+        this.damageEnemy(e, stats.damage);
+        this.burst(e.x, e.y, stats.color, 3);
+      }
+    }
+    this.reapEnemies();
   }
 
   private updateStorm(t: Tower, dt: number): void {
@@ -1983,6 +2017,7 @@ export class Game {
         !def.economy &&
         !def.flying &&
         !def.storm &&
+        !def.mace &&
         stats.range > 0 &&
         (selected || t.special || t.cooldown < 0.15)
       ) {
@@ -2028,6 +2063,7 @@ export class Game {
 
       ctx.fillStyle = def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint");
+      if (def.mace) this.drawMaces(ctx, t, cx, cy);
 
       if (t.inverted) {
         ctx.fillStyle = "#e8c547";
@@ -2111,6 +2147,11 @@ export class Game {
       ctx.lineTo(-5, 1);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "mace") {
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-1.5, 2, 3, 7);
     } else if (kind === "storm") {
       ctx.beginPath();
       ctx.moveTo(3, -9);
@@ -2129,6 +2170,48 @@ export class Game {
       ctx.lineTo(-5, 0);
       ctx.closePath();
       ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  private drawMaces(
+    ctx: CanvasRenderingContext2D,
+    t: Tower,
+    cx: number,
+    cy: number,
+  ): void {
+    const reach = combatStats(t).range * CELL;
+    const count = maceCount(t.special);
+    const span = (Math.PI * 2) / count;
+    const color = TOWER_DEFS.mace.color;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    for (let i = 0; i < count; i++) {
+      const angle = t.orbit + i * span;
+      const x = cx + Math.cos(angle) * reach;
+      const y = cy + Math.sin(angle) * reach;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#d5dde6";
+      ctx.beginPath();
+      ctx.arc(x - 2, y - 2, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = color;
+    }
+    if (this.selectedTowerIndex !== null && this.towers[this.selectedTowerIndex] === t) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, reach, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(232, 197, 71, 0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
     ctx.restore();
   }

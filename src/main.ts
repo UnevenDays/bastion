@@ -560,6 +560,22 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);
+    } else if (t.kind === "mace") {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG`
+          : "";
+      upgradeStats.textContent = `Hit ${t.damage} · Area ${t.range} · ${t.special ? "3 maces" : "1 mace"}${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Area Max" : `+ Area (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? "Three maces spin through the circle. Damage and area upgrades both make the hits harder and the circle wider."
+        : "One mace spins around the tower and strikes enemies it passes. Damage and area upgrades both raise the hit and the circle. Two More Maces adds two flails.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(null);
     } else {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0

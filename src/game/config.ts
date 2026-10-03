@@ -68,6 +68,13 @@ export const PYRO_SPECIAL_RANGE = 0.7;
 /** Fraction of current health an enemy keeps after a Nuke. At least 1. */
 export const NUKE_SURVIVOR = 0.1;
 
+/** Mace sweep radius in cells, before area upgrades. */
+export const MACE_RANGE = 1.8;
+/** Damage when a mace passes over an enemy, before upgrades. */
+export const MACE_HIT = 18;
+/** Seconds for one full turn of the mace. */
+export const MACE_PERIOD = 1.35;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -215,6 +222,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     projectileSpeed: 340,
     description: "Short-range fire. Extra damage if the target is not burning",
   },
+  mace: {
+    kind: "mace",
+    name: "Mace",
+    cost: 90,
+    range: MACE_RANGE,
+    damage: MACE_HIT,
+    fireRate: 1 / MACE_PERIOD,
+    color: "#8d9aab",
+    projectileSpeed: 0,
+    description: "A mace spins around it and hits every enemy it passes",
+    mace: true,
+  },
   nuke: {
     kind: "nuke",
     name: "Nuke",
@@ -270,6 +289,11 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     name: "Inner Flame",
     description: "Smaller radius. Everything in that interior takes burn damage",
     costMultiplier: 1.3,
+  },
+  mace: {
+    name: "Two More Maces",
+    description: "Two extra maces join the spin",
+    costMultiplier: 1.35,
   },
   nuke: {
     name: "Detonation",
@@ -360,6 +384,39 @@ export function nukeRemainingHp(hp: number): number {
   return Math.max(1, Math.ceil(hp * NUKE_SURVIVOR));
 }
 
+/** How many maces are swinging. The special adds two to the first. */
+export function maceCount(special: boolean): number {
+  return special ? 3 : 1;
+}
+
+/**
+ * Sweep radius in cells. Damage upgrades and area upgrades both widen it.
+ * Area upgrades widen it more.
+ */
+export function maceRange(damageLevel: number, speedLevel: number): number {
+  return MACE_RANGE * (1 + damageLevel * 0.12 + speedLevel * 0.18);
+}
+
+/**
+ * Damage dealt each time a mace passes an enemy.
+ * Damage upgrades and area upgrades both raise it. Damage upgrades raise it more.
+ */
+export function maceHitDamage(damageLevel: number, speedLevel: number): number {
+  return MACE_HIT * (1 + damageLevel * 0.4) * (1 + speedLevel * 0.22);
+}
+
+/**
+ * True when a forward sweep from `prev` to `next` passes `enemyAngle`.
+ * Angles are radians. `prev` and `next` may grow past a full turn.
+ */
+export function maceSweepHits(prev: number, next: number, enemyAngle: number): boolean {
+  const turn = Math.PI * 2;
+  let target = enemyAngle;
+  while (target <= prev) target += turn;
+  while (target - turn > prev) target -= turn;
+  return target > prev && target <= next;
+}
+
 /** True when a tile sits in the Nuke's 3×3, including the crater. */
 export function inNukeBlast(
   col: number,
@@ -425,7 +482,12 @@ export function combatStats(t: Tower): CombatStats {
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
   let auraFreeze = false;
-  let firesProjectiles = !def.storm && !def.nuke;
+  let firesProjectiles = !def.storm && !def.nuke && !def.mace;
+
+  if (def.mace) {
+    range = maceRange(t.damageLevel, t.speedLevel);
+    damage = maceHitDamage(t.damageLevel, t.speedLevel);
+  }
 
   if (t.special) {
     if (t.kind === "archer") {

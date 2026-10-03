@@ -54,7 +54,10 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 | Banner | Grand Banner — the same damage and attack-speed buff reaches every tower |
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
+| Mace   | Two More Maces — two extra maces join the spin |
 | Nuke   | Detonates on placement. 200 gold. No upgrade |
+
+The **Mace** costs 90 gold. One mace spins around the tower and strikes every enemy it passes. Damage upgrades and area upgrades both raise how hard it hits and how wide it swings. Area upgrades widen the circle more. Damage upgrades raise the hit more. **Two More Maces** adds two flails, so three maces share the circle.
 
 The **Nuke** costs 200 gold. It explodes the moment you place it, then it is gone. Every enemy on the field is left with a tenth of its health, and at least 1. Towers in the surrounding **3×3** are destroyed, including coins stored in a Midas Bank there. The tile you chose becomes a crater. Nothing can be built on it for the rest of the run. A new run clears the craters.
 

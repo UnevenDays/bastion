@@ -14,6 +14,7 @@ export type TowerKind =
   | "banner"
   | "storm"
   | "pyro"
+  | "mace"
   | "nuke";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
@@ -54,6 +55,8 @@ export interface TowerDef {
   storm?: boolean;
   /** Detonates on placement, then leaves a crater. */
   nuke?: boolean;
+  /** A mace sweeps the circle around the tower. */
+  mace?: boolean;
 }
 
 /** A wasp or one of its mini drones. */
@@ -105,6 +108,8 @@ export interface Tower {
   inverted: boolean;
   /** Seconds until a Storm special summons the next cloud ally. */
   summonTimer: number;
+  /** Unwrapped spin angle for a Mace, in radians. */
+  orbit: number;
 }
 
 export interface Enemy {
