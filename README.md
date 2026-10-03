@@ -15,6 +15,7 @@ npm run dev
 Open the URL Vite prints (default: `http://localhost:3847`).
 
 ## Permanent hosting (easiest on phone: Netlify Drop)
+##Permanent Netlify Link is: https://6ac1155c4f568a9c1195e18f--incandescent-kataifi-3629f2.netlify.app
 
 GitHub’s **mobile app does not show Pages** in Settings. Use Netlify Drop instead:
 
