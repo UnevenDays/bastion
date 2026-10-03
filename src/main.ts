@@ -611,6 +611,9 @@ function syncBastionHud(hud: HudSnapshot): void {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
         : "Shovel already used this wave.";
+    } else if (hud.selected === "nuke") {
+      hintEl.textContent =
+        "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run.";
     } else if (hud.selected) {
       hintEl.textContent = `${TOWER_DEFS[hud.selected].name} selected. Click grass to build.`;
     } else {

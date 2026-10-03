@@ -65,6 +65,9 @@ export const PYRO_FRESH_BONUS = 1;
 /** Inner Flame multiplies shot range by this. The interior then burns. */
 export const PYRO_SPECIAL_RANGE = 0.7;
 
+/** Fraction of current health an enemy keeps after a Nuke. At least 1. */
+export const NUKE_SURVIVOR = 0.1;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -212,6 +215,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     projectileSpeed: 340,
     description: "Short-range fire. Extra damage if the target is not burning",
   },
+  nuke: {
+    kind: "nuke",
+    name: "Nuke",
+    cost: 200,
+    range: 0,
+    damage: 0,
+    fireRate: 0,
+    color: "#e8c547",
+    projectileSpeed: 0,
+    description: "Detonates at once. Almost destroys everything. Wrecks a 3×3",
+    nuke: true,
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -255,6 +270,11 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     name: "Inner Flame",
     description: "Smaller radius. Everything in that interior takes burn damage",
     costMultiplier: 1.3,
+  },
+  nuke: {
+    name: "Detonation",
+    description: "The placement is the blast. The tower does not stay to be upgraded",
+    costMultiplier: 1,
   },
 };
 
@@ -335,6 +355,21 @@ export function pyroBurnDps(damage: number): number {
   return damage * PYRO_BURN_RATIO;
 }
 
+/** Health left after a Nuke. Nothing is deleted outright. */
+export function nukeRemainingHp(hp: number): number {
+  return Math.max(1, Math.ceil(hp * NUKE_SURVIVOR));
+}
+
+/** True when a tile sits in the Nuke's 3×3, including the crater. */
+export function inNukeBlast(
+  col: number,
+  row: number,
+  originCol: number,
+  originRow: number,
+): boolean {
+  return Math.abs(col - originCol) <= 1 && Math.abs(row - originRow) <= 1;
+}
+
 /** Cost to buy the next damage or speed upgrade for a tower. */
 export function upgradeCost(baseCost: number, currentLevel: number): number {
   return Math.round(baseCost * 0.55 * (currentLevel + 1));
@@ -390,7 +425,7 @@ export function combatStats(t: Tower): CombatStats {
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
   let auraFreeze = false;
-  let firesProjectiles = !def.storm;
+  let firesProjectiles = !def.storm && !def.nuke;
 
   if (t.special) {
     if (t.kind === "archer") {

@@ -32,7 +32,9 @@ import {
   enemyForWave,
   makeFlyer,
   mintIncome,
+  inNukeBlast,
   nestPoint,
+  nukeRemainingHp,
   PYRO_BURN_TIME,
   pyroBurnDps,
   pyroHitDamage,
@@ -197,6 +199,9 @@ export class Game {
   private pulse = 0;
 
   private towerOccupied = new Set<string>();
+  /** Grass tiles a Nuke burned out. Nothing can be built there this run. */
+  private craters = new Set<string>();
+  private blastFlash = 0;
 
   onHudChange: ((hud: HudSnapshot) => void) | null = null;
 
@@ -379,7 +384,7 @@ export class Game {
   private placeCarried(col: number, row: number): boolean {
     if (!this.carrying) return false;
     const key = pathKey(col, row);
-    if (this.pathSet.has(key) || this.towerOccupied.has(key)) return false;
+    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.craters.has(key)) return false;
 
     const tower = this.carrying;
     tower.col = col;
@@ -430,6 +435,42 @@ export class Game {
     return true;
   }
 
+  /**
+   * Spend the Nuke. Every enemy keeps a sliver of health. Towers in the
+   * 3×3 are destroyed. The center tile is a crater for the rest of the run.
+   */
+  private detonateNuke(col: number, row: number): void {
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      e.hp = nukeRemainingHp(e.hp);
+      e.sinceDamage = 0;
+    }
+
+    const kept: Tower[] = [];
+    const removed = new Set<Tower>();
+    const selected = this.selectedTowerIndex !== null ? this.towers[this.selectedTowerIndex] : null;
+    for (const t of this.towers) {
+      if (!inNukeBlast(t.col, t.row, col, row)) {
+        kept.push(t);
+        continue;
+      }
+      removed.add(t);
+      this.towerOccupied.delete(pathKey(t.col, t.row));
+      this.burst(t.col * CELL + CELL / 2, t.row * CELL + CELL / 2, "#e85d4a", 8);
+    }
+    this.towers = kept;
+    this.clouds = this.clouds.filter((c) => !removed.has(c.owner));
+    if (selected && removed.has(selected)) this.selectedTowerIndex = null;
+    else if (selected) this.selectedTowerIndex = this.towers.indexOf(selected);
+
+    this.craters.add(pathKey(col, row));
+    this.blastFlash = 0.55;
+    const cx = col * CELL + CELL / 2;
+    const cy = row * CELL + CELL / 2;
+    this.burst(cx, cy, "#fff1c9", 28);
+    this.burst(cx, cy, "#e25822", 18);
+  }
+
   tryPlace(col: number, row: number): boolean {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (!this.selected || this.tool !== "build") return false;
@@ -438,11 +479,18 @@ export class Game {
     const key = pathKey(col, row);
     if (this.pathSet.has(key)) return false;
     if (this.towerOccupied.has(key)) return false;
+    if (this.craters.has(key)) return false;
 
     const def = TOWER_DEFS[this.selected];
     if (this.gold < def.cost) return false;
 
     this.gold -= def.cost;
+    if (def.nuke) {
+      this.detonateNuke(col, row);
+      this.selectedTowerIndex = null;
+      this.emitHud();
+      return true;
+    }
     const tower: Tower = {
       col,
       row,
@@ -647,6 +695,8 @@ export class Game {
     this.particles = [];
     this.clouds = [];
     this.stickers = [];
+    this.craters.clear();
+    this.blastFlash = 0;
     this.towerOccupied.clear();
     this.nextEnemyId = 1;
     this.spawnQueue = 0;
@@ -965,6 +1015,8 @@ export class Game {
         this.updateStorm(t, dt);
         continue;
       }
+
+      if (def.nuke) continue;
 
       const stats = this.effectiveStats(t);
       const rangePx = stats.range * CELL;
@@ -1596,6 +1648,7 @@ export class Game {
   }
 
   private updateParticles(dt: number): void {
+    if (this.blastFlash > 0) this.blastFlash = Math.max(0, this.blastFlash - dt);
     this.stickers = this.stickers.filter((s) => {
       s.life -= dt;
       return s.life > 0;
@@ -1623,6 +1676,10 @@ export class Game {
     this.drawProjectiles(ctx);
     this.drawStickers(ctx);
     this.drawParticles(ctx);
+    if (this.blastFlash > 0) {
+      ctx.fillStyle = `rgba(255, 214, 150, ${Math.min(0.55, this.blastFlash)})`;
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
     this.drawBaseMarkers(ctx);
   }
 
@@ -1631,9 +1688,28 @@ export class Game {
       for (let c = 0; c < COLS; c++) {
         const x = c * CELL;
         const y = r * CELL;
-        const shade = (c + r) % 2 === 0 ? "#1e3a28" : "#1a3324";
+        const crater = this.craters.has(pathKey(c, r));
+        const shade = crater
+          ? "#140e0c"
+          : (c + r) % 2 === 0
+            ? "#1e3a28"
+            : "#1a3324";
         ctx.fillStyle = shade;
         ctx.fillRect(x, y, CELL, CELL);
+        if (crater) {
+          ctx.fillStyle = "#241610";
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 2, 16, 11, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#5a3a28";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          ctx.fillStyle = "#0c0908";
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 3, 8, 5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
 
         ctx.fillStyle = "rgba(94, 207, 138, 0.06)";
         ctx.fillRect(x + 8, y + 10, 3, 8);
@@ -1717,7 +1793,8 @@ export class Game {
       const validPlace =
         this.carrying !== null &&
         !this.pathSet.has(key) &&
-        !this.towerOccupied.has(key);
+        !this.towerOccupied.has(key) &&
+        !this.craters.has(key);
       const hasTower = this.towerOccupied.has(key);
       ctx.fillStyle = this.carrying
         ? validPlace
@@ -1742,8 +1819,9 @@ export class Game {
 
     const def = TOWER_DEFS[this.selected];
     const occupied = this.towerOccupied.has(key);
+    const crater = this.craters.has(key);
     const valid =
-      !this.pathSet.has(key) && !occupied && this.gold >= def.cost;
+      !this.pathSet.has(key) && !occupied && !crater && this.gold >= def.cost;
 
     if (occupied) {
       ctx.fillStyle = "rgba(232, 197, 71, 0.15)";
@@ -1751,8 +1829,31 @@ export class Game {
       return;
     }
 
-    ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.2)" : "rgba(232, 93, 74, 0.25)";
-    ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+    if (crater) {
+      ctx.fillStyle = "rgba(232, 93, 74, 0.35)";
+      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+      return;
+    }
+
+    if (def.nuke) {
+      for (let dc = -1; dc <= 1; dc++) {
+        for (let dr = -1; dr <= 1; dr++) {
+          const c = col + dc;
+          const r = row + dr;
+          if (c < 0 || r < 0 || c >= COLS || r >= ROWS) continue;
+          const center = dc === 0 && dr === 0;
+          ctx.fillStyle = center
+            ? valid
+              ? "rgba(80, 40, 16, 0.55)"
+              : "rgba(232, 93, 74, 0.35)"
+            : "rgba(232, 93, 74, 0.28)";
+          ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+        }
+      }
+    } else {
+      ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.2)" : "rgba(232, 93, 74, 0.25)";
+      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+    }
 
     if (!def.economy && def.range > 0) {
       ctx.beginPath();
@@ -1924,6 +2025,11 @@ export class Game {
       ctx.lineTo(1.5, 0);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "nuke") {
+      ctx.beginPath();
+      ctx.arc(0, 2, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-1.4, -8, 2.8, 6);
     } else if (kind === "pyro") {
       ctx.beginPath();
       ctx.moveTo(0, -9);

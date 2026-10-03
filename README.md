@@ -54,6 +54,9 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 | Banner | Grand Banner — the same damage and attack-speed buff reaches every tower |
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
+| Nuke   | Detonates on placement. 200 gold. No upgrade |
+
+The **Nuke** costs 200 gold. It explodes the moment you place it, then it is gone. Every enemy on the field is left with a tenth of its health, and at least 1. Towers in the surrounding **3×3** are destroyed, including coins stored in a Midas Bank there. The tile you chose becomes a crater. Nothing can be built on it for the rest of the run. A new run clears the craters.
 
 The **Pyro** costs 60 gold. Its range is shorter than the other shooters. A shot deals fire damage, and a target that is not already burning takes that hit again as extra damage. The burn then ticks for a few seconds. A slow, including Frost, puts the fire out. **Inner Flame** shrinks the radius further and deals burn damage to every enemy in that interior.
 

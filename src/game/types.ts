@@ -13,7 +13,8 @@ export type TowerKind =
   | "wasp"
   | "banner"
   | "storm"
-  | "pyro";
+  | "pyro"
+  | "nuke";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
 export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
@@ -51,6 +52,8 @@ export interface TowerDef {
   support?: boolean;
   /** Random lightning across the whole map. No range circle. */
   storm?: boolean;
+  /** Detonates on placement, then leaves a crater. */
+  nuke?: boolean;
 }
 
 /** A wasp or one of its mini drones. */

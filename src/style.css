@@ -17,6 +17,7 @@
   --tower-frost: #5a9eb8;
   --tower-storm: #7ec8ff;
   --tower-pyro: #e25822;
+  --tower-nuke: #e8c547;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "Sora", sans-serif;
 }
@@ -406,6 +407,9 @@ body {
 }
 .swatch.pyro {
   background: var(--tower-pyro);
+}
+.swatch.nuke {
+  background: var(--tower-nuke);
 }
 .swatch.sunbloom {
   background: #e8c547;
