@@ -7,6 +7,7 @@ import {
   LOFFY,
   LROWS,
   PLANTS,
+  LAWN_PEACE,
   SUN_AMOUNT,
   SUN_INTERVAL,
   lawnSpawnInterval,
@@ -71,6 +72,8 @@ export interface LawnHud {
   } | null;
   waveInProgress: boolean;
   digging: boolean;
+  /** Seconds left in the opening with no zombies. */
+  peaceLeft: number;
 }
 
 function dist(a: Vec2, b: Vec2): number {
@@ -98,6 +101,7 @@ export class LawnGame {
   private spawnTimer = 0;
   private waveInProgress = false;
   private skyTimer = SUN_INTERVAL;
+  peaceLeft = 0;
   private nextId = 1;
   private hover: { col: number; row: number } | null = null;
 
@@ -135,6 +139,7 @@ export class LawnGame {
         : null,
       waveInProgress: this.waveInProgress,
       digging: this.digging,
+      peaceLeft: this.peaceLeft,
     });
   }
 
@@ -155,6 +160,7 @@ export class LawnGame {
     this.spawnTimer = 0;
     this.waveInProgress = false;
     this.skyTimer = SUN_INTERVAL;
+    this.peaceLeft = LAWN_PEACE;
     this.nextId = 1;
     this.emitHud();
   }
@@ -261,6 +267,7 @@ export class LawnGame {
     if (this.phase === "won" || this.phase === "lost") return;
     if (this.waveInProgress) return;
     if (this.wave >= LAWN_WAVES) return;
+    if (this.peaceLeft > 0) return;
     this.wave += 1;
     this.phase = "playing";
     this.waveInProgress = true;
@@ -274,6 +281,7 @@ export class LawnGame {
       this.updateParticles(dt);
       return;
     }
+    this.tickPeace(dt);
     this.tickSun(dt);
     this.spawn(dt);
     this.updateZombies(dt);
@@ -281,6 +289,13 @@ export class LawnGame {
     this.updatePeas(dt);
     this.updateParticles(dt);
     this.checkWave();
+  }
+
+  private tickPeace(dt: number): void {
+    if (this.peaceLeft <= 0) return;
+    const before = Math.ceil(this.peaceLeft);
+    this.peaceLeft = Math.max(0, this.peaceLeft - dt);
+    if (Math.ceil(this.peaceLeft) !== before) this.emitHud();
   }
 
   private tickSun(dt: number): void {
@@ -293,6 +308,7 @@ export class LawnGame {
   }
 
   private spawn(dt: number): void {
+    if (this.peaceLeft > 0) return;
     if (!this.waveInProgress || this.queue.length === 0) return;
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
@@ -480,6 +496,7 @@ export class LawnGame {
   draw(ctx: CanvasRenderingContext2D): void {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawLawn(ctx);
+    this.drawPeace(ctx);
     this.drawPlants(ctx);
     this.drawZombies(ctx);
     this.drawPeas(ctx);
@@ -506,6 +523,17 @@ export class LawnGame {
     }
     ctx.strokeStyle = "rgba(0,0,0,0.25)";
     ctx.strokeRect(LOFFX, LOFFY, LCOLS * LCELL, LROWS * LCELL);
+  }
+
+  private drawPeace(ctx: CanvasRenderingContext2D): void {
+    if (this.peaceLeft <= 0) return;
+    ctx.fillStyle = "rgba(8, 14, 10, 0.72)";
+    ctx.fillRect(this.width / 2 - 132, 18, 264, 32);
+    ctx.fillStyle = "#e8c547";
+    ctx.font = "700 15px 'Chakra Petch', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`No zombies · ${Math.ceil(this.peaceLeft)}s`, this.width / 2, 34);
   }
 
   private drawPlants(ctx: CanvasRenderingContext2D): void {

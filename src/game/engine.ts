@@ -19,6 +19,7 @@ import {
   bannerBonus,
   bossDef,
   combatStats,
+  endlessDrought,
   enemyForWave,
   makeFlyer,
   mintIncome,
@@ -165,6 +166,13 @@ export class Game {
     const special = SPECIAL_UPGRADES[t.kind];
     const stats = this.effectiveStats(t);
     const income = def.economy ? mintIncome(t) : null;
+    const bankSlow =
+      !!t.special &&
+      this.difficulty === "endless" &&
+      endlessDrought(this.wave);
+    const shownInterval = income
+      ? income.interval * (bankSlow ? 2 : 1)
+      : 0;
     const given = def.support ? bannerBonus(t) : null;
     const received = this.bannerBuffFor(t);
     const dCost =
@@ -195,7 +203,7 @@ export class Game {
       sellRefund: sellValue(t.invested, t.banked),
       economy: !!def.economy,
       goldPerTick: income?.amount ?? 0,
-      goldInterval: income ? Math.round(income.interval * 10) / 10 : 0,
+      goldInterval: income ? Math.round(shownInterval * 10) / 10 : 0,
       banked: t.banked,
       bankPayout: t.kind === "mint" && t.special ? bankPayout(t.banked) : 0,
       targeting: t.targeting,
@@ -664,7 +672,8 @@ export class Game {
             kind: "normal",
             hp: Math.round(22 * scale),
             speed: NORMAL_SPEED + 8,
-            reward: 3,
+            reward:
+              this.difficulty === "endless" && endlessDrought(this.wave) ? 0 : 3,
             radius: 9,
             color: "#9aaa4a",
             leakDamage: 1,
@@ -834,8 +843,12 @@ export class Game {
         t.cooldown = Math.max(0, t.cooldown - dt);
         if (t.cooldown <= 0) {
           const income = mintIncome(t);
+          const slow =
+            t.special &&
+            this.difficulty === "endless" &&
+            endlessDrought(this.wave);
           this.gold += income.amount;
-          t.cooldown = income.interval;
+          t.cooldown = income.interval * (slow ? 2 : 1);
           minted = true;
           this.burst(tx, ty - 8, "#e8c547", 8);
         }

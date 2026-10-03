@@ -36,13 +36,13 @@ npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
 5. Press **Start Wave** when you are ready. Normal and Hard end after 12 waves — wave 12 is the Final Boss. **Endless** keeps going until your lives hit 0.
 
-Mints cost 100 gold and only print gold **while a wave is running**. They stop between waves. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
+A **Mint** costs 100 gold. It prints gold only while a wave is running, and it stops between waves. That timer is the same in Normal, Hard, and Endless. Income and payout-rate upgrades still raise each tick. **Midas Bank** is the Mint's special: it takes coins off your gold, and when the next wave starts it pays 25% of what is stored. That payout leaves the bank. Selling returns whatever remains.
 
 **Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate. Endless uses the same tank regen.
 
 **Hard mode**, on Classic and both minigames: more enemies, more health, and a steeper ramp. Only true gamers would choose this.
 
-**Endless** is Classic only. There is no victory screen. From wave 15 enemies gain an extra 10% ramp, 20% at wave 20, 30% at wave 25, and 40% at wave 40. After that the ramp climbs another 10% every 15 waves. Count, health, speed, and bounty all rise with that ramp.
+**Endless** is Classic only. There is no victory screen. Buttons on the toolbar set the game speed to **1×, 2×, 5×, or 10×**. Enemy count, health, speed, and bounty use the same ramp shape as before, but each step compounds: 10% of the current total. The steps are still wave 15, wave 20, wave 25, wave 40, then every 15 waves (wave 15 is 110% health, wave 20 is 121%, wave 25 is 133.1%). From wave 30, enemies drop no gold. A normal Mint keeps printing on its usual timer. Only a Midas Bank prints twice as slowly from that wave. Its 25% deposit payout does not change.
 
 | Tower  | Special upgrade                                      |
 |--------|------------------------------------------------------|
@@ -73,7 +73,7 @@ Adventurers are softer than the defenses they walk into: less health and slower 
 
 ### Sun Lawn
 
-A lane defense. You start with **50 sun** (25 on Hard). The lawn pays **25 sun every 20 seconds**, and each **Sunbloom** (50 sun) pays another 25 on that same timer. **Spitters** cost 100 and shoot the first zombie in their lane. **Bulwarks** (50) are walls zombies stop to chew. **Chillers** (175) slow a lane. **Boomnuts** (150) burst when a zombie steps on them. Survive 8 waves. A zombie that reaches the house costs a life. Dig removes a plant and does not refund sun.
+A lane defense. The first **30 seconds** have no zombies, so you can plant before the first wave. You start with **50 sun** (25 on Hard). The lawn pays **25 sun every 20 seconds**, and each **Sunbloom** (50 sun) pays another 25 on that same timer. **Spitters** cost 100 and shoot the first zombie in their lane. **Bulwarks** (50) are walls zombies stop to chew. **Chillers** (175) slow a lane. **Boomnuts** (150) burst when a zombie steps on them. Survive 8 waves. A zombie that reaches the house costs a life. Dig removes a plant and does not refund sun.
 
 ## Build
 

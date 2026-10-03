@@ -123,7 +123,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0.22,
     color: "#e8c547",
     projectileSpeed: 0,
-    description: "Prints gold while a wave is running",
+    description: "Prints gold only during a wave",
     economy: true,
   },
   wasp: {
@@ -333,15 +333,28 @@ export function hardWaveMultiplier(wave: number): number {
 }
 
 /**
- * Extra Endless multiplier. 10% from wave 15, 20% at 20, 30% at 25,
- * 40% at 40, then another 10% every 15 waves.
+ * How many times the endless ramp has compounded.
+ * Same waves as before: 15, 20, 25, 40, then every 15 waves.
+ */
+export function endlessRampSteps(wave: number): number {
+  if (wave < 15) return 0;
+  if (wave < 20) return 1;
+  if (wave < 25) return 2;
+  if (wave < 40) return 3;
+  return 4 + Math.floor((wave - 40) / 15);
+}
+
+/**
+ * Extra endless multiplier. Each step is 10% of the current total,
+ * so wave 15 is 10%, wave 20 is 21%, wave 25 is 33.1%, and so on.
  */
 export function endlessRamp(wave: number): number {
-  if (wave < 15) return 0;
-  if (wave < 20) return 0.1;
-  if (wave < 25) return 0.2;
-  if (wave < 40) return 0.3;
-  return 0.4 + Math.floor((wave - 40) / 15) * 0.1;
+  return 1.1 ** endlessRampSteps(wave) - 1;
+}
+
+/** Endless waves 30 and up: enemies pay nothing, and a Midas Bank prints slower. */
+export function endlessDrought(wave: number): boolean {
+  return wave >= 30;
 }
 
 /** Endless waves 30, 40, 50… send a Challenger as the last enemy. */
@@ -395,7 +408,9 @@ function applyHard(
       ...next,
       hp: Math.round(next.hp * (1 + ramp)),
       speed: Math.round(next.speed * (1 + ramp * 0.5)),
-      reward: Math.round(next.reward * (1 + ramp * 0.2)),
+      reward: endlessDrought(wave)
+        ? 0
+        : Math.round(next.reward * (1 + ramp * 0.2)),
     };
   }
   return next;

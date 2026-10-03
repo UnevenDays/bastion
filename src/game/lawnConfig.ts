@@ -16,6 +16,8 @@ export const LAWN_HARD_SUN = 25;
 export const SUN_AMOUNT = 25;
 /** Seconds between those payments. */
 export const SUN_INTERVAL = 20;
+/** Opening of a Sun Lawn run. No zombies during this time. */
+export const LAWN_PEACE = 30;
 
 export type PlantKind = "sunbloom" | "spitter" | "bulwark" | "chiller" | "boomnut";
 export type ZombieKind = "shambler" | "cone" | "runner" | "brute";

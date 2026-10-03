@@ -478,6 +478,44 @@ body {
   display: flex;
   gap: 8px;
   margin-left: auto;
+  align-items: center;
+}
+
+.speed-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.speed-row.hidden {
+  display: none;
+}
+
+.speed-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.speed-btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  min-width: 36px;
+  padding: 8px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-edge);
+  background: #152219;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.speed-btn.selected {
+  color: #1a1408;
+  background: #e8c547;
+  border-color: #f0d78a;
 }
 
 .btn {
@@ -680,8 +718,9 @@ body {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: safe center;
   justify-content: center;
+  overflow: auto;
   background: rgba(8, 14, 10, 0.78);
   backdrop-filter: blur(4px);
   z-index: 10;
@@ -754,12 +793,29 @@ body {
 }
 
 @media (max-width: 640px) {
+  html,
+  body {
+    height: auto;
+    overflow: auto;
+  }
+
   #app {
+    height: auto;
+    min-height: 100%;
     padding: 8px 10px 12px;
+  }
+
+  .overlay {
+    align-items: flex-start;
   }
 
   .actions {
     margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .speed-row {
     width: 100%;
   }
 

@@ -44,7 +44,7 @@ app.innerHTML = `
             </button>
             <button class="minigame-card" type="button" id="minigame-lawn">
               <span class="minigame-name">Sun Lawn</span>
-              <span class="minigame-meta">Five lanes. 50 sun to start, 25 more every 20 seconds. Spitters cost 100. Stop the shamblers before they reach the house.</span>
+              <span class="minigame-meta">Five lanes. 30 seconds with no zombies, then the waves. 50 sun to start, 25 more every 20 seconds.</span>
             </button>
           </div>
 
@@ -123,6 +123,13 @@ app.innerHTML = `
         <span class="meta">Move or sell · 1× per wave</span>
       </button>
       <div class="actions">
+        <div class="speed-row hidden" id="speed-row" role="group" aria-label="Endless speed">
+          <span class="speed-label">Speed</span>
+          <button class="speed-btn selected" type="button" data-speed="1">1×</button>
+          <button class="speed-btn" type="button" data-speed="2">2×</button>
+          <button class="speed-btn" type="button" data-speed="5">5×</button>
+          <button class="speed-btn" type="button" data-speed="10">10×</button>
+        </div>
         <button class="btn btn-ghost" type="button" id="cancel-btn">Cancel</button>
         <button class="btn btn-primary" type="button" id="wave-btn">Start Wave</button>
       </div>
@@ -244,6 +251,13 @@ const endModeHardBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-hard")!;
 const endModeEndlessBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-endless")!;
+const speedRow = document.querySelector<HTMLElement>("#speed-row")!;
+const speedButtons = [
+  ...speedRow.querySelectorAll<HTMLButtonElement>(".speed-btn"),
+];
+
+const GAME_SPEEDS = [1, 2, 5, 10] as const;
+let gameSpeed: (typeof GAME_SPEEDS)[number] = 1;
 
 let started = false;
 let chosenDifficulty: Difficulty = "normal";
@@ -252,7 +266,7 @@ let activeMode: GameMode = "bastion";
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
   if (difficulty === "endless") {
-    return "No last wave. From wave 15 the ramp is 10%, 20% at 20, 30% at 25, 40% at 40, then another 10% every 15 waves. A Challenger arrives on waves 30, 40, and every 10 after. Two bosses walk out when it falls.";
+    return "No final wave. Speed is 1×, 2×, 5×, or 10×. Enemy health compounds by 10% of the current total at waves 15, 20, 25, 40, then every 15 waves. From wave 30, enemies drop no gold. A normal Mint is unchanged. Only a Midas Bank prints twice as slowly. A Challenger on waves 30, 40, and every 10 after leaves two bosses.";
   }
   if (difficulty === "hard") {
     return "More enemies, more health, and a steeper ramp. Only true gamers would choose this.";
@@ -261,7 +275,7 @@ function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
     return "Adventurers are softer. Spikes, snares, goblins, and ogres are stronger.";
   }
   if (mode === "lawn") {
-    return "50 sun to start. The lawn and each Sunbloom pay 25 sun every 20 seconds.";
+    return "30 seconds with no zombies. 50 sun to start. The lawn and each Sunbloom pay 25 sun every 20 seconds.";
   }
   return "Tanks heal to full health if nothing hits them for 3 seconds.";
 }
@@ -344,6 +358,11 @@ function syncBastionHud(hud: HudSnapshot): void {
   shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
   shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
 
+  speedRow.classList.toggle("hidden", hud.difficulty !== "endless");
+  for (const btn of speedButtons) {
+    btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
+  }
+
   modeBadge.classList.remove("hidden", "regen", "endless");
   if (hud.difficulty === "hard") {
     modeBadge.textContent = "Hard";
@@ -416,8 +435,10 @@ function syncBastionHud(hud: HudSnapshot): void {
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Rate Max" : `+ Payout Rate (${t.speedCost}g)`;
       hintEl.textContent = t.special
-        ? "Midas Bank takes coins off your gold. Each wave pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever is left."
-        : "Mints print gold only while a wave is running. Midas Bank stores coins and pays 25% of them at the start of each wave.";
+        ? hud.difficulty === "endless" && hud.wave >= 30
+          ? "From wave 30, this Midas Bank prints twice as slowly. The 25% deposit payout each wave stays the same. A normal Mint is not slowed."
+          : "Midas Bank takes coins off your gold. Each wave pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever is left."
+        : "A Mint prints gold only while a wave is running, then stops. Endless does not change a normal Mint.";
       const showBank = t.special;
       mintDepositBtn.classList.toggle("hidden", !showBank);
       mintDepositAllBtn.classList.toggle("hidden", !showBank);
@@ -515,6 +536,7 @@ function syncTargeting(mode: TargetMode | null, inverted = false): void {
 
 function syncDungeonHud(hud: DungeonHud): void {
   if (activeMode !== "dungeon") return;
+  speedRow.classList.add("hidden");
   syncTargeting(null);
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
@@ -581,6 +603,7 @@ function syncDungeonHud(hud: DungeonHud): void {
 
 function syncLawnHud(hud: LawnHud): void {
   if (activeMode !== "lawn") return;
+  speedRow.classList.add("hidden");
   syncTargeting(null);
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
@@ -591,16 +614,20 @@ function syncLawnHud(hud: LawnHud): void {
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
+  const peace = hud.peaceLeft > 0;
   lwaveBtn.disabled =
     !started ||
+    peace ||
     hud.waveInProgress ||
     hud.phase === "won" ||
     hud.phase === "lost";
-  lwaveBtn.textContent = hud.waveInProgress
-    ? `Wave ${hud.wave}…`
-    : hud.wave >= hud.totalWaves
-      ? "Complete"
-      : `Start Wave ${hud.wave + 1}`;
+  lwaveBtn.textContent = peace
+    ? `No zombies · ${Math.ceil(hud.peaceLeft)}s`
+    : hud.waveInProgress
+      ? `Wave ${hud.wave}…`
+      : hud.wave >= hud.totalWaves
+        ? "Complete"
+        : `Start Wave ${hud.wave + 1}`;
 
   for (const kind of Object.keys(PLANTS) as PlantKind[]) {
     const btn = document.querySelector<HTMLButtonElement>(`#pbtn-${kind}`)!;
@@ -627,10 +654,13 @@ function syncLawnHud(hud: LawnHud): void {
       hintEl.textContent = "Dig: click a plant to remove it. Sun is not refunded.";
     } else if (hud.selected) {
       const d = PLANTS[hud.selected];
-      hintEl.textContent = `${d.name} selected (${d.cost} sun). Click an empty lawn tile.`;
+      hintEl.textContent = peace
+        ? `${Math.ceil(hud.peaceLeft)}s with no zombies. ${d.name} selected (${d.cost} sun). Click an empty lawn tile.`
+        : `${d.name} selected (${d.cost} sun). Click an empty lawn tile.`;
     } else {
-      hintEl.textContent =
-        "The lawn drops 25 sun every 20 seconds. Sunblooms add another 25. Spitters cost 100.";
+      hintEl.textContent = peace
+        ? "The first 30 seconds have no zombies. Plant, then start the wave."
+        : "The lawn drops 25 sun every 20 seconds. Sunblooms add another 25. Spitters cost 100.";
     }
   }
 
@@ -695,6 +725,18 @@ applyChrome("bastion");
 modeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 modeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 modeEndlessBtn.addEventListener("click", () => syncDifficultyButtons("endless"));
+speedRow.addEventListener("click", (event) => {
+  const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(
+    ".speed-btn",
+  );
+  if (!btn?.dataset.speed) return;
+  const next = Number(btn.dataset.speed);
+  if (next !== 1 && next !== 2 && next !== 5 && next !== 10) return;
+  gameSpeed = next;
+  for (const other of speedButtons) {
+    other.classList.toggle("selected", other === btn);
+  }
+});
 endModeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 endModeEndlessBtn.addEventListener("click", () =>
@@ -855,7 +897,13 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (activeMode === "bastion") {
-    bastion.update(dt);
+    const speed = bastion.difficulty === "endless" ? gameSpeed : 1;
+    let left = dt * speed;
+    while (left > 0) {
+      const step = Math.min(0.05, left);
+      bastion.update(step);
+      left -= step;
+    }
     bastion.draw(ctx);
   } else if (activeMode === "lawn") {
     lawn.update(dt);
