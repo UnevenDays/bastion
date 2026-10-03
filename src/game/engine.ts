@@ -17,7 +17,6 @@ import {
   REGEN_DELAY,
   ROWS,
   STORM_SPLASH,
-  TOTAL_WAVES,
   TOWER_DEFS,
   SPECIAL_UPGRADES,
   MAX_UPGRADE,
@@ -50,6 +49,7 @@ import {
   upgradeCost,
   waveEnemyCount,
 } from "./config";
+import { campaignById, type CampaignLevel } from "./campaign";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   Difficulty,
@@ -122,6 +122,10 @@ export interface HudSnapshot {
   carrySellRefund: number;
   /** A level from the editor, with its own road and waves. */
   custom: boolean;
+  /** Campaign road name. Empty on an editor level. */
+  levelName: string;
+  /** This road has water that cannot hold a tower. */
+  hasWater: boolean;
 }
 
 function pathKey(col: number, row: number): string {
@@ -169,6 +173,10 @@ export class Game {
     y: p.row * CELL + CELL / 2,
   }));
   private custom: CustomLevel | null = null;
+  private campaign: CampaignLevel = campaignById("road");
+  private water = new Set<string>();
+  private grassA = "#1e3a28";
+  private grassB = "#1a3324";
 
   difficulty: Difficulty = "normal";
   gold = startingGold("normal");
@@ -276,8 +284,10 @@ export class Game {
         ? this.custom.waves.length
         : this.difficulty === "endless"
           ? 0
-          : TOTAL_WAVES,
+          : this.campaign.waves,
       custom: this.custom !== null,
+      levelName: this.custom ? "" : this.campaign.name,
+      hasWater: !this.custom && this.campaign.water.length > 0,
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -384,7 +394,7 @@ export class Game {
   private placeCarried(col: number, row: number): boolean {
     if (!this.carrying) return false;
     const key = pathKey(col, row);
-    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.craters.has(key)) return false;
+    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.craters.has(key) || this.water.has(key)) return false;
 
     const tower = this.carrying;
     tower.col = col;
@@ -479,7 +489,7 @@ export class Game {
     const key = pathKey(col, row);
     if (this.pathSet.has(key)) return false;
     if (this.towerOccupied.has(key)) return false;
-    if (this.craters.has(key)) return false;
+    if (this.craters.has(key) || this.water.has(key)) return false;
 
     const def = TOWER_DEFS[this.selected];
     if (this.gold < def.cost) return false;
@@ -649,7 +659,7 @@ export class Game {
     if (this.waveInProgress) return;
     if (this.custom) {
       if (this.wave >= this.custom.waves.length) return;
-    } else if (this.difficulty !== "endless" && this.wave >= TOTAL_WAVES) return;
+    } else if (this.difficulty !== "endless" && this.wave >= this.campaign.waves) return;
     if (this.carrying) return; // must finish shovel move/sell first
 
     this.wave += 1;
@@ -705,9 +715,9 @@ export class Game {
     this.emitHud();
   }
 
-  beginRun(difficulty: Difficulty): void {
+  beginRun(difficulty: Difficulty, levelId = "road"): void {
     this.custom = null;
-    this.usePath(PATH);
+    this.applyCampaign(campaignById(levelId));
     this.restart(difficulty);
   }
 
@@ -715,11 +725,21 @@ export class Game {
   beginCustom(level: CustomLevel): void {
     const next = normalizeLevel(level);
     this.custom = next;
+    this.applyCampaign(campaignById("road"));
+    this.water.clear();
     this.usePath(next.path);
     this.restart("normal");
     this.gold = next.gold;
     this.lives = next.lives;
     this.emitHud();
+  }
+
+  private applyCampaign(level: CampaignLevel): void {
+    this.campaign = level;
+    this.usePath(level.path);
+    this.water = new Set(level.water.map((p) => pathKey(p.col, p.row)));
+    this.grassA = level.grass[0];
+    this.grassB = level.grass[1];
   }
 
   private usePath(path: { col: number; row: number }[]): void {
@@ -841,7 +861,7 @@ export class Game {
     const index = this.queuedSpawns() - this.spawnQueue;
     const def = this.custom
       ? customEnemyAt(this.custom, this.wave, index)
-      : enemyForWave(this.wave, index, this.difficulty);
+      : enemyForWave(this.wave, index, this.difficulty, this.campaign.waves);
     const start = this.waypoints[0];
     this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;
@@ -1625,7 +1645,7 @@ export class Game {
     this.shovelReady = true; // one shovel action available again
     const cleared = this.custom
       ? this.wave >= this.custom.waves.length
-      : this.difficulty !== "endless" && this.wave >= TOTAL_WAVES;
+      : this.difficulty !== "endless" && this.wave >= this.campaign.waves;
     this.phase = cleared ? "won" : "ready";
     this.emitHud();
   }
@@ -1683,19 +1703,67 @@ export class Game {
     this.drawBaseMarkers(ctx);
   }
 
+  private drawGrassDecor(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+    const pattern = this.campaign.pattern;
+    if (pattern === "stripes") {
+      ctx.strokeStyle = "rgba(232, 197, 71, 0.1)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + 10, y + CELL - 10);
+      ctx.lineTo(x + CELL - 10, y + 10);
+      ctx.moveTo(x + 10, y + 18);
+      ctx.lineTo(x + 22, y + 8);
+      ctx.stroke();
+      return;
+    }
+    if (pattern === "marsh") {
+      ctx.fillStyle = "rgba(120, 180, 150, 0.16)";
+      ctx.beginPath();
+      ctx.ellipse(x + 16, y + 22, 7, 3, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(x + 32, y + 14, 5, 2, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      return;
+    }
+    if (pattern === "cobble") {
+      ctx.fillStyle = "rgba(190, 198, 186, 0.12)";
+      ctx.fillRect(x + 8, y + 8, 12, 9);
+      ctx.fillRect(x + 26, y + 16, 12, 9);
+      ctx.fillRect(x + 14, y + 30, 12, 9);
+      return;
+    }
+    ctx.fillStyle = "rgba(94, 207, 138, 0.06)";
+    ctx.fillRect(x + 8, y + 10, 3, 8);
+    ctx.fillRect(x + 22, y + 28, 2, 6);
+    ctx.fillRect(x + 34, y + 14, 3, 7);
+  }
+
   private drawTerrain(ctx: CanvasRenderingContext2D): void {
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const x = c * CELL;
         const y = r * CELL;
         const crater = this.craters.has(pathKey(c, r));
+        const wet = this.water.has(pathKey(c, r));
         const shade = crater
           ? "#140e0c"
-          : (c + r) % 2 === 0
-            ? "#1e3a28"
-            : "#1a3324";
+          : wet
+            ? "#14343c"
+            : (c + r) % 2 === 0
+              ? this.grassA
+              : this.grassB;
         ctx.fillStyle = shade;
         ctx.fillRect(x, y, CELL, CELL);
+        if (wet && !crater) {
+          ctx.fillStyle = "#2a7584";
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 1, 18, 13, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(186, 228, 236, 0.45)";
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2 - 5, y + CELL / 2 - 3, 6, 3, -0.5, 0, Math.PI * 2);
+          ctx.fill();
+          continue;
+        }
         if (crater) {
           ctx.fillStyle = "#241610";
           ctx.beginPath();
@@ -1711,10 +1779,7 @@ export class Game {
           continue;
         }
 
-        ctx.fillStyle = "rgba(94, 207, 138, 0.06)";
-        ctx.fillRect(x + 8, y + 10, 3, 8);
-        ctx.fillRect(x + 22, y + 28, 2, 6);
-        ctx.fillRect(x + 34, y + 14, 3, 7);
+        this.drawGrassDecor(ctx, x, y);
       }
     }
   }
@@ -1794,7 +1859,8 @@ export class Game {
         this.carrying !== null &&
         !this.pathSet.has(key) &&
         !this.towerOccupied.has(key) &&
-        !this.craters.has(key);
+        !this.craters.has(key) &&
+        !this.water.has(key);
       const hasTower = this.towerOccupied.has(key);
       ctx.fillStyle = this.carrying
         ? validPlace
@@ -1821,7 +1887,11 @@ export class Game {
     const occupied = this.towerOccupied.has(key);
     const crater = this.craters.has(key);
     const valid =
-      !this.pathSet.has(key) && !occupied && !crater && this.gold >= def.cost;
+      !this.pathSet.has(key) &&
+      !occupied &&
+      !crater &&
+      !this.water.has(key) &&
+      this.gold >= def.cost;
 
     if (occupied) {
       ctx.fillStyle = "rgba(232, 197, 71, 0.15)";
@@ -1829,7 +1899,7 @@ export class Game {
       return;
     }
 
-    if (crater) {
+    if (crater || this.water.has(key)) {
       ctx.fillStyle = "rgba(232, 93, 74, 0.35)";
       ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
       return;
@@ -1875,7 +1945,7 @@ export class Game {
     if (!this.carrying || !this.hover) return;
     const { col, row } = this.hover;
     const key = pathKey(col, row);
-    if (this.pathSet.has(key) || this.towerOccupied.has(key)) return;
+    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.water.has(key) || this.craters.has(key)) return;
     const cx = col * CELL + CELL / 2;
     const cy = row * CELL + CELL / 2;
     ctx.globalAlpha = 0.55;

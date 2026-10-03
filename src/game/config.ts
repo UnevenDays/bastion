@@ -519,8 +519,8 @@ export function isBossWave(wave: number): boolean {
   return wave === 6 || wave === 9;
 }
 
-export function isFinalBossWave(wave: number): boolean {
-  return wave === TOTAL_WAVES;
+export function isFinalBossWave(wave: number, lastWave = TOTAL_WAVES): boolean {
+  return wave === lastWave;
 }
 
 function applyHard(
@@ -577,6 +577,7 @@ export function enemyForWave(
   wave: number,
   index: number,
   difficulty: Difficulty = "normal",
+  lastWave = TOTAL_WAVES,
 ): EnemyDef {
   const count = waveEnemyCount(wave, difficulty);
   const scale = 1 + (wave - 1) * 0.22;
@@ -601,8 +602,8 @@ export function enemyForWave(
     );
   }
 
-  // Final boss — last spawn on wave 12, much more health. Endless keeps going.
-  if (difficulty !== "endless" && isFinalBossWave(wave) && index === count - 1) {
+  // Final boss — last spawn of the level. Endless keeps going.
+  if (difficulty !== "endless" && isFinalBossWave(wave, lastWave) && index === count - 1) {
     return applyHard(
       {
         kind: "finalBoss",

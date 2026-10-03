@@ -112,6 +112,46 @@ body {
   border-color: #b7e4f2;
 }
 
+.level-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.level-btn {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-edge);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.level-btn:hover {
+  border-color: #8a9a84;
+}
+
+.level-btn.selected {
+  border-color: #e8c547;
+  background: rgba(232, 197, 71, 0.12);
+}
+
+.level-name {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.level-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .menu-tabs {
   display: flex;
   gap: 0;
@@ -1005,5 +1045,9 @@ body {
   .overlay-card {
     margin: 12px;
     padding: 24px 20px;
+  }
+
+  .level-picker {
+    grid-template-columns: 1fr;
   }
 }

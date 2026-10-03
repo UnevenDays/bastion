@@ -6,6 +6,7 @@ import { mountEditor } from "./editorPanel";
 import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
+import { CAMPAIGN } from "./game/campaign";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
 import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
@@ -39,7 +40,8 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">The original defense. Towers beside the path, upgrades, and a shovel.</p>
+            <p class="mode-blurb" id="start-desc">Four roads. Each one after the first is longer, and each road lays the tiles differently. Marsh has water you cannot build on.</p>
+            <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <div id="menu-board" class="score-board hidden">
               <p class="score-title">Endless leaderboard</p>
               <p class="score-note">Saved on this browser. Highest wave, then gold.</p>
@@ -266,6 +268,7 @@ const toolbarDungeon = document.querySelector<HTMLElement>("#toolbar-dungeon")!;
 const toolbarLawn = document.querySelector<HTMLElement>("#toolbar-lawn")!;
 const lawnCard = document.querySelector<HTMLButtonElement>("#minigame-lawn")!;
 const dungeonCard = document.querySelector<HTMLButtonElement>("#minigame-dungeon")!;
+const levelPicker = document.querySelector<HTMLElement>("#level-picker")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
 const modeHardBtn = document.querySelector<HTMLButtonElement>("#mode-hard")!;
 const modeEndlessBtn =
@@ -287,6 +290,7 @@ let gameSpeed: (typeof GAME_SPEEDS)[number] = 1;
 let started = false;
 let chosenDifficulty: Difficulty = "normal";
 let chosenMode: GameMode = "bastion";
+let chosenLevel = "road";
 let activeMode: GameMode = "bastion";
 let menuView: "classic" | "minigames" | "editor" = "classic";
 let activeLevel: CustomLevel | null = null;
@@ -613,9 +617,10 @@ function syncBastionHud(hud: HudSnapshot): void {
         : "Shovel already used this wave.";
     } else if (hud.selected === "nuke") {
       hintEl.textContent =
-        "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run.";
+        "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run." +
+        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
     } else if (hud.selected) {
-      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} selected. Click grass to build.`;
+      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} selected. Click grass to build.${hud.hasWater ? " Water puddles cannot hold a tower." : ""}`;
     } else {
       hintEl.textContent = "Select a tower, or click a placed tower to upgrade.";
     }
@@ -841,9 +846,27 @@ bastion.onHudChange = syncBastionHud;
 dungeon.onHudChange = syncDungeonHud;
 lawn.onHudChange = syncLawnHud;
 
+function paintLevels(): void {
+  levelPicker.innerHTML = CAMPAIGN.map((level) => {
+    const water = level.water.length > 0 ? " · water" : "";
+    return `<button class="level-btn${level.id === chosenLevel ? " selected" : ""}" type="button" data-level="${level.id}">
+      <span class="level-name">${level.name}</span>
+      <span class="level-meta">${level.waves} waves${water}</span>
+    </button>`;
+  }).join("");
+}
+
 syncGameModeButtons("bastion");
 syncDifficultyButtons("normal");
 applyChrome("bastion");
+paintLevels();
+
+levelPicker.addEventListener("click", (event) => {
+  const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(".level-btn");
+  if (!btn?.dataset.level) return;
+  chosenLevel = btn.dataset.level;
+  paintLevels();
+});
 
 modeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 modeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
@@ -979,7 +1002,7 @@ function startChosen(): void {
     bastion.selectTower("archer");
   } else if (chosenMode === "bastion") {
     activeLevel = null;
-    bastion.beginRun(chosenDifficulty);
+    bastion.beginRun(chosenDifficulty, chosenLevel);
     bastion.selectTower("archer");
   } else if (chosenMode === "lawn") {
     lawn.beginRun(chosenDifficulty);
