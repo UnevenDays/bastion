@@ -33,6 +33,9 @@ import {
   makeFlyer,
   mintIncome,
   nestPoint,
+  PYRO_BURN_TIME,
+  pyroBurnDps,
+  pyroHitDamage,
   sellValue,
   specialCost,
   spawnInterval,
@@ -740,6 +743,8 @@ export class Game {
       sinceDamage: 0,
       stolen: 0,
       stealTimer: 0,
+      burnTimer: 0,
+      burnDps: 0,
     };
   }
 
@@ -802,7 +807,17 @@ export class Game {
     for (const e of this.enemies) {
       if (e.slowTimer > 0) {
         e.slowTimer -= dt;
+        e.burnTimer = 0;
+        e.burnDps = 0;
         if (e.slowTimer <= 0) e.speed = e.baseSpeed;
+      } else if (e.burnTimer > 0 && e.hp > 0) {
+        const step = Math.min(dt, e.burnTimer);
+        e.burnTimer -= dt;
+        this.damageEnemy(e, e.burnDps * step);
+        if (e.burnTimer <= 0) {
+          e.burnTimer = 0;
+          e.burnDps = 0;
+        }
       }
 
       // Normal mode: only tanks heal back if nothing hurts them for a few seconds.
@@ -961,9 +976,15 @@ export class Game {
           if (stats.auraDamage > 0) {
             this.damageEnemy(e, stats.auraDamage * dt);
           }
+          if (t.kind === "pyro" && e.hp > 0 && e.slowTimer <= 0) {
+            e.burnTimer = Math.max(e.burnTimer, PYRO_BURN_TIME);
+            e.burnDps = Math.max(e.burnDps, pyroBurnDps(stats.damage));
+          }
           if (stats.auraFreeze) {
             e.speed = e.baseSpeed * stats.slow;
             e.slowTimer = Math.max(e.slowTimer, stats.slowDuration);
+            e.burnTimer = 0;
+            e.burnDps = 0;
           }
         }
       }
@@ -1003,6 +1024,7 @@ export class Game {
         color: stats.color,
         targetId: best.id,
         life: 1.2,
+        fire: t.kind === "pyro",
       });
       t.cooldown = 1 / stats.fireRate;
     }
@@ -1416,13 +1438,13 @@ export class Game {
         : [primary];
 
     for (const e of targets) {
-      this.damageEnemy(e, p.damage);
-      if (p.slow > 0 && p.damage > 0) {
+      if (p.fire) this.applyFire(e, p.damage);
+      else this.damageEnemy(e, p.damage);
+      if (p.slow > 0) {
         e.speed = e.baseSpeed * p.slow;
         e.slowTimer = p.slowDuration;
-      } else if (p.slow > 0 && p.damage === 0) {
-        e.speed = e.baseSpeed * p.slow;
-        e.slowTimer = p.slowDuration;
+        e.burnTimer = 0;
+        e.burnDps = 0;
       }
       this.burst(e.x, e.y, p.color, p.splash > 0 ? 6 : 4);
     }
@@ -1435,6 +1457,19 @@ export class Game {
     });
     if (spawned.length) this.enemies.push(...spawned);
     this.emitHud();
+  }
+
+  /** Ignite a target. Extra damage if it is not already burning. A slow refuses the burn. */
+  private applyFire(e: Enemy, damage: number): void {
+    if (e.slowTimer > 0) {
+      e.burnTimer = 0;
+      e.burnDps = 0;
+    }
+    const burning = e.burnTimer > 0;
+    this.damageEnemy(e, pyroHitDamage(damage, burning));
+    if (e.slowTimer > 0 || e.hp <= 0) return;
+    e.burnTimer = PYRO_BURN_TIME;
+    e.burnDps = Math.max(e.burnDps, pyroBurnDps(damage));
   }
 
   /** HP loss resets the normal-mode regen clock. Slows alone do not. */
@@ -1788,6 +1823,9 @@ export class Game {
         } else if (t.special && t.kind === "archer") {
           ctx.fillStyle = "rgba(74, 155, 110, 0.06)";
           ctx.fill();
+        } else if (t.special && t.kind === "pyro") {
+          ctx.fillStyle = "rgba(226, 88, 34, 0.16)";
+          ctx.fill();
         }
         ctx.strokeStyle = selected
           ? "rgba(232, 197, 71, 0.4)"
@@ -1884,6 +1922,17 @@ export class Game {
       ctx.moveTo(1.5, -10);
       ctx.lineTo(11, -5);
       ctx.lineTo(1.5, 0);
+      ctx.closePath();
+      ctx.fill();
+    } else if (kind === "pyro") {
+      ctx.beginPath();
+      ctx.moveTo(0, -9);
+      ctx.lineTo(5, 1);
+      ctx.lineTo(2, 0);
+      ctx.lineTo(3, 8);
+      ctx.lineTo(-3, 8);
+      ctx.lineTo(-2, 0);
+      ctx.lineTo(-5, 1);
       ctx.closePath();
       ctx.fill();
     } else if (kind === "storm") {
@@ -2085,6 +2134,13 @@ export class Game {
         ctx.setLineDash([]);
       }
 
+      if (e.burnTimer > 0) {
+        ctx.fillStyle = "rgba(226, 88, 34, 0.35)";
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.fillStyle = e.color;
       ctx.beginPath();
       if (boss) {
@@ -2212,6 +2268,28 @@ export class Game {
 
   private drawProjectiles(ctx: CanvasRenderingContext2D): void {
     for (const p of this.projectiles) {
+      if (p.fire) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(Math.atan2(p.vy, p.vx) + Math.PI / 2);
+        ctx.fillStyle = "#ffb15a";
+        ctx.beginPath();
+        ctx.moveTo(0, -7);
+        ctx.lineTo(4, 4);
+        ctx.lineTo(0, 2);
+        ctx.lineTo(-4, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#e25822";
+        ctx.beginPath();
+        ctx.moveTo(0, -3);
+        ctx.lineTo(2, 4);
+        ctx.lineTo(-2, 4);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        continue;
+      }
       ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.splash > 0 ? 5 : 3.5, 0, Math.PI * 2);

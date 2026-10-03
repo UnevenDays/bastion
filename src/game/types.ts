@@ -12,7 +12,8 @@ export type TowerKind =
   | "mint"
   | "wasp"
   | "banner"
-  | "storm";
+  | "storm"
+  | "pyro";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
 export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
@@ -127,6 +128,10 @@ export interface Enemy {
   stolen: number;
   /** Seconds toward the next theft. */
   stealTimer: number;
+  /** Seconds of fire left. A slow puts this out. */
+  burnTimer: number;
+  /** Fire damage per second while burnTimer is running. */
+  burnDps: number;
 }
 
 export interface Projectile {
@@ -141,6 +146,8 @@ export interface Projectile {
   color: string;
   targetId: number | null;
   life: number;
+  /** Pyro shot. Ignites, and hits harder when the target is not burning. */
+  fire: boolean;
 }
 
 export interface Particle {

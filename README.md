@@ -53,6 +53,9 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 | Wasp   | Drone Wing — three mini drones that hunt until their target falls |
 | Banner | Grand Banner — the same damage and attack-speed buff reaches every tower |
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
+| Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
+
+The **Pyro** costs 60 gold. Its range is shorter than the other shooters. A shot deals fire damage, and a target that is not already burning takes that hit again as extra damage. The burn then ticks for a few seconds. A slow, including Frost, puts the fire out. **Inner Flame** shrinks the radius further and deals burn damage to every enemy in that interior.
 
 The **Storm** costs 45 gold. It has no range circle and no aim. It sticks lightning on random spots across the map. One in four strikes is guaranteed to hit a living enemy; the rest only hurt enemies standing in the splash. **Cloud Allies** costs 150 gold. While a wave is running, the tower summons a cloud at the path entrance every 15 seconds, up to five at once. Each cloud has **200 health** (five times a wave-1 grunt's 40) and hits for **40**, so that grunt falls in one strike. Enemies hit the cloud back. Damage upgrades raise the lightning and the cloud's hits. The 15 second timer does not change. Selling the Storm dismisses its clouds.
 

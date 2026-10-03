@@ -56,6 +56,15 @@ export const THIEF_STEAL = 1;
 /** Share of stolen gold paid back when a thief is killed. */
 export const THIEF_REFUND = 0.2;
 
+/** How long a Pyro burn lasts. A slow clears it immediately. */
+export const PYRO_BURN_TIME = 2.4;
+/** Burn damage per second, as a fraction of the hit that set it. */
+export const PYRO_BURN_RATIO = 0.5;
+/** Extra hit damage when the target is not already on fire. 1 means double. */
+export const PYRO_FRESH_BONUS = 1;
+/** Inner Flame multiplies shot range by this. The interior then burns. */
+export const PYRO_SPECIAL_RANGE = 0.7;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -192,6 +201,17 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "Random lightning stickers. 25% of strikes always hit",
     storm: true,
   },
+  pyro: {
+    kind: "pyro",
+    name: "Pyro",
+    cost: 60,
+    range: 1.55,
+    damage: 16,
+    fireRate: 1,
+    color: "#e25822",
+    projectileSpeed: 340,
+    description: "Short-range fire. Extra damage if the target is not burning",
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -230,6 +250,11 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     description: "Every 15 seconds, a cloud ally fights on the path. 200 health and 40 damage",
     costMultiplier: 1,
     cost: 150,
+  },
+  pyro: {
+    name: "Inner Flame",
+    description: "Smaller radius. Everything in that interior takes burn damage",
+    costMultiplier: 1.3,
   },
 };
 
@@ -298,6 +323,16 @@ export function cloudStrikeBack(enemyMaxHp: number): number {
 /** Gold returned when a thief dies. A leak pays nothing back. */
 export function thiefRefund(stolen: number): number {
   return Math.floor(Math.max(0, stolen) * THIEF_REFUND);
+}
+
+/** Pyro hit. A target that is not already burning takes the extra damage. */
+export function pyroHitDamage(damage: number, burning: boolean): number {
+  return burning ? damage : damage * (1 + PYRO_FRESH_BONUS);
+}
+
+/** Fire damage per second from a Pyro hit of this size. */
+export function pyroBurnDps(damage: number): number {
+  return damage * PYRO_BURN_RATIO;
 }
 
 /** Cost to buy the next damage or speed upgrade for a tower. */
@@ -374,6 +409,9 @@ export function combatStats(t: Tower): CombatStats {
       range *= 1.15;
       slow = 0.28;
       slowDuration = 0.4;
+    } else if (t.kind === "pyro") {
+      range *= PYRO_SPECIAL_RANGE;
+      auraDamage = 8 + t.damageLevel * 3.5;
     }
   }
 

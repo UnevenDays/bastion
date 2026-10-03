@@ -576,6 +576,10 @@ function syncBastionHud(hud: HudSnapshot): void {
         ? t.special
           ? "The wasp and its three drones each stick to one enemy until that enemy is destroyed."
           : "No range circle. The wasp flies to its target and stays until that enemy falls. Drone Wing adds three mini drones."
+        : t.kind === "pyro"
+          ? t.special
+            ? "Inner Flame shrinks the radius and burns every enemy inside it. A slow still puts the fire out."
+            : "Short range. A target that is not already burning takes extra damage. A slow removes the fire."
         : glacier
           ? "Glacier Field freezes in an area and refunds every damage upgrade on this tower."
           : `${t.specialName}: ${t.specialDescription}`;
