@@ -40,7 +40,7 @@ Mints cost 130 gold and only print gold **while a wave is running**. They stop b
 
 **Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate.
 
-**Hard mode** still ramps every wave, with a gentler curve than before: more enemy HP/speed/count, slightly faster spawns, 110 starting gold and 17 lives. Bosses leak for a little extra. Hard enemies do not regenerate.
+**Hard mode**, on Classic and both minigames: more enemies, more health, and a steeper ramp. Only true gamers would choose this.
 
 | Tower  | Special upgrade                                      |
 |--------|------------------------------------------------------|
@@ -66,7 +66,7 @@ The **Wasp** has no range circle. It flies to one enemy and keeps attacking unti
 
 Place **Spike Traps**, **Snares**, **Goblins**, and **Ogres** on the zigzag road only. Adventurers walk the path, take trap damage, and stop to fight monsters (they deal damage back). If they reach the exit, you lose lives. Survive 10 waves; the last spawns an Ogre Slayer.
 
-Adventurers are softer than the defenses they walk into: less health, slower hits, and a milder hard-mode bonus. Spikes and snares hit harder, and goblins and ogres have more health and damage. A goblin hits one tile ahead of itself, toward the entrance. Adventurers attack on that strike tile and do not step onto the goblin to fight. Hard ambush starts with 120 gold and 10 lives.
+Adventurers are softer than the defenses they walk into: less health and slower hits. Hard mode still adds more of them, with more health and a steeper ramp. Spikes and snares hit harder, and goblins and ogres have more health and damage. A goblin hits one tile ahead of itself, toward the entrance. Adventurers attack on that strike tile and do not step onto the goblin to fight. Hard ambush starts with 120 gold and 10 lives.
 
 ### Sun Lawn
 

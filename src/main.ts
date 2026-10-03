@@ -245,19 +245,16 @@ let chosenMode: GameMode = "bastion";
 let activeMode: GameMode = "bastion";
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
+  if (difficulty === "hard") {
+    return "More enemies, more health, and a steeper ramp. Only true gamers would choose this.";
+  }
   if (mode === "dungeon") {
-    return difficulty === "hard"
-      ? "A few more adventurers, with a milder health bonus. 120 gold and 10 lives."
-      : "Adventurers are softer. Spikes, snares, goblins, and ogres are stronger.";
+    return "Adventurers are softer. Spikes, snares, goblins, and ogres are stronger.";
   }
   if (mode === "lawn") {
-    return difficulty === "hard"
-      ? "25 sun to start, tougher shamblers, and one extra walker each wave."
-      : "50 sun to start. The lawn and each Sunbloom pay 25 sun every 20 seconds.";
+    return "50 sun to start. The lawn and each Sunbloom pay 25 sun every 20 seconds.";
   }
-  return difficulty === "hard"
-    ? "More enemies and health each wave, with a gentler ramp. 110 gold and 17 lives."
-    : "Tanks heal to full health if nothing hits them for 3 seconds.";
+  return "Tanks heal to full health if nothing hits them for 3 seconds.";
 }
 
 function syncDifficultyButtons(difficulty: Difficulty): void {
