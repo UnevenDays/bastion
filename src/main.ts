@@ -40,7 +40,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Four roads. Each one after the first is longer, and each road lays the tiles differently. Marsh has water you cannot build on.</p>
+            <p class="mode-blurb" id="start-desc">Seven roads. Each one after the first is longer, and each road has its own ground and tiles. Marsh has water you cannot build on.</p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <div id="menu-board" class="score-board hidden">
               <p class="score-title">Endless leaderboard</p>

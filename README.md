@@ -30,11 +30,11 @@ npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
 
 ## How to play
 
-1. Stay on **Classic** for the main game, open **Minigames** for **Dungeon Crawler** or **Sun Lawn**, or open **Editor** to build a road. On Classic, pick a road: **Road** (12 waves), **Switchback** (14), **Marsh** (16, with water puddles you cannot build on), or **Causeway** (18). Each road uses a different tile pattern. Pick **Normal**, **Hard**, or (Classic only) **Endless**, then start. Endless keeps the road you picked and does not end at that wave count.
+1. Stay on **Classic** for the main game, open **Minigames** for **Dungeon Crawler** or **Sun Lawn**, or open **Editor** to build a road. On Classic, pick a road: **Road** (12 waves, tufts), **Switchback** (14, stripes), **Marsh** (16, wet grass and water you cannot build on), **Causeway** (18, cobble), **Orchard** (20, blossom), **Quarry** (22, cut stone), or **Night Watch** (24, a dark field with glimmering tiles). Pick **Normal**, **Hard**, or (Classic only) **Endless**, then start. Endless keeps the road you picked and does not end at that wave count.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest). **Invert** flips that choice: First becomes Last, Strong becomes Weak, and Auto aims at the farthest enemy.
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
-5. Press **Start Wave** when you are ready. Normal and Hard end after 12 waves — wave 12 is the Final Boss. **Endless** keeps going until your lives hit 0.
+5. Press **Start Wave** when you are ready. Normal and Hard end on the last wave of the road you picked. The last enemy of that wave is the Final Boss. **Endless** keeps going until your lives hit 0.
 
 A **Mint** costs 100 gold. It prints gold only while a wave is running, and it stops between waves. That timer is the same in Normal, Hard, and Endless. Income and payout-rate upgrades still raise each tick. **Midas Bank** is the Mint's special: it takes coins off your gold, and when the next wave starts it pays 25% of what is stored. That payout leaves the bank. Selling returns whatever remains.
 

@@ -1966,8 +1966,47 @@ export class Game {
     this.drawBaseMarkers(ctx);
   }
 
-  private drawGrassDecor(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  private drawGrassDecor(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    col: number,
+    row: number,
+  ): void {
     const pattern = this.campaign.pattern;
+    if (pattern === "blossom") {
+      const sway = Math.sin(this.pulse * 1.3 + col * 0.8) * 1.4;
+      ctx.fillStyle = "rgba(244, 176, 190, 0.55)";
+      ctx.beginPath();
+      ctx.arc(x + 14 + sway, y + 16, 2.4, 0, Math.PI * 2);
+      ctx.arc(x + 18 + sway, y + 14, 2.2, 0, Math.PI * 2);
+      ctx.arc(x + 16 + sway, y + 19, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(120, 168, 96, 0.45)";
+      ctx.fillRect(x + 32, y + 28, 2, 7);
+      return;
+    }
+    if (pattern === "slate") {
+      ctx.strokeStyle = "rgba(196, 204, 198, 0.28)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 8, y + 10, 18, 11);
+      ctx.beginPath();
+      ctx.moveTo(x + 28, y + 28);
+      ctx.lineTo(x + 42, y + 32);
+      ctx.lineTo(x + 34, y + 40);
+      ctx.closePath();
+      ctx.stroke();
+      return;
+    }
+    if (pattern === "embers") {
+      const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(this.pulse * 2 + col * 1.7 + row));
+      ctx.fillStyle = `rgba(242, 206, 130, ${0.2 + twinkle * 0.55})`;
+      ctx.fillRect(x + 12, y + 16, 2, 2);
+      ctx.fillRect(x + 30, y + 30, 2, 2);
+      ctx.fillStyle = `rgba(186, 156, 232, ${0.15 + (1 - twinkle) * 0.4})`;
+      ctx.fillRect(x + 22, y + 10, 2, 2);
+      return;
+    }
     if (pattern === "stripes") {
       ctx.strokeStyle = "rgba(232, 197, 71, 0.1)";
       ctx.lineWidth = 2;
@@ -2039,10 +2078,19 @@ export class Game {
           ctx.beginPath();
           ctx.ellipse(x + CELL / 2, y + CELL / 2 + 3, 8, 5, 0, 0, Math.PI * 2);
           ctx.fill();
-          continue;
         }
+      }
+    }
 
-        this.drawGrassDecor(ctx, x, y);
+    if (this.campaign.wash) {
+      ctx.fillStyle = this.campaign.wash;
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (this.craters.has(pathKey(c, r)) || this.water.has(pathKey(c, r))) continue;
+        this.drawGrassDecor(ctx, c * CELL, r * CELL, c, r);
       }
     }
   }
@@ -2050,7 +2098,8 @@ export class Game {
   private drawPath(ctx: CanvasRenderingContext2D): void {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
-    ctx.strokeStyle = "#5a4a35";
+    const road = this.campaign.road;
+    ctx.strokeStyle = road.edge;
     ctx.lineWidth = CELL * 0.72;
     ctx.beginPath();
     this.waypoints.forEach((w, i) => {
@@ -2059,7 +2108,7 @@ export class Game {
     });
     ctx.stroke();
 
-    ctx.strokeStyle = "#3d3428";
+    ctx.strokeStyle = road.fill;
     ctx.lineWidth = CELL * 0.52;
     ctx.beginPath();
     this.waypoints.forEach((w, i) => {
@@ -2068,7 +2117,7 @@ export class Game {
     });
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(232, 197, 71, 0.15)";
+    ctx.strokeStyle = road.dash;
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 10]);
     ctx.beginPath();
