@@ -397,13 +397,30 @@ export class DungeonGame {
     return null;
   }
 
-  private holdOnTile(a: Adventurer, progress: number): void {
-    a.progress = progress;
-    const p0 = this.waypoints[a.pathIndex];
-    const p1 =
-      this.waypoints[Math.min(a.pathIndex + 1, this.waypoints.length - 1)];
-    a.x = p0.x + (p1.x - p0.x) * a.progress;
-    a.y = p0.y + (p1.y - p0.y) * a.progress;
+  /** Tile a monster's attack lands on. Goblins hit one tile toward the entrance. */
+  private strikeCell(unit: RoadUnit): { pathIndex: number; x: number; y: number } {
+    const index =
+      unit.kind === "goblin" && unit.pathIndex > 0
+        ? unit.pathIndex - 1
+        : unit.pathIndex;
+    const cell = ZIGZAG_PATH[index] ?? { col: unit.col, row: unit.row };
+    return {
+      pathIndex: index,
+      x: cell.col * DCELL + DCELL / 2,
+      y: cell.row * DCELL + DCELL / 2,
+    };
+  }
+
+  /** Stand the attacker on the tile this monster actually hits. */
+  private placeOnStrike(a: Adventurer, unit: RoadUnit): void {
+    const strike = this.strikeCell(unit);
+    a.fightingUnitId = this.unitId(unit);
+    a.pathIndex = strike.pathIndex;
+    a.progress = 0.5;
+    const slot = a.id % 5;
+    const ang = slot * 1.25;
+    a.x = strike.x + Math.cos(ang) * 8;
+    a.y = strike.y + Math.sin(ang) * 6;
   }
 
   private updateAdventurers(dt: number): void {
@@ -414,11 +431,20 @@ export class DungeonGame {
         if (a.slowTimer <= 0) a.speed = a.baseSpeed;
       }
 
-      // Engage / stay in fight with monster on current tile
-      const monster = this.monsterAtPathIndex(a.pathIndex);
-      if (monster && a.progress < 0.55) {
-        a.fightingUnitId = this.unitId(monster);
-        // Hold near the monster
+      // A goblin is fought on the tile it strikes, never on its own square.
+      const reach = this.goblinReachingTile(a.pathIndex);
+      const here = this.monsterAtPathIndex(a.pathIndex);
+      const goblinFight =
+        reach ?? (here?.kind === "goblin" ? here : null);
+      if (goblinFight) {
+        this.placeOnStrike(a, goblinFight);
+        survivors.push(a);
+        continue;
+      }
+
+      // Other monsters are fought on the tile they stand on.
+      if (here && a.progress < 0.55) {
+        a.fightingUnitId = this.unitId(here);
         a.progress = Math.min(a.progress, 0.35);
         const wp = this.waypoints[a.pathIndex];
         a.x = wp.x;
@@ -426,21 +452,17 @@ export class DungeonGame {
         survivors.push(a);
         continue;
       }
-
-      // Goblin reaches one tile ahead of itself, toward the entrance.
-      const reach = this.goblinReachingTile(a.pathIndex);
-      if (reach && a.progress >= 0.45) {
-        a.fightingUnitId = this.unitId(reach);
-        this.holdOnTile(a, Math.min(Math.max(a.progress, 0.62), 0.72));
-        survivors.push(a);
-        continue;
-      }
       a.fightingUnitId = null;
 
       let remaining = a.speed * dt;
       while (remaining > 0 && a.pathIndex < this.waypoints.length - 1) {
-        // Blocked by monster ahead on next tile?
+        // A goblin ahead is fought on this tile, where its attack lands.
         const nextMonster = this.monsterAtPathIndex(a.pathIndex + 1);
+        if (nextMonster?.kind === "goblin") {
+          this.placeOnStrike(a, nextMonster);
+          remaining = 0;
+          break;
+        }
         if (nextMonster && a.progress > 0.85) {
           a.fightingUnitId = this.unitId(nextMonster);
           a.pathIndex += 1;
@@ -536,19 +558,21 @@ export class DungeonGame {
       a.fightCooldown -= dt;
       unit.cooldown = Math.max(0, unit.cooldown - dt);
 
-      // Adventurer strikes
+      const strike = this.strikeCell(unit);
+
+      // Adventurer strikes where the monster's attack lands.
       if (a.fightCooldown <= 0) {
         unit.hp -= a.damage;
         a.fightCooldown = 0.55;
-        this.burst(unit.col * DCELL + DCELL / 2, unit.row * DCELL + DCELL / 2, a.color, 4);
+        this.burst(strike.x, strike.y, a.color, 4);
       }
 
-      // Monster strikes
+      // Monster strikes that same tile.
       if (unit.cooldown <= 0 && unit.hp > 0) {
         const mdmg = def.damage * (1 + unit.damageLevel * 0.3);
         a.hp -= mdmg;
         unit.cooldown = 1 / (def.fireRate ?? 1);
-        this.burst(a.x, a.y, def.color, 4);
+        this.burst(strike.x, strike.y, def.color, 4);
       }
     }
 
