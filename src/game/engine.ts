@@ -236,6 +236,8 @@ export class Game {
   /** Grass tiles a Nuke burned out. Nothing can be built there this run. */
   private craters = new Set<string>();
   private blastFlash = 0;
+  /** Towers added on the Classic draft. Null means every tower, which the editor uses. */
+  private roster: Set<TowerKind> | null = null;
 
   onHudChange: ((hud: HudSnapshot) => void) | null = null;
 
@@ -352,8 +354,28 @@ export class Game {
     this.emitHud();
   }
 
+  /** Classic brings only the towers added on the draft. Pass null to allow every tower. */
+  setRoster(kinds: readonly TowerKind[] | null): void {
+    this.roster = kinds && kinds.length > 0 ? new Set(kinds) : null;
+    if (this.selected && !this.kindAllowed(this.selected)) {
+      this.selected = this.firstRosterKind();
+    }
+    this.emitHud();
+  }
+
+  private kindAllowed(kind: TowerKind): boolean {
+    return this.roster === null || this.roster.has(kind);
+  }
+
+  private firstRosterKind(): TowerKind | null {
+    if (!this.roster) return "archer";
+    for (const kind of this.roster) return kind;
+    return null;
+  }
+
   selectTower(kind: TowerKind | null): void {
     if (this.carrying) return; // finish move/sell first
+    if (kind !== null && !this.kindAllowed(kind)) return;
     this.tool = "build";
     this.selected = kind;
     if (kind !== null) this.selectedTowerIndex = null;
@@ -528,6 +550,7 @@ export class Game {
   tryPlace(col: number, row: number): boolean {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (!this.selected || this.tool !== "build") return false;
+    if (!this.kindAllowed(this.selected)) return false;
     if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return false;
 
     const key = pathKey(col, row);
@@ -766,7 +789,6 @@ export class Game {
     this.lives = startingLives(difficulty);
     this.wave = 0;
     this.phase = "ready";
-    this.selected = "archer";
     this.selectedTowerIndex = null;
     this.tool = "build";
     this.shovelReady = true;
@@ -784,6 +806,7 @@ export class Game {
     this.spawnQueue = 0;
     this.spawnTimer = 0;
     this.waveInProgress = false;
+    this.selected = this.firstRosterKind();
     this.emitHud();
   }
 

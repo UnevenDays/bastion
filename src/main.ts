@@ -85,6 +85,7 @@ app.innerHTML = `
 
           <div id="panel-classic" class="menu-panel">
             <p class="mode-blurb" id="start-desc">Seven roads. Each one after the first is longer, and each road has its own ground and tiles. Marsh has water you cannot build on.</p>
+            <p class="roster-note" id="roster-note"></p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <div id="menu-board" class="score-board hidden">
               <p class="score-title">Endless leaderboard</p>
@@ -168,6 +169,7 @@ app.innerHTML = `
     </div>
 
     <div class="toolbar" id="toolbar-bastion">
+      <p class="bench-line hidden" id="bench-line"></p>
       ${(Object.keys(TOWER_DEFS) as TowerKind[])
         .map((kind) => {
           const d = TOWER_DEFS[kind];
@@ -335,6 +337,8 @@ const draftGrid = document.querySelector<HTMLElement>("#draft-grid")!;
 const draftCount = document.querySelector<HTMLElement>("#draft-count")!;
 const draftLead = document.querySelector<HTMLElement>("#draft-lead")!;
 const draftContinue = document.querySelector<HTMLButtonElement>("#draft-continue")!;
+const rosterNote = document.querySelector<HTMLElement>("#roster-note")!;
+const benchLine = document.querySelector<HTMLElement>("#bench-line")!;
 const speedRow = document.querySelector<HTMLElement>("#speed-row")!;
 const speedButtons = [
   ...speedRow.querySelectorAll<HTMLButtonElement>(".speed-btn"),
@@ -406,7 +410,7 @@ function paintDraft(): void {
       const def = TOWER_DEFS[kind];
       const on = loadout.includes(kind);
       return `<button class="draft-card${on ? " selected" : ""}" type="button" data-draft="${kind}" aria-pressed="${on}">
-        <span class="name"><span class="swatch ${kind}"></span>${def.name}</span>
+        <span class="name"><span class="swatch ${kind}"></span>${def.name}<span class="added">${on ? "Added" : "Add"}</span></span>
         <span class="meta">${def.cost}g · ${def.description}</span>
       </button>`;
     })
@@ -422,12 +426,28 @@ function toggleDraft(kind: TowerKind): void {
   paintDraft();
 }
 
+function rosterNames(): string[] {
+  return loadout.map((kind) => TOWER_DEFS[kind].name);
+}
+
+function paintRosterNote(): void {
+  const names = rosterNames();
+  rosterNote.textContent =
+    names.length === 0
+      ? "No towers added yet. Start Classic opens the list so you can add up to 8."
+      : `Added: ${names.join(", ")}.`;
+}
+
 function applyTowerRoster(): void {
-  const limited = started && activeMode === "bastion" && menuView !== "editor";
+  const limited = started && activeMode === "bastion" && menuView !== "editor" && loadout.length > 0;
+  const names = rosterNames();
+  benchLine.classList.toggle("hidden", !limited);
+  benchLine.textContent = limited ? `Added: ${names.join(", ")}` : "";
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
-    document
-      .querySelector(`#btn-${kind}`)!
-      .classList.toggle("out-of-loadout", limited && !loadout.includes(kind));
+    const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
+    const hide = limited && !loadout.includes(kind);
+    btn.classList.toggle("out-of-loadout", hide);
+    btn.style.display = hide ? "none" : "";
   }
 }
 
@@ -539,6 +559,7 @@ function syncGameModeButtons(mode: GameMode): void {
       : mode === "dungeon"
         ? "Play Dungeon Crawler"
         : "Start Classic";
+  if (!minigames && !editor) paintRosterNote();
   if (!editor) modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
   if (!started) {
     hintEl.textContent = editor
@@ -626,6 +647,7 @@ function syncBastionHud(hud: HudSnapshot): void {
       ? `Start Wave ${hud.wave + 1}${mutatorTag}`
       : "Complete";
 
+  applyTowerRoster();
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
     const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
     btn.disabled =
@@ -842,7 +864,8 @@ function syncBastionHud(hud: HudSnapshot): void {
         "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run." +
         (hud.hasWater ? " Water puddles cannot hold a tower." : "");
     } else if (hud.selected) {
-      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} selected. Click grass to build.${hud.hasWater ? " Water puddles cannot hold a tower." : ""}`;
+      const onBench = menuView !== "editor" && loadout.includes(hud.selected);
+      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} ${onBench ? "is on your bench" : "selected"}. Click grass to build.${hud.hasWater ? " Water puddles cannot hold a tower." : ""}`;
     } else {
       hintEl.textContent = "Select a tower, or click a placed tower to upgrade.";
     }
@@ -1221,12 +1244,14 @@ function startChosen(): void {
   applyChrome(chosenMode);
   showStage("play");
   if (chosenMode === "bastion" && activeLevel && menuView === "editor") {
+    bastion.setRoster(null);
     bastion.beginCustom(activeLevel);
     bastion.selectTower("archer");
   } else if (chosenMode === "bastion") {
     activeLevel = null;
+    bastion.setRoster(loadout);
     bastion.beginRun(chosenDifficulty, chosenLevel);
-    bastion.selectTower(loadout[0] ?? "archer");
+    bastion.selectTower(loadout[0] ?? null);
   } else if (chosenMode === "lawn") {
     lawn.beginRun(chosenDifficulty);
     lawn.selectPlant("sunbloom");
@@ -1237,7 +1262,14 @@ function startChosen(): void {
   applyTowerRoster();
 }
 
-startBtn.addEventListener("click", startChosen);
+startBtn.addEventListener("click", () => {
+  if (chosenMode === "bastion" && menuView === "classic" && loadout.length === 0) {
+    paintDraft();
+    showStage("draft");
+    return;
+  }
+  startChosen();
+});
 restartBtn.addEventListener("click", startChosen);
 menuBtn.addEventListener("click", showHome);
 document.querySelector("#back-home")!.addEventListener("click", showHome);

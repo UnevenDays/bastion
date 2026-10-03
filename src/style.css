@@ -814,6 +814,37 @@ body {
   font-weight: 600;
 }
 
+.draft-card .added {
+  margin-left: auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.draft-card.selected .added {
+  color: var(--gold);
+}
+
+.roster-note {
+  margin: 0 0 10px;
+  color: var(--gold);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.bench-line {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--gold);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.bench-line.hidden {
+  display: none;
+}
+
 .draft-card .meta {
   display: block;
   margin-top: 4px;
