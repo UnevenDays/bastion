@@ -46,6 +46,29 @@ export const BANNER_BUFF = 0.2;
 /** Combined banner bonus cannot exceed this, so several banners stay bounded. */
 export const BANNER_CAP = 0.6;
 
+/** Wave-1 grunt health, before any wave scaling. */
+export const BASIC_GRUNT_HP = 40;
+
+/** Chance a Storm strike locks onto a living enemy instead of a random spot. */
+export const STORM_SURE_HIT = 0.25;
+/** Pixel radius of a lightning sticker that lands on a random point. */
+export const STORM_SPLASH = 40;
+
+/** Cloud Allies join the path on this timer, only while a wave is running. */
+export const CLOUD_INTERVAL = 15;
+/** A Storm keeps at most this many living clouds. */
+export const CLOUD_CAP = 5;
+/** Five times a wave-1 grunt's health. */
+export const CLOUD_HP = BASIC_GRUNT_HP * 5;
+/**
+ * One cloud strike equals a wave-1 grunt's health, so that grunt falls in one hit.
+ * Cloud health is five times that same 40.
+ */
+export const CLOUD_DAMAGE = BASIC_GRUNT_HP;
+export const CLOUD_SPEED = 90;
+export const CLOUD_REACH = 28;
+export const CLOUD_HIT_INTERVAL = 0.75;
+
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
   { col: 0, row: 2 },
@@ -150,6 +173,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "Buffs damage and attack speed of towers in range",
     support: true,
   },
+  storm: {
+    kind: "storm",
+    name: "Storm",
+    cost: 45,
+    range: 0,
+    damage: 32,
+    fireRate: 0.85,
+    color: "#7ec8ff",
+    projectileSpeed: 0,
+    description: "Random lightning stickers. 25% of strikes always hit",
+    storm: true,
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -182,6 +217,12 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     name: "Grand Banner",
     description: "The same buff reaches every tower on the map",
     costMultiplier: 1.35,
+  },
+  storm: {
+    name: "Cloud Allies",
+    description: "Every 15 seconds, a cloud ally fights on the path. 200 health and 40 damage",
+    costMultiplier: 1,
+    cost: 150,
   },
 };
 
@@ -227,9 +268,24 @@ export function makeFlyer(x: number, y: number, cooldown = 0): Flyer {
 }
 
 export function specialCost(kind: TowerKind): number {
-  return Math.round(
-    TOWER_DEFS[kind].cost * SPECIAL_UPGRADES[kind].costMultiplier,
-  );
+  const special = SPECIAL_UPGRADES[kind];
+  if (special.cost !== undefined) return special.cost;
+  return Math.round(TOWER_DEFS[kind].cost * special.costMultiplier);
+}
+
+/** True when this roll is one of the guaranteed Storm hits. */
+export function stormGuaranteesHit(roll: number): boolean {
+  return roll < STORM_SURE_HIT;
+}
+
+/** Cloud strike before banner bonuses. Damage upgrades raise it. Health stays 200. */
+export function cloudStrikeDamage(damageLevel: number): number {
+  return CLOUD_DAMAGE * damageMultiplier(damageLevel);
+}
+
+/** Health a cloud loses each time an enemy in reach strikes back. */
+export function cloudStrikeBack(enemyMaxHp: number): number {
+  return Math.max(6, Math.round(enemyMaxHp * 0.08));
 }
 
 /** Cost to buy the next damage or speed upgrade for a tower. */
@@ -287,7 +343,7 @@ export function combatStats(t: Tower): CombatStats {
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
   let auraFreeze = false;
-  let firesProjectiles = true;
+  let firesProjectiles = !def.storm;
 
   if (t.special) {
     if (t.kind === "archer") {
@@ -550,7 +606,7 @@ export function enemyForWave(
   return applyHard(
     {
       kind: "normal",
-      hp: Math.round(40 * scale),
+      hp: Math.round(BASIC_GRUNT_HP * scale),
       speed: NORMAL_SPEED + wave,
       reward: 6 + Math.floor(wave / 2),
       radius: 11,

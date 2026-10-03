@@ -5,7 +5,14 @@ export type Difficulty = "normal" | "hard" | "endless";
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon" | "lawn";
 
-export type TowerKind = "archer" | "cannon" | "frost" | "mint" | "wasp" | "banner";
+export type TowerKind =
+  | "archer"
+  | "cannon"
+  | "frost"
+  | "mint"
+  | "wasp"
+  | "banner"
+  | "storm";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
 export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
@@ -40,6 +47,8 @@ export interface TowerDef {
   flying?: boolean;
   /** Buffs other towers instead of shooting. */
   support?: boolean;
+  /** Random lightning across the whole map. No range circle. */
+  storm?: boolean;
 }
 
 /** A wasp or one of its mini drones. */
@@ -53,8 +62,10 @@ export interface Flyer {
 export interface SpecialUpgradeDef {
   name: string;
   description: string;
-  /** Multiplier of tower base cost. */
+  /** Multiplier of tower base cost. Ignored when `cost` is set. */
   costMultiplier: number;
+  /** Flat gold price for this special. */
+  cost?: number;
 }
 
 export interface EnemyDef {
@@ -87,6 +98,8 @@ export interface Tower {
   drones: Flyer[];
   /** Flips First/Last, Strong/Weak, and nearest/farthest. */
   inverted: boolean;
+  /** Seconds until a Storm special summons the next cloud ally. */
+  summonTimer: number;
 }
 
 export interface Enemy {

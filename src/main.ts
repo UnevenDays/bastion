@@ -540,6 +540,22 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);
+    } else if (t.storm) {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG +${Math.round(t.buffRate * 100)}% SPD`
+          : "";
+      upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · strikes anywhere${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? "Cloud Allies step onto the path every 15 seconds during a wave. Each has 200 health and hits for 40. Enemies strike back."
+        : "Storm slaps lightning stickers on random spots. One in four strikes is guaranteed to hit a living enemy.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(null);
     } else {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0

@@ -2,6 +2,12 @@ import {
   BANNER_CAP,
   BANK_DEPOSIT_CHUNK,
   CELL,
+  CLOUD_CAP,
+  CLOUD_HIT_INTERVAL,
+  CLOUD_HP,
+  CLOUD_INTERVAL,
+  CLOUD_REACH,
+  CLOUD_SPEED,
   COLS,
   DRONE_COUNT,
   DRONE_DAMAGE_RATIO,
@@ -10,6 +16,7 @@ import {
   PATH,
   REGEN_DELAY,
   ROWS,
+  STORM_SPLASH,
   TOTAL_WAVES,
   TOWER_DEFS,
   SPECIAL_UPGRADES,
@@ -18,6 +25,8 @@ import {
   bankPayout,
   bannerBonus,
   bossDef,
+  cloudStrikeBack,
+  cloudStrikeDamage,
   combatStats,
   endlessDrought,
   enemyForWave,
@@ -30,6 +39,7 @@ import {
   splitlingFrom,
   startingGold,
   startingLives,
+  stormGuaranteesHit,
   upgradeCost,
   waveEnemyCount,
 } from "./config";
@@ -84,6 +94,8 @@ export interface SelectedTowerInfo {
   buffDamage: number;
   /** Attack-speed bonus fraction from banners, or the bonus this banner gives. */
   buffRate: number;
+  /** Random lightning. Aim buttons do not apply. */
+  storm: boolean;
 }
 
 export interface HudSnapshot {
@@ -119,6 +131,27 @@ function isBossKind(kind: Enemy["kind"]): boolean {
   return kind === "boss" || kind === "finalBoss";
 }
 
+interface CloudAlly {
+  owner: Tower;
+  hp: number;
+  maxHp: number;
+  pathIndex: number;
+  progress: number;
+  x: number;
+  y: number;
+  fightCooldown: number;
+}
+
+interface LightningSticker {
+  x: number;
+  y: number;
+  fromX: number;
+  fromY: number;
+  life: number;
+  maxLife: number;
+  sure: boolean;
+}
+
 export class Game {
   readonly width = COLS * CELL;
   readonly height = ROWS * CELL;
@@ -146,6 +179,10 @@ export class Game {
   enemies: Enemy[] = [];
   projectiles: Projectile[] = [];
   particles: Particle[] = [];
+  /** Cloud allies summoned by a Storm special. They march the path and fight. */
+  clouds: CloudAlly[] = [];
+
+  private stickers: LightningSticker[] = [];
 
   private nextEnemyId = 1;
   private spawnQueue = 0;
@@ -216,6 +253,7 @@ export class Game {
       inverted: t.inverted,
       buffDamage: given ? given.damage : received.damage,
       buffRate: given ? given.rate : received.rate,
+      storm: !!def.storm,
     };
   }
 
@@ -418,6 +456,7 @@ export class Game {
         flyer: null,
         drones: [],
         inverted: false,
+        summonTimer: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -430,6 +469,7 @@ export class Game {
         : null,
       drones: [],
       inverted: false,
+      summonTimer: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -494,6 +534,7 @@ export class Game {
         return makeFlyer(spot.x, spot.y, 0.12 * i);
       });
     }
+    if (t.kind === "storm") t.summonTimer = 0;
     this.burst(
       t.col * CELL + CELL / 2,
       t.row * CELL + CELL / 2,
@@ -509,7 +550,7 @@ export class Game {
     if (this.selectedTowerIndex === null) return;
     if (this.phase === "won" || this.phase === "lost") return;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support) return;
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm) return;
     t.targeting = mode;
     this.emitHud();
   }
@@ -519,7 +560,7 @@ export class Game {
     if (this.selectedTowerIndex === null) return;
     if (this.phase === "won" || this.phase === "lost") return;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support) return;
+    if (!t || TOWER_DEFS[t.kind].economy || TOWER_DEFS[t.kind].support || TOWER_DEFS[t.kind].storm) return;
     t.inverted = !t.inverted;
     this.emitHud();
   }
@@ -599,6 +640,8 @@ export class Game {
     this.enemies = [];
     this.projectiles = [];
     this.particles = [];
+    this.clouds = [];
+    this.stickers = [];
     this.towerOccupied.clear();
     this.nextEnemyId = 1;
     this.spawnQueue = 0;
@@ -662,6 +705,7 @@ export class Game {
     this.updateEnemies(dt);
     this.updateSpawners(dt);
     this.updateTowers(dt);
+    this.updateClouds(dt);
     this.updateProjectiles(dt);
     this.updateParticles(dt);
     this.checkWaveEnd();
@@ -896,6 +940,11 @@ export class Game {
 
       if (def.support) continue;
 
+      if (def.storm) {
+        this.updateStorm(t, dt);
+        continue;
+      }
+
       const stats = this.effectiveStats(t);
       const rangePx = stats.range * CELL;
 
@@ -952,7 +1001,11 @@ export class Game {
       t.cooldown = 1 / stats.fireRate;
     }
 
-    // Resolve aura kills
+    if (this.reapEnemies() || minted) this.emitHud();
+  }
+
+  /** Drop dead enemies, pay their rewards, and keep anything they spawn. */
+  private reapEnemies(): boolean {
     const spawned: Enemy[] = [];
     let killed = false;
     this.enemies = this.enemies.filter((e) => {
@@ -962,7 +1015,203 @@ export class Game {
       return false;
     });
     if (spawned.length) this.enemies.push(...spawned);
-    if (killed || minted) this.emitHud();
+    return killed;
+  }
+
+  private updateStorm(t: Tower, dt: number): void {
+    const stats = this.effectiveStats(t);
+    const tx = t.col * CELL + CELL / 2;
+    const ty = t.row * CELL + CELL / 2;
+
+    t.cooldown = Math.max(0, t.cooldown - dt);
+    if (t.cooldown <= 0) {
+      this.fireStorm(stats.damage, tx, ty);
+      t.cooldown = 1 / Math.max(0.05, stats.fireRate);
+    }
+
+    if (!t.special || !this.waveInProgress) return;
+    t.summonTimer = Math.max(0, t.summonTimer - dt);
+    if (t.summonTimer > 0) return;
+    this.summonCloud(t);
+    t.summonTimer = CLOUD_INTERVAL;
+  }
+
+  /** A lightning sticker. One in four strikes is guaranteed to hit a living enemy. */
+  private fireStorm(damage: number, tx: number, ty: number): void {
+    const living = this.enemies.filter((e) => e.hp > 0);
+    const sure = stormGuaranteesHit(Math.random()) && living.length > 0;
+    if (sure) {
+      const foe = living[Math.floor(Math.random() * living.length)]!;
+      this.damageEnemy(foe, damage);
+      this.addSticker(foe.x, foe.y, tx, ty, true);
+      this.burst(foe.x, foe.y, "#d7f1ff", 8);
+      return;
+    }
+
+    const x = Math.random() * this.width;
+    const y = Math.random() * this.height;
+    this.addSticker(x, y, tx, ty, false);
+    let hit = false;
+    for (const e of living) {
+      if (dist({ x, y }, e) <= STORM_SPLASH) {
+        this.damageEnemy(e, damage);
+        hit = true;
+      }
+    }
+    if (hit) this.burst(x, y, "#9ad7ff", 6);
+  }
+
+  private addSticker(x: number, y: number, fromX: number, fromY: number, sure: boolean): void {
+    const life = sure ? 0.7 : 0.5;
+    this.stickers.push({ x, y, fromX, fromY, life, maxLife: life, sure });
+  }
+
+  private summonCloud(owner: Tower): void {
+    const mine = this.clouds.filter((c) => c.owner === owner).length;
+    if (mine >= CLOUD_CAP) return;
+    const start = this.waypoints[0];
+    if (!start) return;
+    this.clouds.push({
+      owner,
+      hp: CLOUD_HP,
+      maxHp: CLOUD_HP,
+      pathIndex: 0,
+      progress: 0,
+      x: start.x,
+      y: start.y,
+      fightCooldown: 0.2,
+    });
+    this.burst(start.x, start.y, "#f4fbff", 10);
+  }
+
+  private cloudOwnerLive(owner: Tower): boolean {
+    return this.carrying === owner || this.towers.includes(owner);
+  }
+
+  private updateClouds(dt: number): void {
+    const next: CloudAlly[] = [];
+    for (const c of this.clouds) {
+      if (!this.cloudOwnerLive(c.owner) || c.hp <= 0) {
+        if (c.hp <= 0) this.burst(c.x, c.y, "#d7f1ff", 8);
+        continue;
+      }
+      this.stepCloud(c, dt);
+      if (c.hp <= 0) {
+        this.burst(c.x, c.y, "#d7f1ff", 8);
+        continue;
+      }
+      const atExit = c.pathIndex >= this.waypoints.length - 1;
+      const fighting = this.enemies.some((e) => e.hp > 0 && dist(c, e) <= CLOUD_REACH);
+      if (atExit && !fighting) {
+        this.burst(c.x, c.y, "#d7f1ff", 6);
+        continue;
+      }
+      next.push(c);
+    }
+    this.clouds = next;
+    if (this.reapEnemies()) this.emitHud();
+  }
+
+  /** Walk toward the nearest enemy and trade hits when close. */
+  private stepCloud(c: CloudAlly, dt: number): void {
+    const living = this.enemies.filter((e) => e.hp > 0);
+    if (!living.length) return;
+
+    let foe = living[0]!;
+    let best = dist(c, foe);
+    for (const e of living) {
+      const d = dist(c, e);
+      if (d < best) {
+        foe = e;
+        best = d;
+      }
+    }
+
+    if (best > CLOUD_REACH) {
+      const ahead = this.pathProgress(foe) + 0.02 >= c.pathIndex + c.progress;
+      const moved = this.moveAlongPath(
+        c.pathIndex,
+        c.progress,
+        (ahead ? 1 : -1) * CLOUD_SPEED * dt,
+      );
+      c.pathIndex = moved.pathIndex;
+      c.progress = moved.progress;
+      const pos = this.pointOnPath(c.pathIndex, c.progress);
+      c.x = pos.x;
+      c.y = pos.y;
+    }
+
+    const near = this.enemies.filter((e) => e.hp > 0 && dist(c, e) <= CLOUD_REACH);
+    if (!near.length) return;
+    c.fightCooldown -= dt;
+    if (c.fightCooldown > 0) return;
+    c.fightCooldown = CLOUD_HIT_INTERVAL;
+
+    const target = near.reduce((a, b) => (dist(c, b) < dist(c, a) ? b : a));
+    const buff = this.bannerBuffFor(c.owner);
+    this.damageEnemy(target, cloudStrikeDamage(c.owner.damageLevel) * (1 + buff.damage));
+    this.burst(target.x, target.y, "#f4fbff", 5);
+    for (const e of near) c.hp -= cloudStrikeBack(e.maxHp);
+  }
+
+  private pointOnPath(pathIndex: number, progress: number): Vec2 {
+    const last = this.waypoints.length - 1;
+    const a = this.waypoints[Math.min(pathIndex, last)];
+    if (!a || pathIndex >= last) return a ?? { x: 0, y: 0 };
+    const b = this.waypoints[pathIndex + 1] ?? a;
+    return {
+      x: a.x + (b.x - a.x) * progress,
+      y: a.y + (b.y - a.y) * progress,
+    };
+  }
+
+  private moveAlongPath(
+    pathIndex: number,
+    progress: number,
+    pixels: number,
+  ): { pathIndex: number; progress: number } {
+    let index = pathIndex;
+    let prog = progress;
+    let remaining = Math.abs(pixels);
+    const dir = pixels >= 0 ? 1 : -1;
+    const last = this.waypoints.length - 1;
+    while (remaining > 0.01 && last > 0) {
+      if (dir > 0) {
+        if (index >= last) break;
+        const seg = Math.max(1, dist(this.waypoints[index]!, this.waypoints[index + 1]!));
+        const room = (1 - prog) * seg;
+        if (remaining >= room) {
+          remaining -= room;
+          index += 1;
+          prog = 0;
+        } else {
+          prog += remaining / seg;
+          remaining = 0;
+        }
+      } else if (index <= 0 && prog <= 0) {
+        prog = 0;
+        break;
+      } else {
+        const seg = Math.max(
+          1,
+          dist(this.waypoints[index]!, this.waypoints[Math.min(index + 1, last)]!),
+        );
+        const room = prog * seg;
+        if (remaining >= room) {
+          remaining -= room;
+          if (index <= 0) {
+            prog = 0;
+            break;
+          }
+          index -= 1;
+          prog = 1;
+        } else {
+          prog -= remaining / seg;
+          remaining = 0;
+        }
+      }
+    }
+    return { pathIndex: index, progress: prog };
   }
 
   /** How far an enemy has walked. Higher means closer to the exit. */
@@ -1288,6 +1537,10 @@ export class Game {
   }
 
   private updateParticles(dt: number): void {
+    this.stickers = this.stickers.filter((s) => {
+      s.life -= dt;
+      return s.life > 0;
+    });
     this.particles = this.particles.filter((p) => {
       p.life -= dt;
       p.x += p.vx * dt;
@@ -1306,8 +1559,10 @@ export class Game {
     this.drawTowers(ctx);
     this.drawCarryingGhost(ctx);
     this.drawEnemies(ctx);
+    this.drawClouds(ctx);
     this.drawFlyers(ctx);
     this.drawProjectiles(ctx);
+    this.drawStickers(ctx);
     this.drawParticles(ctx);
     this.drawBaseMarkers(ctx);
   }
@@ -1494,7 +1749,13 @@ export class Game {
           ctx.lineWidth = selected ? 2 : 1;
           ctx.stroke();
         }
-      } else if (!def.economy && !def.flying && (selected || t.special || t.cooldown < 0.15)) {
+      } else if (
+        !def.economy &&
+        !def.flying &&
+        !def.storm &&
+        stats.range > 0 &&
+        (selected || t.special || t.cooldown < 0.15)
+      ) {
         ctx.beginPath();
         ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
         if (t.special && t.kind === "frost") {
@@ -1601,6 +1862,16 @@ export class Game {
       ctx.lineTo(1.5, 0);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "storm") {
+      ctx.beginPath();
+      ctx.moveTo(3, -9);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(1, 0);
+      ctx.lineTo(-3, 9);
+      ctx.lineTo(6, -1);
+      ctx.lineTo(1, -1);
+      ctx.closePath();
+      ctx.fill();
     } else {
       ctx.beginPath();
       ctx.moveTo(0, -8);
@@ -1635,6 +1906,89 @@ export class Game {
     ctx.beginPath();
     ctx.arc(-1, -1, 1.4, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  private drawClouds(ctx: CanvasRenderingContext2D): void {
+    for (const c of this.clouds) {
+      ctx.save();
+      ctx.fillStyle = "rgba(244, 251, 255, 0.94)";
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y - 2, 14, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x - 10, c.y + 1, 8, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(c.x + 10, c.y + 1, 8, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3a6fd8";
+      ctx.beginPath();
+      ctx.moveTo(c.x + 1, c.y - 6);
+      ctx.lineTo(c.x - 3, c.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.lineTo(c.x - 1, c.y + 5);
+      ctx.lineTo(c.x + 4, c.y - 1);
+      ctx.lineTo(c.x + 1, c.y - 1);
+      ctx.closePath();
+      ctx.fill();
+      const bar = 22;
+      const ratio = Math.max(0, c.hp / c.maxHp);
+      ctx.fillStyle = "#152219";
+      ctx.fillRect(c.x - bar / 2, c.y - 16, bar, 3);
+      ctx.fillStyle = "#7ec8ff";
+      ctx.fillRect(c.x - bar / 2, c.y - 16, bar * ratio, 3);
+      ctx.restore();
+    }
+  }
+
+  private drawStickers(ctx: CanvasRenderingContext2D): void {
+    for (const s of this.stickers) {
+      const alpha = Math.max(0, s.life / s.maxLife);
+      if (s.life > s.maxLife - 0.16) {
+        this.drawBolt(ctx, s.fromX, s.fromY, s.x, s.y, alpha);
+      }
+      ctx.save();
+      ctx.translate(s.x, s.y);
+      ctx.rotate(-0.35);
+      ctx.globalAlpha = 0.35 + alpha * 0.65;
+      ctx.fillStyle = s.sure ? "#fff8d6" : "#f4fbff";
+      ctx.strokeStyle = s.sure ? "#e8c547" : "#7ec8ff";
+      ctx.lineWidth = 2;
+      ctx.fillRect(-8, -11, 16, 22);
+      ctx.strokeRect(-8, -11, 16, 22);
+      ctx.fillStyle = "#3a6fd8";
+      ctx.beginPath();
+      ctx.moveTo(2, -8);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-2, 8);
+      ctx.lineTo(5, -1);
+      ctx.lineTo(1, -1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  private drawBolt(
+    ctx: CanvasRenderingContext2D,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    alpha: number,
+  ): void {
+    const segs = 6;
+    ctx.save();
+    ctx.strokeStyle = `rgba(190, 230, 255, ${alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    for (let i = 1; i < segs; i++) {
+      const t = i / segs;
+      const x = x1 + (x2 - x1) * t + Math.sin(i * 2.1 + this.pulse * 24) * 8;
+      const y = y1 + (y2 - y1) * t + Math.cos(i * 1.7) * 6;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
     ctx.restore();
   }
 

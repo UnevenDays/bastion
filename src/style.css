@@ -15,6 +15,7 @@
   --tower-archer: #4a9b6e;
   --tower-cannon: #c47a3a;
   --tower-frost: #5a9eb8;
+  --tower-storm: #7ec8ff;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "Sora", sans-serif;
 }
@@ -398,6 +399,9 @@ body {
 }
 .swatch.banner {
   background: #d4a24a;
+}
+.swatch.storm {
+  background: var(--tower-storm);
 }
 .swatch.sunbloom {
   background: #e8c547;
