@@ -706,9 +706,10 @@ export class Game {
         if (e.slowTimer <= 0) e.speed = e.baseSpeed;
       }
 
-      // Normal mode: full heal if nothing has hurt them for a few seconds.
+      // Normal mode: only tanks heal back if nothing hurts them for a few seconds.
       if (
         this.difficulty === "normal" &&
+        e.kind === "tank" &&
         e.hp > 0 &&
         e.hp < e.maxHp
       ) {
@@ -822,11 +823,9 @@ export class Game {
         continue;
       }
 
-      // Mint prints only in the build time after a wave has finished.
+      // Mint prints only while a wave is running.
       if (def.economy) {
-        const betweenWaves =
-          !this.waveInProgress && this.wave > 0 && this.phase === "ready";
-        if (!betweenWaves) continue;
+        if (!this.waveInProgress) continue;
         t.cooldown = Math.max(0, t.cooldown - dt);
         if (t.cooldown <= 0) {
           const income = mintIncome(t);
@@ -1686,7 +1685,17 @@ export class Game {
               : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
 
-      if (this.difficulty === "normal" && e.hp < e.maxHp) {
+      if (this.difficulty === "normal" && e.kind === "tank") {
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(94, 207, 138, 0.85)";
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 2]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (this.difficulty === "normal" && e.kind === "tank" && e.hp < e.maxHp) {
         const regenPct = Math.min(1, e.sinceDamage / REGEN_DELAY);
         const ry = by + barH + 2;
         ctx.fillStyle = "rgba(0,0,0,0.45)";

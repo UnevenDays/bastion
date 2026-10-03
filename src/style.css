@@ -135,12 +135,17 @@ body {
   width: 100%;
   text-align: left;
   padding: 12px 14px;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   border-radius: 6px;
-  border: 1px solid var(--gold);
-  background: #243628;
+  border: 1px solid var(--panel-edge);
+  background: #1a2a1f;
   color: var(--text);
   cursor: pointer;
+}
+
+.minigame-card.selected {
+  border-color: var(--gold);
+  background: #243628;
 }
 
 .minigame-name {
@@ -371,6 +376,21 @@ body {
 }
 .swatch.banner {
   background: #d4a24a;
+}
+.swatch.sunbloom {
+  background: #e8c547;
+}
+.swatch.spitter {
+  background: #5ecf8a;
+}
+.swatch.bulwark {
+  background: #c4a574;
+}
+.swatch.chiller {
+  background: #7ec8e0;
+}
+.swatch.boomnut {
+  background: #e85d4a;
 }
 
 .target-row {

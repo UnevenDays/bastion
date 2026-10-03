@@ -3,7 +3,7 @@ export type Vec2 = { x: number; y: number };
 export type Difficulty = "normal" | "hard";
 
 /** Classic roadside towers vs on-road traps & monsters. */
-export type GameMode = "bastion" | "dungeon";
+export type GameMode = "bastion" | "dungeon" | "lawn";
 
 export type TowerKind = "archer" | "cannon" | "frost" | "mint" | "wasp" | "banner";
 

@@ -123,7 +123,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0.22,
     color: "#e8c547",
     projectileSpeed: 0,
-    description: "Prints gold between waves, not during them",
+    description: "Prints gold while a wave is running",
     economy: true,
   },
   wasp: {
@@ -187,7 +187,7 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
 
 /**
  * Gold paid per Mint tick, and seconds between ticks.
- * Ticks run only in the build time between waves.
+ * Ticks run only while a wave is in progress.
  */
 export function mintIncome(t: Tower): { amount: number; interval: number } {
   const investBonus = Math.floor(t.invested / 90);

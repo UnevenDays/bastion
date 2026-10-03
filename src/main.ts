@@ -3,6 +3,8 @@ import { BANNER_CAP, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { Game, type HudSnapshot } from "./game/engine";
+import { PLANTS, type PlantKind } from "./game/lawnConfig";
+import { LawnGame, type LawnHud } from "./game/lawnEngine";
 import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -14,7 +16,7 @@ app.innerHTML = `
       <span class="mode-badge hidden" id="mode-badge">Hard</span>
     </div>
     <div class="stats">
-      <div class="stat"><span class="stat-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
+      <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
       <div class="stat"><span class="stat-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
       <div class="stat"><span class="stat-label">Wave</span><span class="stat-value wave" id="wave">0</span></div>
       <div class="stat" id="shovel-stat-wrap"><span class="stat-label">Shovel</span><span class="stat-value shovel" id="shovel-stat">Ready</span></div>
@@ -39,6 +41,10 @@ app.innerHTML = `
             <button class="minigame-card selected" type="button" id="minigame-dungeon">
               <span class="minigame-name">Dungeon Crawler</span>
               <span class="minigame-meta">Place traps and monsters on the zigzag road. Adventurers fight through and try to escape.</span>
+            </button>
+            <button class="minigame-card" type="button" id="minigame-lawn">
+              <span class="minigame-name">Sun Lawn</span>
+              <span class="minigame-meta">Five lanes. 50 sun to start, 25 more every 20 seconds. Spitters cost 100. Stop the shamblers before they reach the house.</span>
             </button>
           </div>
 
@@ -137,6 +143,28 @@ app.innerHTML = `
         <button class="btn btn-primary" type="button" id="dwave-btn">Start Wave</button>
       </div>
     </div>
+
+    <div class="toolbar hidden" id="toolbar-lawn">
+      ${(Object.keys(PLANTS) as PlantKind[])
+        .map((kind) => {
+          const d = PLANTS[kind];
+          return `
+            <button class="tower-btn" type="button" data-pkind="${kind}" id="pbtn-${kind}">
+              <span class="name"><span class="swatch ${kind}"></span>${d.name}</span>
+              <span class="meta">${d.cost} sun · ${d.description}</span>
+            </button>
+          `;
+        })
+        .join("")}
+      <button class="tower-btn shovel-btn" type="button" id="btn-dig">
+        <span class="name">Dig</span>
+        <span class="meta">Remove a plant · no refund</span>
+      </button>
+      <div class="actions">
+        <button class="btn btn-ghost" type="button" id="lcancel-btn">Cancel</button>
+        <button class="btn btn-primary" type="button" id="lwave-btn">Start Wave</button>
+      </div>
+    </div>
   </div>
 `;
 
@@ -144,8 +172,10 @@ const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const ctx = canvas.getContext("2d")!;
 const bastion = new Game();
 const dungeon = new DungeonGame();
+const lawn = new LawnGame();
 
 const brandTitle = document.querySelector<HTMLElement>("#brand-title")!;
+const goldLabel = document.querySelector<HTMLElement>("#gold-label")!;
 const goldEl = document.querySelector<HTMLElement>("#gold")!;
 const livesEl = document.querySelector<HTMLElement>("#lives")!;
 const waveEl = document.querySelector<HTMLElement>("#wave")!;
@@ -154,8 +184,11 @@ const shovelStatWrap = document.querySelector<HTMLElement>("#shovel-stat-wrap")!
 const hintEl = document.querySelector<HTMLElement>("#hint")!;
 const waveBtn = document.querySelector<HTMLButtonElement>("#wave-btn")!;
 const dwaveBtn = document.querySelector<HTMLButtonElement>("#dwave-btn")!;
+const lwaveBtn = document.querySelector<HTMLButtonElement>("#lwave-btn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancel-btn")!;
 const dcancelBtn = document.querySelector<HTMLButtonElement>("#dcancel-btn")!;
+const lcancelBtn = document.querySelector<HTMLButtonElement>("#lcancel-btn")!;
+const digBtn = document.querySelector<HTMLButtonElement>("#btn-dig")!;
 const startOverlay = document.querySelector<HTMLElement>("#start-overlay")!;
 const endOverlay = document.querySelector<HTMLElement>("#end-overlay")!;
 const endTitle = document.querySelector<HTMLElement>("#end-title")!;
@@ -196,6 +229,9 @@ const tabClassic = document.querySelector<HTMLButtonElement>("#tab-classic")!;
 const tabMinigames = document.querySelector<HTMLButtonElement>("#tab-minigames")!;
 const toolbarBastion = document.querySelector<HTMLElement>("#toolbar-bastion")!;
 const toolbarDungeon = document.querySelector<HTMLElement>("#toolbar-dungeon")!;
+const toolbarLawn = document.querySelector<HTMLElement>("#toolbar-lawn")!;
+const lawnCard = document.querySelector<HTMLButtonElement>("#minigame-lawn")!;
+const dungeonCard = document.querySelector<HTMLButtonElement>("#minigame-dungeon")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
 const modeHardBtn = document.querySelector<HTMLButtonElement>("#mode-hard")!;
 const endModeNormalBtn =
@@ -214,9 +250,14 @@ function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
       ? "A few more adventurers, with a milder health bonus. 120 gold and 10 lives."
       : "Adventurers are softer. Spikes, snares, goblins, and ogres are stronger.";
   }
+  if (mode === "lawn") {
+    return difficulty === "hard"
+      ? "25 sun to start, tougher shamblers, and one extra walker each wave."
+      : "50 sun to start. The lawn and each Sunbloom pay 25 sun every 20 seconds.";
+  }
   return difficulty === "hard"
     ? "More enemies and health each wave, with a gentler ramp. 110 gold and 17 lives."
-    : "Wounded enemies heal to full health if nothing hits them for 3 seconds.";
+    : "Tanks heal to full health if nothing hits them for 3 seconds.";
 }
 
 function syncDifficultyButtons(difficulty: Difficulty): void {
@@ -230,20 +271,30 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
 
 function syncGameModeButtons(mode: GameMode): void {
   chosenMode = mode;
-  const minigames = mode === "dungeon";
+  const minigames = mode !== "bastion";
   tabClassic.classList.toggle("selected", !minigames);
   tabMinigames.classList.toggle("selected", minigames);
   tabClassic.setAttribute("aria-selected", String(!minigames));
   tabMinigames.setAttribute("aria-selected", String(minigames));
   panelClassic.classList.toggle("hidden", minigames);
   panelMinigames.classList.toggle("hidden", !minigames);
+  dungeonCard.classList.toggle("selected", mode === "dungeon");
+  lawnCard.classList.toggle("selected", mode === "lawn");
   startHeading.textContent = minigames ? "Minigames" : "Classic";
-  startBtn.textContent = minigames ? "Play Dungeon Crawler" : "Start Classic";
+  startBtn.textContent =
+    mode === "lawn"
+      ? "Play Sun Lawn"
+      : mode === "dungeon"
+        ? "Play Dungeon Crawler"
+        : "Start Classic";
   modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
   if (!started) {
-    hintEl.textContent = minigames
-      ? "Select a trap or monster, then place it on the zigzag road."
-      : "Select a tower, then click an empty grass tile to build.";
+    hintEl.textContent =
+      mode === "lawn"
+        ? "Plant on the lawn. Sunblooms and the sky pay 25 sun every 20 seconds."
+        : mode === "dungeon"
+          ? "Select a trap or monster, then place it on the zigzag road."
+          : "Select a tower, then click an empty grass tile to build.";
   }
   applyChrome(mode);
 }
@@ -251,9 +302,15 @@ function syncGameModeButtons(mode: GameMode): void {
 function applyChrome(mode: GameMode): void {
   activeMode = mode;
   brandTitle.textContent =
-    mode === "bastion" ? "Bastion Breach" : "Dungeon Crawler";
+    mode === "lawn"
+      ? "Sun Lawn"
+      : mode === "dungeon"
+        ? "Dungeon Crawler"
+        : "Bastion Breach";
+  goldLabel.textContent = mode === "lawn" ? "Sun" : "Gold";
   toolbarBastion.classList.toggle("hidden", mode !== "bastion");
   toolbarDungeon.classList.toggle("hidden", mode !== "dungeon");
+  toolbarLawn.classList.toggle("hidden", mode !== "lawn");
   shovelStatWrap.classList.toggle("hidden", mode !== "bastion");
   bastionUpgrades.classList.toggle("hidden", mode !== "bastion");
   dungeonUpgrades.classList.toggle("hidden", mode !== "dungeon");
@@ -337,14 +394,14 @@ function syncBastionHud(hud: HudSnapshot): void {
       const bankLine = t.special
         ? ` · Bank ${t.banked}g → +${t.bankPayout}g next wave, then it leaves the bank`
         : "";
-      upgradeStats.textContent = `Between waves: ${t.goldPerTick}g / ${t.goldInterval}s${bankLine}`;
+      upgradeStats.textContent = `During waves: ${t.goldPerTick}g / ${t.goldInterval}s${bankLine}`;
       upgradeDamageBtn.textContent =
         t.damageCost === null ? "Income Max" : `+ Income (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Rate Max" : `+ Payout Rate (${t.speedCost}g)`;
       hintEl.textContent = t.special
         ? "Midas Bank takes coins off your gold. Each wave pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever is left."
-        : "Mints print gold only between waves, after wave 1. Midas Bank stores coins and pays 25% of them at the start of each wave.";
+        : "Mints print gold only while a wave is running. Midas Bank stores coins and pays 25% of them at the start of each wave.";
       const showBank = t.special;
       mintDepositBtn.classList.toggle("hidden", !showBank);
       mintDepositAllBtn.classList.toggle("hidden", !showBank);
@@ -506,6 +563,64 @@ function syncDungeonHud(hud: DungeonHud): void {
   showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "dungeon");
 }
 
+function syncLawnHud(hud: LawnHud): void {
+  if (activeMode !== "lawn") return;
+  syncTargeting(null);
+  goldEl.textContent = String(hud.gold);
+  livesEl.textContent = String(hud.lives);
+  waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
+  goldLabel.textContent = "Sun";
+
+  modeBadge.classList.remove("regen");
+  modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
+  if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
+
+  lwaveBtn.disabled =
+    !started ||
+    hud.waveInProgress ||
+    hud.phase === "won" ||
+    hud.phase === "lost";
+  lwaveBtn.textContent = hud.waveInProgress
+    ? `Wave ${hud.wave}…`
+    : hud.wave >= hud.totalWaves
+      ? "Complete"
+      : `Start Wave ${hud.wave + 1}`;
+
+  for (const kind of Object.keys(PLANTS) as PlantKind[]) {
+    const btn = document.querySelector<HTMLButtonElement>(`#pbtn-${kind}`)!;
+    btn.disabled =
+      !started ||
+      hud.phase === "won" ||
+      hud.phase === "lost" ||
+      hud.gold < PLANTS[kind].cost;
+    btn.classList.toggle("selected", hud.selected === kind && !hud.digging);
+  }
+  digBtn.classList.toggle("selected", hud.digging);
+
+  if (hud.selectedPlant) {
+    const plant = hud.selectedPlant;
+    upgradeBar.classList.remove("hidden");
+    upgradeTitle.textContent = `${plant.name} on the lawn`;
+    upgradeStats.textContent = `HP ${plant.hp}/${plant.maxHp}`;
+    sellBtn.textContent = "Dig";
+    sellBtn.disabled = !started;
+    hintEl.textContent = `${PLANTS[plant.kind].description}. Dig removes it and pays nothing back.`;
+  } else {
+    upgradeBar.classList.add("hidden");
+    if (hud.digging) {
+      hintEl.textContent = "Dig: click a plant to remove it. Sun is not refunded.";
+    } else if (hud.selected) {
+      const d = PLANTS[hud.selected];
+      hintEl.textContent = `${d.name} selected (${d.cost} sun). Click an empty lawn tile.`;
+    } else {
+      hintEl.textContent =
+        "The lawn drops 25 sun every 20 seconds. Sunblooms add another 25. Spitters cost 100.";
+    }
+  }
+
+  showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "lawn");
+}
+
 function showEndIfNeeded(
   phase: string,
   difficulty: Difficulty,
@@ -514,27 +629,36 @@ function showEndIfNeeded(
 ): void {
   if (phase === "won") {
     endTitle.textContent =
-      mode === "dungeon"
+      mode === "lawn"
         ? difficulty === "hard"
-          ? "Crawler Cleared"
-          : "Dungeon Cleared"
-        : difficulty === "hard"
-          ? "Hard Victory"
-          : "Victory";
+          ? "Lawn Held"
+          : "Lawn Clear"
+        : mode === "dungeon"
+          ? difficulty === "hard"
+            ? "Crawler Cleared"
+            : "Dungeon Cleared"
+          : difficulty === "hard"
+            ? "Hard Victory"
+            : "Victory";
     endMsg.textContent =
-      mode === "dungeon"
-        ? "No adventurer escaped the zigzag. Your traps and monsters held the road."
-        : difficulty === "hard"
-          ? "You held the line on Hard — even against the Final Boss."
-          : "The Final Boss fell. The bastion holds.";
+      mode === "lawn"
+        ? "The last shambler fell before it reached the house."
+        : mode === "dungeon"
+          ? "No adventurer escaped the zigzag. Your traps and monsters held the road."
+          : difficulty === "hard"
+            ? "You held the line on Hard — even against the Final Boss."
+            : "The Final Boss fell. The bastion holds.";
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   } else if (phase === "lost") {
-    endTitle.textContent = mode === "dungeon" ? "Breach Escape" : "Breach";
+    endTitle.textContent =
+      mode === "lawn" ? "They Reached the House" : mode === "dungeon" ? "Breach Escape" : "Breach";
     endMsg.textContent =
-      mode === "dungeon"
-        ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
-        : difficulty === "hard"
+      mode === "lawn"
+        ? `Shamblers crossed on wave ${wave}. Plant earlier and hold the lanes.`
+        : mode === "dungeon"
+          ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
+          : difficulty === "hard"
           ? `Hard mode crushed the line on wave ${wave}.`
           : `The line fell on wave ${wave}. Rebuild and try again.`;
     syncDifficultyButtons(difficulty);
@@ -544,6 +668,7 @@ function showEndIfNeeded(
 
 bastion.onHudChange = syncBastionHud;
 dungeon.onHudChange = syncDungeonHud;
+lawn.onHudChange = syncLawnHud;
 
 syncGameModeButtons("bastion");
 syncDifficultyButtons("normal");
@@ -554,10 +679,11 @@ modeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 endModeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
 tabClassic.addEventListener("click", () => syncGameModeButtons("bastion"));
-tabMinigames.addEventListener("click", () => syncGameModeButtons("dungeon"));
-document
-  .querySelector("#minigame-dungeon")!
-  .addEventListener("click", () => syncGameModeButtons("dungeon"));
+tabMinigames.addEventListener("click", () =>
+  syncGameModeButtons(chosenMode === "lawn" ? "lawn" : "dungeon"),
+);
+dungeonCard.addEventListener("click", () => syncGameModeButtons("dungeon"));
+lawnCard.addEventListener("click", () => syncGameModeButtons("lawn"));
 
 for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
   document.querySelector(`#btn-${kind}`)!.addEventListener("click", () => {
@@ -578,8 +704,20 @@ shovelBtn.addEventListener("click", () => {
   bastion.selectShovel();
 });
 
+for (const kind of Object.keys(PLANTS) as PlantKind[]) {
+  document.querySelector(`#pbtn-${kind}`)!.addEventListener("click", () => {
+    if (!started || activeMode !== "lawn") return;
+    lawn.selectPlant(kind);
+  });
+}
+digBtn.addEventListener("click", () => {
+  if (!started || activeMode !== "lawn") return;
+  lawn.selectDig();
+});
+
 cancelBtn.addEventListener("click", () => bastion.clearSelection());
 dcancelBtn.addEventListener("click", () => dungeon.clearSelection());
+lcancelBtn.addEventListener("click", () => lawn.clearSelection());
 
 upgradeDamageBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.upgradeSelected("damage");
@@ -614,6 +752,7 @@ dungeonUpgradeBtn.addEventListener("click", () => {
 sellBtn.addEventListener("click", () => {
   if (!started) return;
   if (activeMode === "bastion") bastion.sellWithShovel();
+  else if (activeMode === "lawn") lawn.digSelected();
   else dungeon.sellSelected();
 });
 carrySellBtn.addEventListener("click", () => {
@@ -626,6 +765,9 @@ waveBtn.addEventListener("click", () => {
 dwaveBtn.addEventListener("click", () => {
   if (started && activeMode === "dungeon") dungeon.startWave();
 });
+lwaveBtn.addEventListener("click", () => {
+  if (started && activeMode === "lawn") lawn.startWave();
+});
 
 function startChosen(): void {
   started = true;
@@ -635,6 +777,9 @@ function startChosen(): void {
   if (chosenMode === "bastion") {
     bastion.beginRun(chosenDifficulty);
     bastion.selectTower("archer");
+  } else if (chosenMode === "lawn") {
+    lawn.beginRun(chosenDifficulty);
+    lawn.selectPlant("sunbloom");
   } else {
     dungeon.beginRun(chosenDifficulty);
     dungeon.selectBuild("spikes");
@@ -655,6 +800,9 @@ function pointerCell(e: PointerEvent) {
   if (activeMode === "bastion") {
     return bastion.screenToCell(e.clientX, e.clientY, canvas);
   }
+  if (activeMode === "lawn") {
+    return lawn.screenToCell(e.clientX, e.clientY, canvas);
+  }
   return dungeon.screenToCell(e.clientX, e.clientY, canvas);
 }
 
@@ -662,18 +810,21 @@ canvas.addEventListener("pointermove", (e) => {
   if (!started) return;
   const { col, row } = pointerCell(e);
   if (activeMode === "bastion") bastion.setHover(col, row);
+  else if (activeMode === "lawn") lawn.setHover(col, row);
   else dungeon.setHover(col, row);
 });
 
 canvas.addEventListener("pointerleave", () => {
   bastion.setHover(-1, null);
   dungeon.setHover(-1, null);
+  lawn.setHover(-1, null);
 });
 
 canvas.addEventListener("pointerdown", (e) => {
   if (!started) return;
   const { col, row } = pointerCell(e);
   if (activeMode === "bastion") bastion.handleClick(col, row);
+  else if (activeMode === "lawn") lawn.handleClick(col, row);
   else dungeon.handleClick(col, row);
 });
 
@@ -684,6 +835,9 @@ function frame(now: number): void {
   if (activeMode === "bastion") {
     bastion.update(dt);
     bastion.draw(ctx);
+  } else if (activeMode === "lawn") {
+    lawn.update(dt);
+    lawn.draw(ctx);
   } else {
     dungeon.update(dt);
     dungeon.draw(ctx);

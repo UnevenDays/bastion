@@ -30,15 +30,15 @@ npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
 
 ## How to play
 
-1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler**. Pick **Normal** / **Hard**, then start.
+1. Stay on **Classic** for the main game, or open the **Minigames** tab for **Dungeon Crawler** or **Sun Lawn**. Pick **Normal** / **Hard**, then start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**. Choose who it attacks: **First** (closest to the exit), **Strong** (most health), **Weak** (least health), **Last** (closest to the entrance), or **Auto** (nearest). **Invert** flips that choice: First becomes Last, Strong becomes Weak, and Auto aims at the farthest enemy.
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
 5. Press **Start Wave** when you are ready. Survive all 12 waves — wave 12 is the Final Boss.
 
-Mints cost 130 gold and only print gold **between waves**, after the first wave has ended. They stop printing while a wave is running. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
+Mints cost 130 gold and only print gold **while a wave is running**. They stop between waves. Income and payout-rate upgrades still raise each tick. **Midas Bank** takes coins off your gold. When the next wave starts it pays 25% of what is stored, and that payout leaves the bank. Selling returns whatever remains.
 
-**Normal mode** enemies regenerate. If a unit takes no damage for 3 seconds, it restores all of its health. A second bar under the health bar fills until the heal.
+**Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate.
 
 **Hard mode** still ramps every wave, with a gentler curve than before: more enemy HP/speed/count, slightly faster spawns, 110 starting gold and 17 lives. Bosses leak for a little extra. Hard enemies do not regenerate.
 
@@ -67,6 +67,10 @@ The **Wasp** has no range circle. It flies to one enemy and keeps attacking unti
 Place **Spike Traps**, **Snares**, **Goblins**, and **Ogres** on the zigzag road only. Adventurers walk the path, take trap damage, and stop to fight monsters (they deal damage back). If they reach the exit, you lose lives. Survive 10 waves; the last spawns an Ogre Slayer.
 
 Adventurers are softer than the defenses they walk into: less health, slower hits, and a milder hard-mode bonus. Spikes and snares hit harder, and goblins and ogres have more health and damage. A goblin also attacks one tile ahead of itself, toward the entrance, so adventurers stop and fight before they step on it. Hard ambush starts with 120 gold and 10 lives.
+
+### Sun Lawn
+
+A lane defense. You start with **50 sun** (25 on Hard). The lawn pays **25 sun every 20 seconds**, and each **Sunbloom** (50 sun) pays another 25 on that same timer. **Spitters** cost 100 and shoot the first zombie in their lane. **Bulwarks** (50) are walls zombies stop to chew. **Chillers** (175) slow a lane. **Boomnuts** (150) burst when a zombie steps on them. Survive 8 waves. A zombie that reaches the house costs a life. Dig removes a plant and does not refund sun.
 
 ## Build
 
