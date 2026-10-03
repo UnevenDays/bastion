@@ -1,4 +1,11 @@
-import type { Difficulty, EnemyDef, TowerDef, TowerKind } from "./types";
+import type {
+  Difficulty,
+  EnemyDef,
+  SpecialUpgradeDef,
+  Tower,
+  TowerDef,
+  TowerKind,
+} from "./types";
 
 export const COLS = 16;
 export const ROWS = 10;
@@ -13,6 +20,9 @@ export const TOTAL_WAVES = 12;
 export const MAX_UPGRADE = 3;
 /** Normal path speed used by splitlings and baseline units. */
 export const NORMAL_SPEED = 62;
+
+/** Sell refund fraction of invested gold. */
+export const SELL_REFUND = 0.5;
 
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
@@ -84,6 +94,30 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   },
 };
 
+export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
+  archer: {
+    name: "Hawk Eye",
+    description: "Bigger range + attack aura, less shot damage",
+    costMultiplier: 1.25,
+  },
+  cannon: {
+    name: "Focus Charge",
+    description: "Much more damage, shorter blast range",
+    costMultiplier: 1.35,
+  },
+  frost: {
+    name: "Glacier Field",
+    description: "Area freeze aura, stops dealing damage",
+    costMultiplier: 1.3,
+  },
+};
+
+export function specialCost(kind: TowerKind): number {
+  return Math.round(
+    TOWER_DEFS[kind].cost * SPECIAL_UPGRADES[kind].costMultiplier,
+  );
+}
+
 /** Cost to buy the next damage or speed upgrade for a tower. */
 export function upgradeCost(baseCost: number, currentLevel: number): number {
   return Math.round(baseCost * 0.55 * (currentLevel + 1));
@@ -95,6 +129,67 @@ export function damageMultiplier(damageLevel: number): number {
 
 export function fireRateMultiplier(speedLevel: number): number {
   return 1 + speedLevel * 0.3;
+}
+
+export interface CombatStats {
+  range: number;
+  damage: number;
+  fireRate: number;
+  splash: number;
+  slow: number;
+  slowDuration: number;
+  auraDamage: number;
+  auraFreeze: boolean;
+  firesProjectiles: boolean;
+  color: string;
+  projectileSpeed: number;
+}
+
+export function combatStats(t: Tower): CombatStats {
+  const def = TOWER_DEFS[t.kind];
+  let range = def.range;
+  let damage = def.damage * damageMultiplier(t.damageLevel);
+  const fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
+  let splash = def.splash ?? 0;
+  let slow = def.slow ?? 0;
+  let slowDuration = def.slowDuration ?? 0;
+  let auraDamage = 0;
+  let auraFreeze = false;
+  let firesProjectiles = true;
+
+  if (t.special) {
+    if (t.kind === "archer") {
+      range *= 1.5;
+      damage *= 0.6;
+      // Aura scales slightly with damage upgrades
+      auraDamage = 5 + t.damageLevel * 2.5;
+    } else if (t.kind === "cannon") {
+      damage *= 1.65;
+      range *= 0.62;
+      splash *= 0.9;
+    } else if (t.kind === "frost") {
+      damage = 0;
+      firesProjectiles = false;
+      auraFreeze = true;
+      range *= 1.15;
+      slow = 0.28;
+      slowDuration = 0.4;
+    }
+  }
+
+  return {
+    range,
+    damage,
+    fireRate,
+    splash,
+    slow,
+    slowDuration,
+    auraDamage,
+    auraFreeze,
+    firesProjectiles,
+    color: def.color,
+    projectileSpeed: def.projectileSpeed,
+  };
 }
 
 /**
@@ -115,7 +210,11 @@ export function waveEnemyCount(
 }
 
 export function isBossWave(wave: number): boolean {
-  return wave === 6 || wave === 9 || wave === 12;
+  return wave === 6 || wave === 9;
+}
+
+export function isFinalBossWave(wave: number): boolean {
+  return wave === TOTAL_WAVES;
 }
 
 function applyHard(
@@ -126,15 +225,15 @@ function applyHard(
   if (difficulty !== "hard") return def;
   const m = hardWaveMultiplier(wave);
   const speedBoost = 1.08 + (wave - 1) * 0.02;
+  const isBoss = def.kind === "boss" || def.kind === "finalBoss";
   return {
     ...def,
-    hp: Math.round(def.hp * m * (def.kind === "boss" ? 1.2 : 1)),
+    hp: Math.round(def.hp * m * (isBoss ? 1.25 : 1)),
     speed: Math.round(def.speed * speedBoost),
     reward: Math.round(def.reward * (1.15 + wave * 0.02)),
-    leakDamage:
-      def.kind === "boss"
-        ? (def.leakDamage ?? 5) + 2
-        : (def.leakDamage ?? 1),
+    leakDamage: isBoss
+      ? (def.leakDamage ?? 5) + 2
+      : (def.leakDamage ?? 1),
   };
 }
 
@@ -146,7 +245,24 @@ export function enemyForWave(
   const count = waveEnemyCount(wave, difficulty);
   const scale = 1 + (wave - 1) * 0.22;
 
-  // Boss as the last spawn on boss waves
+  // Final boss — last spawn on wave 12, much more health
+  if (isFinalBossWave(wave) && index === count - 1) {
+    return applyHard(
+      {
+        kind: "finalBoss",
+        hp: 3200,
+        speed: NORMAL_SPEED * 0.52,
+        reward: 220,
+        radius: 26,
+        color: "#5a1430",
+        leakDamage: 10,
+      },
+      wave,
+      difficulty,
+    );
+  }
+
+  // Mid-game bosses
   if (isBossWave(wave) && index === count - 1) {
     return applyHard(
       {
@@ -263,4 +379,8 @@ export function startingGold(difficulty: Difficulty): number {
 
 export function startingLives(difficulty: Difficulty): number {
   return difficulty === "hard" ? HARD_START_LIVES : START_LIVES;
+}
+
+export function sellValue(invested: number): number {
+  return Math.floor(invested * SELL_REFUND);
 }

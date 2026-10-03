@@ -182,6 +182,14 @@ body {
   color: var(--safe);
 }
 
+.stat-value.shovel.ready {
+  color: var(--gold);
+}
+
+.stat-value.shovel.used {
+  color: var(--text-muted);
+}
+
 .game-shell {
   position: relative;
   flex: 1;
@@ -403,6 +411,88 @@ body {
 .btn-upgrade:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.btn-special {
+  background: linear-gradient(180deg, #3a4a28 0%, #2a3520 100%);
+  color: var(--gold);
+  border: 1px solid var(--gold-dim);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn-special:hover:not(:disabled) {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
+.btn-special:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-sell {
+  background: linear-gradient(180deg, #3a2820 0%, #2a1c18 100%);
+  color: #e8a090;
+  border: 1px solid #6a4035;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn-sell:hover:not(:disabled) {
+  border-color: #e85d4a;
+  transform: translateY(-1px);
+}
+
+.btn-sell:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.carry-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(42, 28, 24, 0.92);
+  border: 1px solid #6a4035;
+  border-radius: 4px;
+}
+
+.carry-bar.hidden {
+  display: none;
+}
+
+.carry-text {
+  flex: 1;
+  font-size: 0.82rem;
+  color: #e8cfc4;
+}
+
+.shovel-btn .name {
+  color: var(--gold);
+}
+
+.tower-btn.shovel-btn.selected {
+  border-color: #c47a3a;
+  box-shadow: 0 0 0 1px rgba(196, 122, 58, 0.4);
 }
 
 .overlay {

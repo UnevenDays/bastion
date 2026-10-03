@@ -15,6 +15,7 @@ app.innerHTML = `
       <div class="stat"><span class="stat-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
       <div class="stat"><span class="stat-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
       <div class="stat"><span class="stat-label">Wave</span><span class="stat-value wave" id="wave">0</span></div>
+      <div class="stat"><span class="stat-label">Shovel</span><span class="stat-value shovel" id="shovel-stat">Ready</span></div>
     </div>
   </header>
 
@@ -24,7 +25,7 @@ app.innerHTML = `
       <div class="overlay" id="start-overlay">
         <div class="overlay-card">
           <h2>Bastion Breach</h2>
-          <p>Place towers, upgrade their damage and attack speed, and stop splitters and bosses before they reach the red gate. Survive all 12 waves.</p>
+          <p>Place towers, buy special upgrades, and use the shovel once per wave to move or sell. Survive all 12 waves — wave 12 brings the Final Boss.</p>
           <div class="mode-picker" role="group" aria-label="Difficulty">
             <button class="mode-btn selected" type="button" data-mode="normal" id="mode-normal">Normal</button>
             <button class="mode-btn" type="button" data-mode="hard" id="mode-hard">Hard</button>
@@ -55,6 +56,13 @@ app.innerHTML = `
       </div>
       <button class="btn btn-upgrade" type="button" id="upgrade-damage">+ Damage</button>
       <button class="btn btn-upgrade" type="button" id="upgrade-speed">+ Attack Speed</button>
+      <button class="btn btn-special" type="button" id="upgrade-special">Special</button>
+      <button class="btn btn-sell" type="button" id="sell-btn">Sell</button>
+    </div>
+
+    <div class="carry-bar hidden" id="carry-bar">
+      <span class="carry-text" id="carry-text">Tower picked up — click grass to move, or sell for refund.</span>
+      <button class="btn btn-sell" type="button" id="carry-sell-btn">Sell</button>
     </div>
 
     <div class="toolbar">
@@ -69,6 +77,10 @@ app.innerHTML = `
           `;
         })
         .join("")}
+      <button class="tower-btn shovel-btn" type="button" id="btn-shovel">
+        <span class="name">Shovel</span>
+        <span class="meta">Move or sell · 1× per wave</span>
+      </button>
       <div class="actions">
         <button class="btn btn-ghost" type="button" id="cancel-btn">Cancel</button>
         <button class="btn btn-primary" type="button" id="wave-btn">Start Wave</button>
@@ -84,6 +96,7 @@ const game = new Game();
 const goldEl = document.querySelector<HTMLElement>("#gold")!;
 const livesEl = document.querySelector<HTMLElement>("#lives")!;
 const waveEl = document.querySelector<HTMLElement>("#wave")!;
+const shovelStatEl = document.querySelector<HTMLElement>("#shovel-stat")!;
 const hintEl = document.querySelector<HTMLElement>("#hint")!;
 const waveBtn = document.querySelector<HTMLButtonElement>("#wave-btn")!;
 const cancelBtn = document.querySelector<HTMLButtonElement>("#cancel-btn")!;
@@ -100,6 +113,14 @@ const upgradeDamageBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-damage")!;
 const upgradeSpeedBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-speed")!;
+const upgradeSpecialBtn =
+  document.querySelector<HTMLButtonElement>("#upgrade-special")!;
+const sellBtn = document.querySelector<HTMLButtonElement>("#sell-btn")!;
+const carryBar = document.querySelector<HTMLElement>("#carry-bar")!;
+const carryText = document.querySelector<HTMLElement>("#carry-text")!;
+const carrySellBtn =
+  document.querySelector<HTMLButtonElement>("#carry-sell-btn")!;
+const shovelBtn = document.querySelector<HTMLButtonElement>("#btn-shovel")!;
 const modeBadge = document.querySelector<HTMLElement>("#mode-badge")!;
 const modeBlurb = document.querySelector<HTMLElement>("#mode-blurb")!;
 const modeNormalBtn = document.querySelector<HTMLButtonElement>("#mode-normal")!;
@@ -130,6 +151,13 @@ function syncHud(hud: HudSnapshot): void {
   goldEl.textContent = String(hud.gold);
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
+  shovelStatEl.textContent = hud.carrying
+    ? "Carrying"
+    : hud.shovelReady
+      ? "Ready"
+      : "Used";
+  shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
+  shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
 
   if (hud.difficulty === "hard") {
     modeBadge.classList.remove("hidden");
@@ -139,7 +167,11 @@ function syncHud(hud: HudSnapshot): void {
   }
 
   waveBtn.disabled =
-    !started || hud.waveInProgress || hud.phase === "won" || hud.phase === "lost";
+    !started ||
+    hud.waveInProgress ||
+    hud.carrying ||
+    hud.phase === "won" ||
+    hud.phase === "lost";
   waveBtn.textContent = hud.waveInProgress
     ? `Wave ${hud.wave}…`
     : hud.wave >= hud.totalWaves
@@ -150,15 +182,39 @@ function syncHud(hud: HudSnapshot): void {
     const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
     const cost = TOWER_DEFS[kind].cost;
     btn.disabled =
-      !started || hud.phase === "won" || hud.phase === "lost" || hud.gold < cost;
-    btn.classList.toggle("selected", hud.selected === kind);
+      !started ||
+      hud.carrying ||
+      hud.phase === "won" ||
+      hud.phase === "lost" ||
+      hud.gold < cost;
+    btn.classList.toggle("selected", hud.selected === kind && hud.tool === "build");
   }
 
-  if (hud.selectedTower) {
+  shovelBtn.disabled =
+    !started ||
+    hud.phase === "won" ||
+    hud.phase === "lost" ||
+    (!hud.shovelReady && !hud.carrying);
+  shovelBtn.classList.toggle("selected", hud.tool === "shovel" || hud.carrying);
+
+  if (hud.carrying) {
+    carryBar.classList.remove("hidden");
+    upgradeBar.classList.add("hidden");
+    carryText.textContent = `Tower picked up — click grass to move, or sell for ${hud.carrySellRefund}g.`;
+    carrySellBtn.textContent = `Sell (${hud.carrySellRefund}g)`;
+    hintEl.textContent =
+      "Shovel: place on empty grass to move, or sell for half the gold invested.";
+  } else {
+    carryBar.classList.add("hidden");
+  }
+
+  if (hud.selectedTower && !hud.carrying) {
     const t = hud.selectedTower;
     upgradeBar.classList.remove("hidden");
-    upgradeTitle.textContent = `${t.name} selected`;
-    upgradeStats.textContent = `DMG ${t.damage} (Lv ${t.damageLevel}/${MAX_UPGRADE}) · SPD ${t.fireRate}/s (Lv ${t.speedLevel}/${MAX_UPGRADE})`;
+    upgradeTitle.textContent = t.special
+      ? `${t.name} · ${t.specialName}`
+      : `${t.name} selected`;
+    upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range} · DMG Lv ${t.damageLevel}/${MAX_UPGRADE} · SPD Lv ${t.speedLevel}/${MAX_UPGRADE}`;
 
     if (t.damageCost === null) {
       upgradeDamageBtn.textContent = "Damage Max";
@@ -176,16 +232,37 @@ function syncHud(hud: HudSnapshot): void {
       upgradeSpeedBtn.disabled = !started || !t.canAffordSpeed;
     }
 
-    hintEl.textContent =
-      "Upgrade this tower’s damage or attack speed. Cost scales with the tower’s base price.";
-  } else {
+    if (t.specialCost === null) {
+      upgradeSpecialBtn.textContent = `${t.specialName} ✓`;
+      upgradeSpecialBtn.disabled = true;
+      upgradeSpecialBtn.title = t.specialDescription;
+    } else {
+      upgradeSpecialBtn.textContent = `${t.specialName} (${t.specialCost}g)`;
+      upgradeSpecialBtn.disabled = !started || !t.canAffordSpecial;
+      upgradeSpecialBtn.title = t.specialDescription;
+    }
+
+    sellBtn.textContent = `Sell (${t.sellRefund}g)`;
+    sellBtn.disabled = !started || !hud.shovelReady;
+    sellBtn.title = hud.shovelReady
+      ? "Uses your once-per-wave shovel charge"
+      : "Shovel already used this wave";
+
+    hintEl.textContent = t.special
+      ? `${t.specialName}: ${t.specialDescription}`
+      : `Special: ${t.specialName} — ${t.specialDescription}`;
+  } else if (!hud.carrying) {
     upgradeBar.classList.add("hidden");
-    if (hud.selected) {
+    if (hud.tool === "shovel") {
+      hintEl.textContent = hud.shovelReady
+        ? "Shovel ready: click a tower to pick it up, then move or sell."
+        : "Shovel already used this wave. Refreshes when the wave ends.";
+    } else if (hud.selected) {
       const d = TOWER_DEFS[hud.selected];
       hintEl.textContent = `${d.name} selected (${d.cost}g). Click grass to build, or click a placed tower to upgrade.`;
     } else {
       hintEl.textContent =
-        "Select a tower type to build, or click a placed tower to upgrade it.";
+        "Select a tower to build, click a placed tower to upgrade, or use the shovel.";
     }
   }
 
@@ -193,8 +270,8 @@ function syncHud(hud: HudSnapshot): void {
     endTitle.textContent = hud.difficulty === "hard" ? "Hard Victory" : "Victory";
     endMsg.textContent =
       hud.difficulty === "hard"
-        ? "You held the line on Hard. Every wave hit harder — and you still won."
-        : "All twelve waves broken. The bastion holds.";
+        ? "You held the line on Hard — even against the Final Boss."
+        : "The Final Boss fell. The bastion holds.";
     syncModeButtons(hud.difficulty);
     endOverlay.classList.remove("hidden");
   } else if (hud.phase === "lost") {
@@ -220,6 +297,10 @@ syncHud({
   selectedTower: null,
   waveInProgress: false,
   enemiesLeft: 0,
+  tool: "build",
+  shovelReady: true,
+  carrying: false,
+  carrySellRefund: 0,
 });
 
 modeNormalBtn.addEventListener("click", () => syncModeButtons("normal"));
@@ -234,6 +315,11 @@ for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
   });
 }
 
+shovelBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.selectShovel();
+});
+
 cancelBtn.addEventListener("click", () => game.clearSelection());
 
 upgradeDamageBtn.addEventListener("click", () => {
@@ -244,6 +330,21 @@ upgradeDamageBtn.addEventListener("click", () => {
 upgradeSpeedBtn.addEventListener("click", () => {
   if (!started) return;
   game.upgradeSelected("speed");
+});
+
+upgradeSpecialBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.buySpecial();
+});
+
+sellBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.sellWithShovel();
+});
+
+carrySellBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.sellWithShovel();
 });
 
 waveBtn.addEventListener("click", () => {

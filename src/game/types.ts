@@ -10,7 +10,8 @@ export type EnemyKind =
   | "tank"
   | "splitter"
   | "splitling"
-  | "boss";
+  | "boss"
+  | "finalBoss";
 
 export interface TowerDef {
   kind: TowerKind;
@@ -25,6 +26,13 @@ export interface TowerDef {
   slow?: number; // multiplier, e.g. 0.5 = half speed
   slowDuration?: number;
   description: string;
+}
+
+export interface SpecialUpgradeDef {
+  name: string;
+  description: string;
+  /** Multiplier of tower base cost. */
+  costMultiplier: number;
 }
 
 export interface EnemyDef {
@@ -44,6 +52,9 @@ export interface Tower {
   cooldown: number;
   damageLevel: number;
   speedLevel: number;
+  special: boolean;
+  /** Gold sunk into this tower (for sell refund). */
+  invested: number;
 }
 
 export interface Enemy {
