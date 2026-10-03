@@ -12,14 +12,57 @@ import type { CustomLevel } from "./game/level";
 import type { Difficulty, GameMode, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
+app.classList.add("at-gate");
 
 app.innerHTML = `
+  <section class="gate" id="boot-screen" aria-label="Loading">
+    <p class="gate-kicker">Bastion Breach</p>
+    <h1 class="gate-title">Loading</h1>
+    <p class="gate-tip" id="boot-tip"></p>
+    <div class="load-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="boot-progress">
+      <div class="load-bar" id="boot-bar"></div>
+    </div>
+    <p class="load-label" id="boot-label">0%</p>
+  </section>
+
+  <section class="gate hidden" id="home-screen">
+    <p class="gate-kicker">Tower defense</p>
+    <h1 class="gate-title">Bastion Breach</h1>
+    <p class="home-lead">Hold the road across seven maps. Bring a short bench of towers, then spend the gold they earn.</p>
+    <div class="home-actions">
+      <button class="home-choice" type="button" id="home-classic">
+        <span class="home-choice-name">Classic</span>
+        <span class="home-choice-meta">Roads, bosses, and Endless</span>
+      </button>
+      <button class="home-choice" type="button" id="home-minigames">
+        <span class="home-choice-name">Minigames</span>
+        <span class="home-choice-meta">Dungeon Crawler and Sun Lawn</span>
+      </button>
+      <button class="home-choice" type="button" id="home-editor">
+        <span class="home-choice-name">Level editor</span>
+        <span class="home-choice-meta">Lay a road and choose its enemies</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="gate hidden" id="draft-screen">
+    <p class="gate-kicker">Classic</p>
+    <h1 class="gate-title">Choose your towers</h1>
+    <p class="home-lead" id="draft-lead">The tower limit is 8. Select which towers you want to bring.</p>
+    <p class="draft-count" id="draft-count">0 / 8</p>
+    <div class="draft-grid" id="draft-grid"></div>
+    <div class="draft-actions">
+      <button class="btn btn-ghost" type="button" id="draft-back">Back</button>
+      <button class="btn btn-primary" type="button" id="draft-continue" disabled>Continue</button>
+    </div>
+  </section>
+
   <header class="top-bar">
     <div class="brand-wrap">
       <div class="brand" id="brand-title">Bastion Breach</div>
       <span class="mode-badge hidden" id="mode-badge">Hard</span>
     </div>
-    <div class="stats">
+    <div class="stats" id="stats">
       <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
       <div class="stat"><span class="stat-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
       <div class="stat"><span class="stat-label">Wave</span><span class="stat-value wave" id="wave">0</span></div>
@@ -30,8 +73,9 @@ app.innerHTML = `
   <div class="game-shell">
     <div class="canvas-wrap">
       <canvas id="game" width="768" height="480"></canvas>
-      <div class="overlay" id="start-overlay">
+      <div class="overlay hidden" id="start-overlay">
         <div class="overlay-card overlay-wide">
+          <button class="btn btn-ghost menu-home" type="button" id="back-home">Main menu</button>
           <div class="menu-tabs" role="tablist" aria-label="Menu">
             <button class="menu-tab selected" type="button" role="tab" id="tab-classic" aria-selected="true">Classic</button>
             <button class="menu-tab" type="button" role="tab" id="tab-minigames" aria-selected="false">Minigames</button>
@@ -201,6 +245,7 @@ const dungeon = new DungeonGame();
 const lawn = new LawnGame();
 
 const brandTitle = document.querySelector<HTMLElement>("#brand-title")!;
+const statsEl = document.querySelector<HTMLElement>("#stats")!;
 const goldLabel = document.querySelector<HTMLElement>("#gold-label")!;
 const goldEl = document.querySelector<HTMLElement>("#gold")!;
 const livesEl = document.querySelector<HTMLElement>("#lives")!;
@@ -279,6 +324,17 @@ const endModeHardBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-hard")!;
 const endModeEndlessBtn =
   document.querySelector<HTMLButtonElement>("#end-mode-endless")!;
+const bootScreen = document.querySelector<HTMLElement>("#boot-screen")!;
+const homeScreen = document.querySelector<HTMLElement>("#home-screen")!;
+const draftScreen = document.querySelector<HTMLElement>("#draft-screen")!;
+const bootTip = document.querySelector<HTMLElement>("#boot-tip")!;
+const bootBar = document.querySelector<HTMLElement>("#boot-bar")!;
+const bootLabel = document.querySelector<HTMLElement>("#boot-label")!;
+const bootProgress = document.querySelector<HTMLElement>("#boot-progress")!;
+const draftGrid = document.querySelector<HTMLElement>("#draft-grid")!;
+const draftCount = document.querySelector<HTMLElement>("#draft-count")!;
+const draftLead = document.querySelector<HTMLElement>("#draft-lead")!;
+const draftContinue = document.querySelector<HTMLButtonElement>("#draft-continue")!;
 const speedRow = document.querySelector<HTMLElement>("#speed-row")!;
 const speedButtons = [
   ...speedRow.querySelectorAll<HTMLButtonElement>(".speed-btn"),
@@ -286,6 +342,102 @@ const speedButtons = [
 
 const GAME_SPEEDS = [1, 2, 5, 10] as const;
 let gameSpeed: (typeof GAME_SPEEDS)[number] = 1;
+
+const TOWER_LIMIT = 8;
+const LOAD_TIPS = [
+  "A Sapper stops on one tower and shuts it off for 4 seconds.",
+  "From wave 15, Endless alternates Armor and Marked every five waves.",
+  "Marked enemies ignore every tower that is not set to Strongest.",
+  "Marsh water cannot hold a tower. The other roads leave the grass open.",
+  "The Shovel can move or sell one tower each wave.",
+  "A Mint prints gold only while a wave is running.",
+  "The Nuke leaves a crater. Nothing can be built there for the rest of the run.",
+  "A Chomp on a Marked wave bites only if it is set to Strongest.",
+  "Killing a Thief returns 20% of the gold it stole.",
+  "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
+];
+
+let loadout: TowerKind[] = [];
+
+function randomTip(): string {
+  return LOAD_TIPS[Math.floor(Math.random() * LOAD_TIPS.length)]!;
+}
+
+function showStage(stage: "boot" | "home" | "draft" | "menu" | "play"): void {
+  bootScreen.classList.toggle("hidden", stage !== "boot");
+  homeScreen.classList.toggle("hidden", stage !== "home");
+  draftScreen.classList.toggle("hidden", stage !== "draft");
+  const inMatch = stage === "menu" || stage === "play";
+  app.classList.toggle("at-gate", !inMatch);
+  if (stage !== "menu") startOverlay.classList.add("hidden");
+  if (stage === "menu") startOverlay.classList.remove("hidden");
+}
+
+function runLoad(then: () => void): void {
+  const tip = randomTip();
+  bootTip.textContent = tip;
+  bootBar.style.width = "0%";
+  bootLabel.textContent = "0%";
+  bootProgress.setAttribute("aria-valuenow", "0");
+  showStage("boot");
+  const began = performance.now();
+  const duration = 1700;
+  const step = (now: number) => {
+    const t = Math.min(1, (now - began) / duration);
+    const pct = Math.round(t * 100);
+    bootBar.style.width = `${pct}%`;
+    bootLabel.textContent = `${pct}%`;
+    bootProgress.setAttribute("aria-valuenow", String(pct));
+    if (t < 1) requestAnimationFrame(step);
+    else then();
+  };
+  requestAnimationFrame(step);
+}
+
+function paintDraft(): void {
+  draftCount.textContent = `${loadout.length} / ${TOWER_LIMIT}`;
+  draftLead.textContent =
+    loadout.length >= TOWER_LIMIT
+      ? "The tower limit is 8. Deselect one if you want a different tower."
+      : "The tower limit is 8. Select which towers you want to bring.";
+  draftContinue.disabled = loadout.length === 0;
+  draftGrid.innerHTML = (Object.keys(TOWER_DEFS) as TowerKind[])
+    .map((kind) => {
+      const def = TOWER_DEFS[kind];
+      const on = loadout.includes(kind);
+      return `<button class="draft-card${on ? " selected" : ""}" type="button" data-draft="${kind}" aria-pressed="${on}">
+        <span class="name"><span class="swatch ${kind}"></span>${def.name}</span>
+        <span class="meta">${def.cost}g · ${def.description}</span>
+      </button>`;
+    })
+    .join("");
+}
+
+function toggleDraft(kind: TowerKind): void {
+  if (loadout.includes(kind)) {
+    loadout = loadout.filter((item) => item !== kind);
+  } else if (loadout.length < TOWER_LIMIT) {
+    loadout = [...loadout, kind];
+  }
+  paintDraft();
+}
+
+function applyTowerRoster(): void {
+  const limited = started && activeMode === "bastion" && menuView !== "editor";
+  for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
+    document
+      .querySelector(`#btn-${kind}`)!
+      .classList.toggle("out-of-loadout", limited && !loadout.includes(kind));
+  }
+}
+
+function showHome(): void {
+  started = false;
+  endOverlay.classList.add("hidden");
+  modeBadge.classList.add("hidden");
+  showStage("home");
+  applyChrome(activeMode);
+}
 
 let started = false;
 let chosenDifficulty: Difficulty = "normal";
@@ -414,9 +566,11 @@ function applyChrome(mode: GameMode): void {
         ? "Dungeon Crawler"
         : "Bastion Breach";
   goldLabel.textContent = mode === "lawn" ? "Sun" : "Gold";
-  toolbarBastion.classList.toggle("hidden", mode !== "bastion");
-  toolbarDungeon.classList.toggle("hidden", mode !== "dungeon");
-  toolbarLawn.classList.toggle("hidden", mode !== "lawn");
+  toolbarBastion.classList.toggle("hidden", mode !== "bastion" || !started);
+  toolbarDungeon.classList.toggle("hidden", mode !== "dungeon" || !started);
+  toolbarLawn.classList.toggle("hidden", mode !== "lawn" || !started);
+  hintEl.classList.toggle("hidden", !started);
+  statsEl.classList.toggle("hidden", !started);
   shovelStatWrap.classList.toggle("hidden", mode !== "bastion");
   bastionUpgrades.classList.toggle("hidden", mode !== "bastion");
   dungeonUpgrades.classList.toggle("hidden", mode !== "dungeon");
@@ -1065,13 +1219,14 @@ function startChosen(): void {
   startOverlay.classList.add("hidden");
   endOverlay.classList.add("hidden");
   applyChrome(chosenMode);
+  showStage("play");
   if (chosenMode === "bastion" && activeLevel && menuView === "editor") {
     bastion.beginCustom(activeLevel);
     bastion.selectTower("archer");
   } else if (chosenMode === "bastion") {
     activeLevel = null;
     bastion.beginRun(chosenDifficulty, chosenLevel);
-    bastion.selectTower("archer");
+    bastion.selectTower(loadout[0] ?? "archer");
   } else if (chosenMode === "lawn") {
     lawn.beginRun(chosenDifficulty);
     lawn.selectPlant("sunbloom");
@@ -1079,16 +1234,42 @@ function startChosen(): void {
     dungeon.beginRun(chosenDifficulty);
     dungeon.selectBuild("spikes");
   }
+  applyTowerRoster();
 }
 
 startBtn.addEventListener("click", startChosen);
 restartBtn.addEventListener("click", startChosen);
-menuBtn.addEventListener("click", () => {
-  endOverlay.classList.add("hidden");
-  startOverlay.classList.remove("hidden");
-  started = false;
-  modeBadge.classList.add("hidden");
-  syncGameModeButtons(menuView === "editor" ? "bastion" : chosenMode);
+menuBtn.addEventListener("click", showHome);
+document.querySelector("#back-home")!.addEventListener("click", showHome);
+document.querySelector("#home-classic")!.addEventListener("click", () => {
+  paintDraft();
+  showStage("draft");
+});
+document.querySelector("#home-minigames")!.addEventListener("click", () => {
+  menuView = "minigames";
+  activeLevel = null;
+  syncGameModeButtons(chosenMode === "lawn" ? "lawn" : "dungeon");
+  showStage("menu");
+});
+document.querySelector("#home-editor")!.addEventListener("click", () => {
+  menuView = "editor";
+  syncGameModeButtons("bastion");
+  showStage("menu");
+});
+document.querySelector("#draft-back")!.addEventListener("click", showHome);
+draftContinue.addEventListener("click", () => {
+  if (loadout.length === 0 || loadout.length > TOWER_LIMIT) return;
+  runLoad(() => {
+    menuView = "classic";
+    activeLevel = null;
+    syncGameModeButtons("bastion");
+    showStage("menu");
+  });
+});
+draftGrid.addEventListener("click", (event) => {
+  const card = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-draft]");
+  if (!card?.dataset.draft) return;
+  toggleDraft(card.dataset.draft as TowerKind);
 });
 scoreSaveBtn.addEventListener("click", () => {
   if (!pendingScore || savedThisRun || pendingScore.wave < 1) return;
@@ -1110,6 +1291,7 @@ mountEditor(panelEditor, (level) => {
   startChosen();
 });
 refreshBoards();
+runLoad(() => showHome());
 
 function pointerCell(e: PointerEvent) {
   if (activeMode === "bastion") {
