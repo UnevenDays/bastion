@@ -1,5 +1,5 @@
 import "./style.css";
-import { TOWER_DEFS } from "./game/config";
+import { BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { Game, type HudSnapshot } from "./game/engine";
@@ -72,6 +72,8 @@ app.innerHTML = `
         <button class="btn btn-upgrade" type="button" id="upgrade-damage">+ Damage</button>
         <button class="btn btn-upgrade" type="button" id="upgrade-speed">+ Attack Speed</button>
         <button class="btn btn-special" type="button" id="upgrade-special">Special</button>
+        <button class="btn btn-special hidden" type="button" id="mint-deposit">Bank 25g</button>
+        <button class="btn btn-upgrade hidden" type="button" id="mint-deposit-all">Bank All</button>
       </div>
       <div id="dungeon-upgrades" class="upgrade-actions hidden">
         <button class="btn btn-upgrade" type="button" id="dungeon-upgrade">+ Power</button>
@@ -160,6 +162,10 @@ const upgradeSpeedBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-speed")!;
 const upgradeSpecialBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-special")!;
+const mintDepositBtn =
+  document.querySelector<HTMLButtonElement>("#mint-deposit")!;
+const mintDepositAllBtn =
+  document.querySelector<HTMLButtonElement>("#mint-deposit-all")!;
 const dungeonUpgradeBtn =
   document.querySelector<HTMLButtonElement>("#dungeon-upgrade")!;
 const sellBtn = document.querySelector<HTMLButtonElement>("#sell-btn")!;
@@ -190,8 +196,9 @@ let chosenMode: GameMode = "bastion";
 let activeMode: GameMode = "bastion";
 
 const MODE_BLURBS: Record<Difficulty, string> = {
-  normal: "Standard pacing. Good for learning the path.",
-  hard: "Enemy strength rises every wave. Fewer starting lives and gold.",
+  normal:
+    "Wounded enemies heal to full health if nothing hits them for 3 seconds.",
+  hard: "More enemies and health each wave, with a gentler ramp. 110 gold, 17 lives.",
 };
 
 const GAME_BLURBS: Record<GameMode, string> = {
@@ -252,8 +259,14 @@ function syncBastionHud(hud: HudSnapshot): void {
   shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
   shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
 
-  modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
-  if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
+  modeBadge.classList.remove("hidden");
+  if (hud.difficulty === "hard") {
+    modeBadge.classList.remove("regen");
+    modeBadge.textContent = "Hard";
+  } else {
+    modeBadge.classList.add("regen");
+    modeBadge.textContent = "Regen";
+  }
 
   waveBtn.disabled =
     !started ||
@@ -294,7 +307,7 @@ function syncBastionHud(hud: HudSnapshot): void {
     carryText.textContent = `Tower picked up — click grass to move, or sell for ${hud.carrySellRefund}g.`;
     carrySellBtn.textContent = `Sell (${hud.carrySellRefund}g)`;
     hintEl.textContent =
-      "Shovel: place on empty grass to move, or sell for half the gold invested.";
+      "Shovel: place on empty grass to move, or sell. Banked coins come back in full.";
   } else {
     carryBar.classList.add("hidden");
   }
@@ -307,17 +320,23 @@ function syncBastionHud(hud: HudSnapshot): void {
       : `${t.name} selected`;
 
     if (t.economy) {
-      const invested = bastion.towers[t.index]?.invested;
-      upgradeStats.textContent =
-        invested !== undefined
-          ? `Pays ${t.goldPerTick}g every ${t.goldInterval}s · Invested ${invested}g`
-          : `Pays ${t.goldPerTick}g every ${t.goldInterval}s`;
+      const bankLine = t.special
+        ? ` · Bank ${t.banked}g → +${t.bankPayout}g next wave`
+        : "";
+      upgradeStats.textContent = `During waves: ${t.goldPerTick}g / ${t.goldInterval}s${bankLine}`;
       upgradeDamageBtn.textContent =
         t.damageCost === null ? "Income Max" : `+ Income (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Rate Max" : `+ Payout Rate (${t.speedCost}g)`;
-      hintEl.textContent =
-        "Mint produces gold over time. Spend on Income / Rate / Midas Vault to earn more.";
+      hintEl.textContent = t.special
+        ? "Investment Bank pays 25% of stored coins when a wave starts. Selling returns the deposit in full."
+        : "Mints only print gold while a wave is running. Investment Bank stores coins for 25% back each wave.";
+      const showBank = t.special;
+      mintDepositBtn.classList.toggle("hidden", !showBank);
+      mintDepositAllBtn.classList.toggle("hidden", !showBank);
+      mintDepositBtn.textContent = `Bank ${BANK_DEPOSIT_CHUNK}g`;
+      mintDepositBtn.disabled = !started || hud.gold < BANK_DEPOSIT_CHUNK;
+      mintDepositAllBtn.disabled = !started || hud.gold <= 0;
     } else {
       upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}`;
       upgradeDamageBtn.textContent =
@@ -325,6 +344,8 @@ function syncBastionHud(hud: HudSnapshot): void {
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
       hintEl.textContent = `${t.specialName}: ${t.specialDescription}`;
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
     }
 
     upgradeDamageBtn.disabled =
@@ -342,6 +363,8 @@ function syncBastionHud(hud: HudSnapshot): void {
     sellBtn.disabled = !started || !hud.shovelReady;
   } else if (!hud.carrying) {
     upgradeBar.classList.add("hidden");
+    mintDepositBtn.classList.add("hidden");
+    mintDepositAllBtn.classList.add("hidden");
     if (hud.tool === "shovel") {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
@@ -362,6 +385,7 @@ function syncDungeonHud(hud: DungeonHud): void {
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
+  modeBadge.classList.remove("regen");
   modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
   if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
 
@@ -499,6 +523,12 @@ upgradeSpeedBtn.addEventListener("click", () => {
 upgradeSpecialBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.buySpecial();
 });
+mintDepositBtn.addEventListener("click", () => {
+  if (started && activeMode === "bastion") bastion.depositIntoSelected(false);
+});
+mintDepositAllBtn.addEventListener("click", () => {
+  if (started && activeMode === "bastion") bastion.depositIntoSelected(true);
+});
 dungeonUpgradeBtn.addEventListener("click", () => {
   if (started && activeMode === "dungeon") dungeon.upgradeSelected();
 });
@@ -538,6 +568,7 @@ menuBtn.addEventListener("click", () => {
   endOverlay.classList.add("hidden");
   startOverlay.classList.remove("hidden");
   started = false;
+  modeBadge.classList.add("hidden");
   syncGameModeButtons(chosenMode);
 });
 

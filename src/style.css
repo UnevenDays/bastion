@@ -91,6 +91,12 @@ body {
   display: none;
 }
 
+.mode-badge.regen {
+  color: #102016;
+  background: linear-gradient(180deg, #5ecf8a 0%, #2f8a56 100%);
+  border-color: #8ee0b0;
+}
+
 .mode-picker {
   display: flex;
   gap: 8px;

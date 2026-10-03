@@ -6,8 +6,8 @@ export const DCELL = 48;
 
 export const DUNGEON_START_GOLD = 140;
 export const DUNGEON_START_LIVES = 12;
-export const DUNGEON_HARD_GOLD = 110;
-export const DUNGEON_HARD_LIVES = 9;
+export const DUNGEON_HARD_GOLD = 120;
+export const DUNGEON_HARD_LIVES = 10;
 export const DUNGEON_WAVES = 10;
 export const DUNGEON_SELL_REFUND = 0.5;
 
@@ -75,44 +75,44 @@ export const DUNGEON_BUILDS: Record<DungeonBuildKind, DungeonBuildDef> = {
     name: "Spike Trap",
     cost: 40,
     color: "#c45c4a",
-    description: "Damages adventurers on the road",
+    description: "Heavy damage to adventurers on the road",
     role: "trap",
-    damage: 22,
-    fireRate: 0.9,
+    damage: 28,
+    fireRate: 1.05,
   },
   snare: {
     kind: "snare",
     name: "Snare",
     cost: 55,
     color: "#5a9eb8",
-    description: "Slows adventurers on the road",
+    description: "Slows adventurers hard and chips them",
     role: "trap",
-    damage: 4,
-    fireRate: 1.2,
-    slow: 0.4,
-    slowDuration: 1.8,
+    damage: 7,
+    fireRate: 1.35,
+    slow: 0.32,
+    slowDuration: 2.4,
   },
   goblin: {
     kind: "goblin",
     name: "Goblin",
     cost: 70,
     color: "#4a9b6e",
-    description: "Monster that fights on the road",
+    description: "Sturdier fighter on the road",
     role: "monster",
-    damage: 14,
-    hp: 90,
-    fireRate: 1.1,
+    damage: 18,
+    hp: 125,
+    fireRate: 1.25,
   },
   ogre: {
     kind: "ogre",
     name: "Ogre",
     cost: 110,
     color: "#8b5a3c",
-    description: "Tanky monster, high damage",
+    description: "Orc-sized tank. High health and heavy hits",
     role: "monster",
-    damage: 28,
-    hp: 220,
-    fireRate: 0.7,
+    damage: 40,
+    hp: 310,
+    fireRate: 0.85,
   },
 };
 
@@ -126,12 +126,12 @@ export function dungeonStartingLives(d: Difficulty): number {
 
 export function dungeonWaveCount(wave: number, d: Difficulty): number {
   const base = 5 + wave * 2;
-  return d === "hard" ? base + 2 : base;
+  return d === "hard" ? base + 1 : base;
 }
 
 export function dungeonSpawnInterval(wave: number, d: Difficulty): number {
   const base = Math.max(0.4, 0.95 - wave * 0.05);
-  return d === "hard" ? base * 0.8 : base;
+  return d === "hard" ? base * 0.88 : base;
 }
 
 export function adventurerForWave(
@@ -141,20 +141,20 @@ export function adventurerForWave(
 ): AdventurerDef {
   const count = dungeonWaveCount(wave, d);
   const scale = 1 + (wave - 1) * 0.2;
-  const hard = d === "hard" ? 1.2 : 1;
+  const hard = d === "hard" ? 1.1 : 1;
 
-  // Final ogre-slayer (matches Ogre)
+  // Final ogre-slayer (matches Ogre) — softer than the defenders they hunt
   if (wave === DUNGEON_WAVES && index === count - 1) {
     return {
       kind: "ogreSlayer",
       name: "Ogre Slayer",
-      hp: Math.round(480 * hard),
-      speed: 48,
-      damage: 38,
+      hp: Math.round(380 * hard),
+      speed: 44,
+      damage: 30,
       reward: 80,
       radius: 14,
       color: "#8b5a3c",
-      leakDamage: 4,
+      leakDamage: 3,
     };
   }
 
@@ -163,9 +163,9 @@ export function adventurerForWave(
     return {
       kind: "goblinHunter",
       name: "Goblin Hunter",
-      hp: Math.round(140 * scale * hard),
-      speed: 50,
-      damage: 22,
+      hp: Math.round(110 * scale * hard),
+      speed: 46,
+      damage: 17,
       reward: 16 + wave,
       radius: 12,
       color: "#4a9b6e",
@@ -178,9 +178,9 @@ export function adventurerForWave(
     return {
       kind: "snareScout",
       name: "Snare Scout",
-      hp: Math.round(36 * scale * hard),
-      speed: 100,
-      damage: 10,
+      hp: Math.round(28 * scale * hard),
+      speed: 86,
+      damage: 8,
       reward: 8 + Math.floor(wave / 2),
       radius: 9,
       color: "#5a9eb8",
@@ -192,9 +192,9 @@ export function adventurerForWave(
   return {
     kind: "spikeRaider",
     name: "Spike Raider",
-    hp: Math.round(55 * scale * hard),
-    speed: 62 + wave,
-    damage: 14,
+    hp: Math.round(44 * scale * hard),
+    speed: 54 + wave,
+    damage: 11,
     reward: 7 + Math.floor(wave / 2),
     radius: 11,
     color: "#c45c4a",

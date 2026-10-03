@@ -13,16 +13,25 @@ export const CELL = 48;
 
 export const START_GOLD = 120;
 export const START_LIVES = 20;
-export const HARD_START_GOLD = 100;
-export const HARD_START_LIVES = 15;
+export const HARD_START_GOLD = 110;
+export const HARD_START_LIVES = 17;
 export const TOTAL_WAVES = 12;
 
 export const MAX_UPGRADE = 3;
 /** Normal path speed used by splitlings and baseline units. */
 export const NORMAL_SPEED = 62;
 
-/** Sell refund fraction of invested gold. */
+/** Sell refund fraction of invested gold. Bank deposits are returned in full. */
 export const SELL_REFUND = 0.5;
+
+/** Investment Bank pays this fraction of stored coins at the start of each wave. */
+export const BANK_PAYOUT_RATE = 0.25;
+
+/** Chunk size for the Bank button. */
+export const BANK_DEPOSIT_CHUNK = 25;
+
+/** Normal mode: wounded enemies restore full health after this many seconds without damage. */
+export const REGEN_DELAY = 3;
 
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
@@ -101,7 +110,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0.22,
     color: "#e8c547",
     projectileSpeed: 0,
-    description: "Produces gold; invest upgrades to earn more",
+    description: "Prints gold only while a wave is running",
     economy: true,
   },
 };
@@ -123,19 +132,26 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     costMultiplier: 1.3,
   },
   mint: {
-    name: "Midas Vault",
-    description: "Bigger payouts from every gold tick",
+    name: "Investment Bank",
+    description: "Deposit coins. Each wave pays 25% of what is stored",
     costMultiplier: 1.4,
   },
 };
 
-/** Gold paid per Mint tick, and seconds between ticks. Scales with investment. */
+/**
+ * Gold paid per Mint tick, and seconds between ticks.
+ * Ticks only run while a wave is in progress.
+ */
 export function mintIncome(t: Tower): { amount: number; interval: number } {
   const investBonus = Math.floor(t.invested / 90);
-  let amount = 5 + t.damageLevel * 4 + investBonus;
-  let interval = 4.2 / (1 + t.speedLevel * 0.28);
-  if (t.special) amount = Math.round(amount * 1.45);
+  const amount = 5 + t.damageLevel * 4 + investBonus;
+  const interval = 4.2 / (1 + t.speedLevel * 0.28);
   return { amount, interval: Math.max(1.4, interval) };
+}
+
+/** Gold an Investment Bank pays at the start of a wave. Principal stays stored. */
+export function bankPayout(banked: number): number {
+  return Math.floor(banked * BANK_PAYOUT_RATE);
 }
 
 export function specialCost(kind: TowerKind): number {
@@ -237,11 +253,11 @@ export function combatStats(t: Tower): CombatStats {
 }
 
 /**
- * Hard mode ramps every wave:
- * wave 1 ~1.25× HP, wave 12 ~2.9× HP, plus speed/count pressure.
+ * Hard mode still ramps every wave, a step down from the old curve:
+ * wave 1 ~1.15× HP, wave 12 ~2.36× HP, with milder speed and count pressure.
  */
 export function hardWaveMultiplier(wave: number): number {
-  return 1.25 + (wave - 1) * 0.15;
+  return 1.15 + (wave - 1) * 0.11;
 }
 
 export function waveEnemyCount(
@@ -249,7 +265,7 @@ export function waveEnemyCount(
   difficulty: Difficulty = "normal",
 ): number {
   const base = 6 + wave * 2;
-  if (difficulty === "hard") return base + 2 + Math.floor(wave / 2);
+  if (difficulty === "hard") return base + 1 + Math.floor(wave / 3);
   return base;
 }
 
@@ -268,15 +284,15 @@ function applyHard(
 ): EnemyDef {
   if (difficulty !== "hard") return def;
   const m = hardWaveMultiplier(wave);
-  const speedBoost = 1.08 + (wave - 1) * 0.02;
+  const speedBoost = 1.05 + (wave - 1) * 0.012;
   const isBoss = def.kind === "boss" || def.kind === "finalBoss";
   return {
     ...def,
-    hp: Math.round(def.hp * m * (isBoss ? 1.25 : 1)),
+    hp: Math.round(def.hp * m * (isBoss ? 1.15 : 1)),
     speed: Math.round(def.speed * speedBoost),
     reward: Math.round(def.reward * (1.15 + wave * 0.02)),
     leakDamage: isBoss
-      ? (def.leakDamage ?? 5) + 2
+      ? (def.leakDamage ?? 5) + 1
       : (def.leakDamage ?? 1),
   };
 }
@@ -429,7 +445,7 @@ export function spawnInterval(
   difficulty: Difficulty = "normal",
 ): number {
   const base = Math.max(0.35, 0.85 - wave * 0.04);
-  if (difficulty === "hard") return Math.max(0.22, base * 0.75);
+  if (difficulty === "hard") return Math.max(0.28, base * 0.85);
   return base;
 }
 
@@ -441,6 +457,6 @@ export function startingLives(difficulty: Difficulty): number {
   return difficulty === "hard" ? HARD_START_LIVES : START_LIVES;
 }
 
-export function sellValue(invested: number): number {
-  return Math.floor(invested * SELL_REFUND);
+export function sellValue(invested: number, banked = 0): number {
+  return Math.floor(invested * SELL_REFUND) + Math.max(0, Math.floor(banked));
 }

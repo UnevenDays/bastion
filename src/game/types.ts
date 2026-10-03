@@ -61,6 +61,8 @@ export interface Tower {
   special: boolean;
   /** Gold sunk into this tower (for sell refund). */
   invested: number;
+  /** Coins stored in an Investment Bank. Principal is not spent. */
+  banked: number;
 }
 
 export interface Enemy {
@@ -81,6 +83,8 @@ export interface Enemy {
   y: number;
   /** Spawner: countdown until next summoned enemy. */
   spawnTimer: number;
+  /** Seconds since this enemy last lost health. */
+  sinceDamage: number;
 }
 
 export interface Projectile {

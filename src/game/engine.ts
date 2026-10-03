@@ -1,13 +1,16 @@
 import {
+  BANK_DEPOSIT_CHUNK,
   CELL,
   COLS,
   PATH,
+  REGEN_DELAY,
   ROWS,
   TOTAL_WAVES,
   TOWER_DEFS,
   SPECIAL_UPGRADES,
   MAX_UPGRADE,
   NORMAL_SPEED,
+  bankPayout,
   combatStats,
   enemyForWave,
   mintIncome,
@@ -56,6 +59,9 @@ export interface SelectedTowerInfo {
   economy: boolean;
   goldPerTick: number;
   goldInterval: number;
+  banked: number;
+  /** Gold the Investment Bank will pay when the next wave starts. */
+  bankPayout: number;
 }
 
 export interface HudSnapshot {
@@ -164,10 +170,12 @@ export class Game {
       specialDescription: special.description,
       specialCost: spCost,
       canAffordSpecial: spCost !== null && this.gold >= spCost,
-      sellRefund: sellValue(t.invested),
+      sellRefund: sellValue(t.invested, t.banked),
       economy: !!def.economy,
       goldPerTick: income?.amount ?? 0,
       goldInterval: income ? Math.round(income.interval * 10) / 10 : 0,
+      banked: t.banked,
+      bankPayout: t.kind === "mint" && t.special ? bankPayout(t.banked) : 0,
     };
   }
 
@@ -186,7 +194,9 @@ export class Game {
       tool: this.tool,
       shovelReady: this.shovelReady,
       carrying: this.carrying !== null,
-      carrySellRefund: this.carrying ? sellValue(this.carrying.invested) : 0,
+      carrySellRefund: this.carrying
+        ? sellValue(this.carrying.invested, this.carrying.banked)
+        : 0,
     });
   }
 
@@ -305,7 +315,7 @@ export class Game {
       if (!this.shovelReady && this.tool === "shovel") {
         // Charge already reserved by pickup — selling finishes the action
       }
-      const refund = sellValue(this.carrying.invested);
+      const refund = sellValue(this.carrying.invested, this.carrying.banked);
       this.gold += refund;
       this.burst(this.width / 2, this.height / 2, "#e8c547", 10);
       this.carrying = null;
@@ -320,7 +330,7 @@ export class Game {
     const t = this.towers[this.selectedTowerIndex];
     if (!t) return false;
 
-    const refund = sellValue(t.invested);
+    const refund = sellValue(t.invested, t.banked);
     this.gold += refund;
     this.towerOccupied.delete(pathKey(t.col, t.row));
     this.burst(t.col * CELL + CELL / 2, t.row * CELL + CELL / 2, "#e8c547", 10);
@@ -358,11 +368,13 @@ export class Game {
         speedLevel: 0,
         special: false,
         invested: def.cost,
+        banked: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
       special: false,
       invested: def.cost,
+      banked: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -419,6 +431,32 @@ export class Game {
     return true;
   }
 
+  /**
+   * Store gold in the selected Mint's Investment Bank.
+   * Pass `all` to deposit every coin currently held.
+   */
+  depositIntoSelected(all = false): boolean {
+    if (this.selectedTowerIndex === null) return false;
+    if (this.phase === "won" || this.phase === "lost") return false;
+    const t = this.towers[this.selectedTowerIndex];
+    if (!t || t.kind !== "mint" || !t.special) return false;
+
+    const amount = all ? this.gold : Math.min(BANK_DEPOSIT_CHUNK, this.gold);
+    if (!all && this.gold < BANK_DEPOSIT_CHUNK) return false;
+    if (amount <= 0) return false;
+
+    this.gold -= amount;
+    t.banked += amount;
+    this.burst(
+      t.col * CELL + CELL / 2,
+      t.row * CELL + CELL / 2,
+      "#e8c547",
+      8,
+    );
+    this.emitHud();
+    return true;
+  }
+
   startWave(): void {
     if (this.phase === "won" || this.phase === "lost") return;
     if (this.waveInProgress) return;
@@ -430,7 +468,24 @@ export class Game {
     this.waveInProgress = true;
     this.spawnQueue = waveEnemyCount(this.wave, this.difficulty);
     this.spawnTimer = 0.2;
+    this.payInvestmentBanks();
     this.emitHud();
+  }
+
+  /** Each wave, Investment Banks pay 25% of stored coins. The deposit stays. */
+  private payInvestmentBanks(): void {
+    for (const t of this.towers) {
+      if (t.kind !== "mint" || !t.special || t.banked <= 0) continue;
+      const payout = bankPayout(t.banked);
+      if (payout <= 0) continue;
+      this.gold += payout;
+      this.burst(
+        t.col * CELL + CELL / 2,
+        t.row * CELL + CELL / 2 - 10,
+        "#e8c547",
+        12,
+      );
+    }
   }
 
   restart(difficulty: Difficulty = this.difficulty): void {
@@ -513,6 +568,7 @@ export class Game {
       x,
       y,
       spawnTimer: def.kind === "spawner" ? 2.5 : 0,
+      sinceDamage: 0,
     };
   }
 
@@ -574,6 +630,20 @@ export class Game {
         if (e.slowTimer <= 0) e.speed = e.baseSpeed;
       }
 
+      // Normal mode: full heal if nothing has hurt them for a few seconds.
+      if (
+        this.difficulty === "normal" &&
+        e.hp > 0 &&
+        e.hp < e.maxHp
+      ) {
+        e.sinceDamage += dt;
+        if (e.sinceDamage >= REGEN_DELAY) {
+          e.hp = e.maxHp;
+          e.sinceDamage = 0;
+          this.burst(e.x, e.y, "#5ecf8a", 12);
+        }
+      }
+
       let remaining = e.speed * dt;
       while (remaining > 0 && e.pathIndex < this.waypoints.length - 1) {
         const a = this.waypoints[e.pathIndex];
@@ -628,8 +698,9 @@ export class Game {
       const ty = t.row * CELL + CELL / 2;
       const rangePx = stats.range * CELL;
 
-      // Mint: invest upgrades → larger / faster gold payouts
+      // Mint prints gold only while a wave is running, never between waves.
       if (def.economy) {
+        if (!this.waveInProgress) continue;
         t.cooldown = Math.max(0, t.cooldown - dt);
         if (t.cooldown <= 0) {
           const income = mintIncome(t);
@@ -646,7 +717,7 @@ export class Game {
         for (const e of this.enemies) {
           if (dist({ x: tx, y: ty }, e) > rangePx) continue;
           if (stats.auraDamage > 0) {
-            e.hp -= stats.auraDamage * dt;
+            this.damageEnemy(e, stats.auraDamage * dt);
           }
           if (stats.auraFreeze) {
             e.speed = e.baseSpeed * stats.slow;
@@ -761,7 +832,7 @@ export class Game {
         : [primary];
 
     for (const e of targets) {
-      e.hp -= p.damage;
+      this.damageEnemy(e, p.damage);
       if (p.slow > 0 && p.damage > 0) {
         e.speed = e.baseSpeed * p.slow;
         e.slowTimer = p.slowDuration;
@@ -780,6 +851,13 @@ export class Game {
     });
     if (spawned.length) this.enemies.push(...spawned);
     this.emitHud();
+  }
+
+  /** HP loss resets the normal-mode regen clock. Slows alone do not. */
+  private damageEnemy(e: Enemy, amount: number): void {
+    if (amount <= 0 || e.hp <= 0) return;
+    e.hp -= amount;
+    e.sinceDamage = 0;
   }
 
   private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
@@ -1079,7 +1157,7 @@ export class Game {
       }
 
       ctx.fillStyle = def.color;
-      this.drawTowerGlyph(ctx, cx, cy, t.kind);
+      this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint");
 
       const total = t.damageLevel + t.speedLevel + (t.special ? 1 : 0);
       if (total > 0) {
@@ -1097,6 +1175,7 @@ export class Game {
     cx: number,
     cy: number,
     kind: TowerKind,
+    investmentBank = false,
   ): void {
     ctx.save();
     ctx.translate(cx, cy);
@@ -1121,7 +1200,7 @@ export class Game {
       ctx.font = "700 11px 'Chakra Petch', sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("G", 0, 1);
+      ctx.fillText(investmentBank ? "B" : "G", 0, 1);
     } else {
       ctx.beginPath();
       ctx.moveTo(0, -8);
@@ -1237,6 +1316,22 @@ export class Game {
               ? "#5ecf8a"
               : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
+
+      if (this.difficulty === "normal" && e.hp < e.maxHp) {
+        const regenPct = Math.min(1, e.sinceDamage / REGEN_DELAY);
+        const ry = by + barH + 2;
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillRect(bx, ry, barW, 3);
+        ctx.fillStyle = regenPct > 0.72 ? "#e8c547" : "#5ecf8a";
+        ctx.fillRect(bx, ry, barW * regenPct, 3);
+        if (regenPct > 0.72) {
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, e.radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(94, 207, 138, 0.9)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      }
     }
   }
 
