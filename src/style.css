@@ -292,6 +292,18 @@ body {
 .swatch.frost {
   background: var(--tower-frost);
 }
+.swatch.spikes {
+  background: #c45c4a;
+}
+.swatch.snare {
+  background: #5a9eb8;
+}
+.swatch.goblin {
+  background: #4a9b6e;
+}
+.swatch.ogre {
+  background: #8b5a3c;
+}
 
 .actions {
   display: flex;
@@ -519,6 +531,28 @@ body {
   border: 1px solid var(--panel-edge);
   border-radius: 8px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.overlay-card.overlay-wide {
+  max-width: 440px;
+}
+
+.game-mode-picker .mode-btn {
+  font-size: 0.85rem;
+  min-height: 44px;
+}
+
+.upgrade-actions {
+  display: contents;
+}
+
+.upgrade-actions.hidden {
+  display: none;
+}
+
+.stat.hidden,
+#shovel-stat-wrap.hidden {
+  display: none;
 }
 
 .overlay-card h2 {

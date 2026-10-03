@@ -1,6 +1,9 @@
 # Bastion Breach
 
-A simple browser tower defense game. Place Archer, Cannon, and Frost towers along a winding trail and stop twelve waves of enemies before they reach the gate.
+A browser tower defense game with two modes:
+
+- **Bastion Defense** — classic roadside towers, upgrades, shovel, and bosses
+- **Dungeon Ambush** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
 
 ## Play
 
@@ -13,7 +16,7 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 
 ## How to play
 
-1. Pick **Normal** or **Hard**, then click **Start Defense**.
+1. Pick **Bastion Defense** or **Dungeon Ambush**, then **Normal** / **Hard**, and start.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
 3. Click a placed tower to upgrade **Damage**, **Attack Speed**, or its **Special**.
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested.
@@ -32,6 +35,10 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 | Splitter   | Pink units that split into two on death       |
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
+
+### Dungeon Ambush
+
+Place **Spike Traps**, **Snares**, **Goblins**, and **Ogres** on the zigzag road only. Adventurers walk the path, take trap damage, and stop to fight monsters (they deal damage back). If they reach the exit, you lose lives. Survive 10 waves; the last spawns a Hero.
 
 ## Build
 
