@@ -1,3 +1,4 @@
+# A push to main publishes this site.
 [build]
   command = "npm run build"
   publish = "dist"
