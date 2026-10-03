@@ -90,6 +90,13 @@ export const SNIPER_SUPPLY_BASE = 50;
 /** Gold added to the Supply Drop price after every call. */
 export const SNIPER_SUPPLY_STEP = 25;
 
+/** Chomp bite radius in cells, before the area upgrade. */
+export const CHOMP_RANGE = 1.5;
+/** Seconds asleep after a bite, before the sleep upgrade. */
+export const CHOMP_SLEEP = 25;
+/** Seconds removed from the nap by each sleep upgrade. */
+export const CHOMP_SLEEP_STEP = 5;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -261,6 +268,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "No range limit. Slow, heavy shots",
     sniper: true,
   },
+  chomp: {
+    kind: "chomp",
+    name: "Chomp",
+    cost: 140,
+    range: CHOMP_RANGE,
+    damage: 0,
+    fireRate: 1 / CHOMP_SLEEP,
+    color: "#c4493a",
+    projectileSpeed: 0,
+    description: "Swallows an enemy, then sleeps for 25 seconds",
+    chomp: true,
+  },
   nuke: {
     kind: "nuke",
     name: "Nuke",
@@ -327,6 +346,11 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     description: "Once each wave, gain 1 life and 35 gold. Each call costs more",
     costMultiplier: 1,
     cost: SNIPER_SUPPLY_BASE,
+  },
+  chomp: {
+    name: "Double Bite",
+    description: "Swallows two enemies, then takes one nap",
+    costMultiplier: 1.35,
   },
   nuke: {
     name: "Detonation",
@@ -415,6 +439,25 @@ export function pyroBurnDps(damage: number): number {
 /** Health left after a Nuke. Nothing is deleted outright. */
 export function nukeRemainingHp(hp: number): number {
   return Math.max(1, Math.ceil(hp * NUKE_SURVIVOR));
+}
+
+/** How many enemies a Chomp swallows before it sleeps. */
+export function chompBiteCount(special: boolean): number {
+  return special ? 2 : 1;
+}
+
+/** Bite radius in cells. The area upgrade widens it. */
+export function chompRange(damageLevel: number): number {
+  return CHOMP_RANGE * (1 + damageLevel * 0.4);
+}
+
+/**
+ * Nap length in seconds. Each sleep upgrade cuts 5 seconds.
+ * A banner's attack-speed bonus shortens it further.
+ */
+export function chompSleepSeconds(speedLevel: number, rateBonus = 0): number {
+  const base = Math.max(8, CHOMP_SLEEP - speedLevel * CHOMP_SLEEP_STEP);
+  return base / (1 + Math.max(0, rateBonus));
 }
 
 /** Price of the next Supply Drop. `uses` is how many this sniper has already called. */
@@ -520,11 +563,16 @@ export function combatStats(t: Tower): CombatStats {
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
   let auraFreeze = false;
-  let firesProjectiles = !def.storm && !def.nuke && !def.mace;
+  let firesProjectiles = !def.storm && !def.nuke && !def.mace && !def.chomp;
 
   if (def.mace) {
     range = maceRange(t.damageLevel, t.speedLevel);
     damage = maceHitDamage(t.damageLevel, t.speedLevel);
+  }
+
+  if (def.chomp) {
+    range = chompRange(t.damageLevel);
+    damage = 0;
   }
 
   if (t.special) {

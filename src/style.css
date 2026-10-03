@@ -20,6 +20,7 @@
   --tower-nuke: #e8c547;
   --tower-mace: #8d9aab;
   --tower-sniper: #d1c08a;
+  --tower-chomp: #c4493a;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "Sora", sans-serif;
 }
@@ -458,6 +459,9 @@ body {
 }
 .swatch.sniper {
   background: var(--tower-sniper);
+}
+.swatch.chomp {
+  background: var(--tower-chomp);
 }
 .swatch.sunbloom {
   background: #e8c547;

@@ -16,6 +16,7 @@ export type TowerKind =
   | "pyro"
   | "mace"
   | "sniper"
+  | "chomp"
   | "nuke";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
@@ -60,6 +61,8 @@ export interface TowerDef {
   mace?: boolean;
   /** Shoots the whole map. No range circle. */
   sniper?: boolean;
+  /** Swallows an enemy in its circle, then sleeps. */
+  chomp?: boolean;
 }
 
 /** A wasp or one of its mini drones. */

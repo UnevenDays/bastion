@@ -56,7 +56,10 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
 | Mace   | Two More Maces — two extra maces join the spin |
 | Sniper | Supply Drop — 1 life and 35 gold, once each wave, and the price rises |
+| Chomp  | Double Bite — swallows two enemies, then takes one nap |
 | Nuke   | Detonates on placement. 200 gold. No upgrade |
+
+The **Chomp** costs 140 gold. It swallows one enemy inside its circle, pays that enemy's bounty, then sleeps for 25 seconds. The area upgrade widens the circle. The sleep upgrade cuts 5 seconds off the nap, down to 10 seconds. **Double Bite** swallows two enemies and then takes a single nap.
 
 The **Sniper** costs 130 gold. It has no range limit. The round is slow and heavy, hard enough that a wave-1 grunt falls in one hit. **Supply Drop** gives 1 life and 35 gold. Each sniper can call it once per wave. The first call costs 50 gold, and every call after that costs 25 more.
 

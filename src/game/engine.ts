@@ -26,6 +26,8 @@ import {
   bossDef,
   cloudStrikeBack,
   cloudStrikeDamage,
+  chompBiteCount,
+  chompSleepSeconds,
   combatStats,
   endlessDrought,
   enemyForWave,
@@ -113,6 +115,10 @@ export interface SelectedTowerInfo {
   supplyReady: boolean;
   /** Next Supply Drop price. 0 for other towers. */
   supplyCost: number;
+  /** Nap length after a Chomp bite. 0 for other towers. */
+  sleepSeconds: number;
+  /** Enemies swallowed before the nap. 0 for other towers. */
+  bites: number;
 }
 
 export interface HudSnapshot {
@@ -291,6 +297,10 @@ export class Game {
       storm: !!def.storm,
       supplyReady: !!def.sniper && !t.supplyUsed,
       supplyCost: dropCost,
+      sleepSeconds: def.chomp
+        ? Math.round(chompSleepSeconds(t.speedLevel, received.rate) * 10) / 10
+        : 0,
+      bites: def.chomp ? chompBiteCount(t.special) : 0,
     };
   }
 
@@ -1088,6 +1098,11 @@ export class Game {
         continue;
       }
 
+      if (def.chomp) {
+        this.updateChomp(t, dt);
+        continue;
+      }
+
       const stats = this.effectiveStats(t);
       const rangePx = def.sniper ? Number.POSITIVE_INFINITY : stats.range * CELL;
 
@@ -1167,6 +1182,44 @@ export class Game {
     });
     if (spawned.length) this.enemies.push(...spawned);
     return killed;
+  }
+
+  /** Swallow one enemy, or two with the special, then sleep. */
+  private updateChomp(t: Tower, dt: number): void {
+    if (t.cooldown > 0) {
+      t.cooldown = Math.max(0, t.cooldown - dt);
+      if (t.cooldown === 0) this.emitHud();
+      return;
+    }
+
+    const stats = this.effectiveStats(t);
+    const tx = t.col * CELL + CELL / 2;
+    const ty = t.row * CELL + CELL / 2;
+    const rangePx = stats.range * CELL;
+    const avoid = new Set<number>();
+    const eaten: Enemy[] = [];
+    for (let i = 0; i < chompBiteCount(t.special); i++) {
+      const best = this.pickTarget(
+        { x: tx, y: ty },
+        t.targeting,
+        rangePx,
+        avoid,
+        t.inverted,
+      );
+      if (!best || avoid.has(best.id)) break;
+      avoid.add(best.id);
+      eaten.push(best);
+    }
+    if (!eaten.length) return;
+
+    for (const e of eaten) {
+      e.hp = 0;
+      this.burst(e.x, e.y, TOWER_DEFS.chomp.color, 10);
+    }
+    this.reapEnemies();
+    t.cooldown = chompSleepSeconds(t.speedLevel, this.bannerBuffFor(t).rate);
+    this.burst(tx, ty, "#1a2a16", 6);
+    this.emitHud();
   }
 
   /** Sweep one or three maces through the circle and strike whatever they pass. */
@@ -2106,8 +2159,12 @@ export class Game {
         ctx.setLineDash([]);
       }
 
+      const asleep = def.chomp && t.cooldown > 0.15;
+      ctx.save();
+      if (asleep) ctx.globalAlpha = 0.55;
       ctx.fillStyle = def.color;
-      this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint");
+      this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint", asleep);
+      ctx.restore();
       if (def.mace) this.drawMaces(ctx, t, cx, cy);
 
       if (t.inverted) {
@@ -2135,6 +2192,7 @@ export class Game {
     cy: number,
     kind: TowerKind,
     investmentBank = false,
+    asleep = false,
   ): void {
     ctx.save();
     ctx.translate(cx, cy);
@@ -2192,6 +2250,34 @@ export class Game {
       ctx.lineTo(-5, 1);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "chomp") {
+      if (asleep) {
+        ctx.fillRect(-6, -1.2, 12, 2.4);
+        ctx.fillStyle = "#f4efe4";
+        ctx.font = "700 9px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("z", 8, -8);
+      } else {
+        ctx.beginPath();
+        ctx.ellipse(0, 1, 7, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#1a120c";
+        ctx.beginPath();
+        ctx.ellipse(0, 2.2, 4, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#f4efe4";
+        ctx.beginPath();
+        ctx.moveTo(-5, -2);
+        ctx.lineTo(-1.5, 2);
+        ctx.lineTo(-5, 3);
+        ctx.closePath();
+        ctx.moveTo(5, -2);
+        ctx.lineTo(1.5, 2);
+        ctx.lineTo(5, 3);
+        ctx.closePath();
+        ctx.fill();
+      }
     } else if (kind === "sniper") {
       ctx.fillRect(-11, -1.4, 18, 2.8);
       ctx.fillRect(-3, -3.2, 5, 6.4);

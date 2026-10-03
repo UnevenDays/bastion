@@ -592,6 +592,20 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(t.targeting, t.inverted);
+    } else if (t.kind === "chomp") {
+      const buffLine =
+        t.buffRate > 0 ? ` · Banner shortens the nap` : "";
+      upgradeStats.textContent = `Sleep ${t.sleepSeconds}s · Area ${t.range} · eats ${t.bites}${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Area Max" : `+ Area (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Sleep Max" : `+ Shorter Sleep (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? "Double Bite swallows two enemies in the circle, then the Chomp sleeps once. Area widens the circle. Shorter Sleep cuts the nap."
+        : "The Chomp swallows one enemy in its circle, then sleeps for 25 seconds. Area widens the circle. Shorter Sleep cuts 5 seconds off the nap. Double Bite swallows two.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting, t.inverted);
     } else {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0
@@ -651,6 +665,10 @@ function syncBastionHud(hud: HudSnapshot): void {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
         : "Shovel already used this wave.";
+    } else if (hud.selected === "chomp") {
+      hintEl.textContent =
+        "Chomp swallows an enemy, then sleeps for 25 seconds. One upgrade widens the bite. The other shortens the nap. Double Bite swallows two." +
+        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
     } else if (hud.selected === "sniper") {
       hintEl.textContent =
         "Sniper has no range limit. Shots are slow and heavy. Supply Drop gives 1 life and 35 gold once each wave, and each call costs more." +
