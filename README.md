@@ -14,21 +14,19 @@ npm run dev
 
 Open the URL Vite prints (default: `http://localhost:3847`).
 
-## Permanent hosting (easiest on phone: Netlify Drop)
-##Permanent Netlify Link is: https://6ac1155c4f568a9c1195e18f--incandescent-kataifi-3629f2.netlify.app
+## Netlify
 
-GitHub’s **mobile app does not show Pages** in Settings. Use Netlify Drop instead:
+The live site is [https://incandescent-kataifi-3629f2.netlify.app](https://incandescent-kataifi-3629f2.netlify.app). Netlify asks for your team login before the game loads.
 
-1. Download `bastion_breach_site.zip` from the agent artifacts (or run `npm run build` and zip the `dist` folder).
-2. On your phone open **https://app.netlify.com/drop** in Safari/Chrome.
-3. Upload the zip (free signup if asked).
-4. You get a permanent link like `https://something.netlify.app`.
+`netlify.toml` builds with `npm run build` and publishes the `dist` folder. To put this version on that site, download `bastion_breach_site.zip` from the agent artifacts and upload it with [Netlify Drop](https://app.netlify.com/drop) while you are logged in. Drop it onto the existing site so the address stays the same.
 
-### Optional: GitHub Pages (needs desktop site)
+From a machine that is logged into Netlify:
 
-After **Create repo** in Cursor, open the repo in Safari → **Request Desktop Website** → **Settings → Pages → Source: GitHub Actions**.
-
-Temporary tunnel links expire when the cloud agent session ends.
+```bash
+npm install
+npm run build
+npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
+```
 
 ## How to play
 
