@@ -75,6 +75,21 @@ export const MACE_HIT = 18;
 /** Seconds for one full turn of the mace. */
 export const MACE_PERIOD = 1.35;
 
+/** Sniper shot damage before upgrades. One wave-1 grunt falls to a single hit. */
+export const SNIPER_DAMAGE = 58;
+/** Shots per second. About one round every three seconds. */
+export const SNIPER_RATE = 0.34;
+/** Heavy rounds travel slower than the other guns. */
+export const SNIPER_BULLET_SPEED = 200;
+/** Lives granted by one Supply Drop. */
+export const SNIPER_SUPPLY_LIVES = 1;
+/** Gold granted by one Supply Drop, before the price is paid. */
+export const SNIPER_SUPPLY_GOLD = 35;
+/** First Supply Drop price. Each later call costs more. */
+export const SNIPER_SUPPLY_BASE = 50;
+/** Gold added to the Supply Drop price after every call. */
+export const SNIPER_SUPPLY_STEP = 25;
+
 /** Chance a Storm strike locks onto a living enemy instead of a random spot. */
 export const STORM_SURE_HIT = 0.25;
 /** Pixel radius of a lightning sticker that lands on a random point. */
@@ -234,6 +249,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "A mace spins around it and hits every enemy it passes",
     mace: true,
   },
+  sniper: {
+    kind: "sniper",
+    name: "Sniper",
+    cost: 130,
+    range: 0,
+    damage: SNIPER_DAMAGE,
+    fireRate: SNIPER_RATE,
+    color: "#d1c08a",
+    projectileSpeed: SNIPER_BULLET_SPEED,
+    description: "No range limit. Slow, heavy shots",
+    sniper: true,
+  },
   nuke: {
     kind: "nuke",
     name: "Nuke",
@@ -294,6 +321,12 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     name: "Two More Maces",
     description: "Two extra maces join the spin",
     costMultiplier: 1.35,
+  },
+  sniper: {
+    name: "Supply Drop",
+    description: "Once each wave, gain 1 life and 35 gold. Each call costs more",
+    costMultiplier: 1,
+    cost: SNIPER_SUPPLY_BASE,
   },
   nuke: {
     name: "Detonation",
@@ -382,6 +415,11 @@ export function pyroBurnDps(damage: number): number {
 /** Health left after a Nuke. Nothing is deleted outright. */
 export function nukeRemainingHp(hp: number): number {
   return Math.max(1, Math.ceil(hp * NUKE_SURVIVOR));
+}
+
+/** Price of the next Supply Drop. `uses` is how many this sniper has already called. */
+export function supplyDropCost(uses: number): number {
+  return SNIPER_SUPPLY_BASE + Math.max(0, uses) * SNIPER_SUPPLY_STEP;
 }
 
 /** How many maces are swinging. The special adds two to the first. */

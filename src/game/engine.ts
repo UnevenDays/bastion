@@ -47,6 +47,9 @@ import {
   startingGold,
   startingLives,
   stormGuaranteesHit,
+  SNIPER_SUPPLY_GOLD,
+  SNIPER_SUPPLY_LIVES,
+  supplyDropCost,
   THIEF_STEAL,
   thiefRefund,
   upgradeCost,
@@ -106,6 +109,10 @@ export interface SelectedTowerInfo {
   buffRate: number;
   /** Random lightning. Aim buttons do not apply. */
   storm: boolean;
+  /** This Sniper can still call a supply drop during the current wave. */
+  supplyReady: boolean;
+  /** Next Supply Drop price. 0 for other towers. */
+  supplyCost: number;
 }
 
 export interface HudSnapshot {
@@ -243,7 +250,14 @@ export class Game {
         : null;
     const sCost =
       t.speedLevel < MAX_UPGRADE ? upgradeCost(def.cost, t.speedLevel) : null;
-    const spCost = t.special ? null : specialCost(t.kind);
+    const dropCost = def.sniper ? supplyDropCost(t.supplyUses) : 0;
+    const spCost = def.sniper
+      ? t.supplyUsed
+        ? null
+        : dropCost
+      : t.special
+        ? null
+        : specialCost(t.kind);
     return {
       index: this.selectedTowerIndex,
       kind: t.kind,
@@ -275,6 +289,8 @@ export class Game {
       buffDamage: given ? given.damage : received.damage,
       buffRate: given ? given.rate : received.rate,
       storm: !!def.storm,
+      supplyReady: !!def.sniper && !t.supplyUsed,
+      supplyCost: dropCost,
     };
   }
 
@@ -524,6 +540,8 @@ export class Game {
         inverted: false,
         summonTimer: 0,
         orbit: 0,
+        supplyUses: 0,
+        supplyUsed: false,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -538,6 +556,8 @@ export class Game {
       inverted: false,
       summonTimer: 0,
       orbit: 0,
+      supplyUses: 0,
+      supplyUsed: false,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -577,7 +597,9 @@ export class Game {
     if (this.selectedTowerIndex === null) return false;
     if (this.phase === "won" || this.phase === "lost") return false;
     const t = this.towers[this.selectedTowerIndex];
-    if (!t || t.special) return false;
+    if (!t) return false;
+    if (t.kind === "sniper") return this.callSupplyDrop(t);
+    if (t.special) return false;
 
     const cost = specialCost(t.kind);
     if (this.gold < cost) return false;
@@ -609,6 +631,24 @@ export class Game {
       TOWER_DEFS[t.kind].color,
       14,
     );
+    this.emitHud();
+    return true;
+  }
+
+  /** Pay the rising price, gain a life and some gold, then lock until the wave ends. */
+  private callSupplyDrop(t: Tower): boolean {
+    if (t.supplyUsed) return false;
+    const cost = supplyDropCost(t.supplyUses);
+    if (this.gold < cost) return false;
+    this.gold -= cost;
+    this.gold += SNIPER_SUPPLY_GOLD;
+    this.lives += SNIPER_SUPPLY_LIVES;
+    t.supplyUses += 1;
+    t.supplyUsed = true;
+    const x = t.col * CELL + CELL / 2;
+    const y = t.row * CELL + CELL / 2;
+    this.burst(x, y, "#e8c547", 12);
+    this.burst(x, y - 8, "#8ee0b0", 8);
     this.emitHud();
     return true;
   }
@@ -1049,7 +1089,7 @@ export class Game {
       }
 
       const stats = this.effectiveStats(t);
-      const rangePx = stats.range * CELL;
+      const rangePx = def.sniper ? Number.POSITIVE_INFINITY : stats.range * CELL;
 
       // Continuous auras (archer damage / frost freeze)
       if (stats.auraDamage > 0 || stats.auraFreeze) {
@@ -1105,8 +1145,9 @@ export class Game {
         slowDuration: stats.slowDuration,
         color: stats.color,
         targetId: best.id,
-        life: 1.2,
+        life: def.sniper ? 8 : 1.2,
         fire: t.kind === "pyro",
+        heavy: def.sniper,
       });
       t.cooldown = 1 / stats.fireRate;
     }
@@ -1677,6 +1718,10 @@ export class Game {
     this.waveInProgress = false;
     this.gold += 25 + this.wave * 5;
     this.shovelReady = true; // one shovel action available again
+    for (const tower of this.towers) {
+      if (tower.kind === "sniper") tower.supplyUsed = false;
+    }
+    if (this.carrying?.kind === "sniper") this.carrying.supplyUsed = false;
     const cleared = this.custom
       ? this.wave >= this.custom.waves.length
       : this.difficulty !== "endless" && this.wave >= this.campaign.waves;
@@ -2147,6 +2192,12 @@ export class Game {
       ctx.lineTo(-5, 1);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "sniper") {
+      ctx.fillRect(-11, -1.4, 18, 2.8);
+      ctx.fillRect(-3, -3.2, 5, 6.4);
+      ctx.beginPath();
+      ctx.arc(-7, 0, 2.4, 0, Math.PI * 2);
+      ctx.fill();
     } else if (kind === "mace") {
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
@@ -2527,6 +2578,17 @@ export class Game {
 
   private drawProjectiles(ctx: CanvasRenderingContext2D): void {
     for (const p of this.projectiles) {
+      if (p.heavy) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-9, -2.4, 16, 4.8);
+        ctx.fillStyle = "#f4e7b5";
+        ctx.fillRect(4, -1.4, 4, 2.8);
+        ctx.restore();
+        continue;
+      }
       if (p.fire) {
         ctx.save();
         ctx.translate(p.x, p.y);

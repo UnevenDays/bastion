@@ -15,6 +15,7 @@ export type TowerKind =
   | "storm"
   | "pyro"
   | "mace"
+  | "sniper"
   | "nuke";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
@@ -57,6 +58,8 @@ export interface TowerDef {
   nuke?: boolean;
   /** A mace sweeps the circle around the tower. */
   mace?: boolean;
+  /** Shoots the whole map. No range circle. */
+  sniper?: boolean;
 }
 
 /** A wasp or one of its mini drones. */
@@ -110,6 +113,10 @@ export interface Tower {
   summonTimer: number;
   /** Unwrapped spin angle for a Mace, in radians. */
   orbit: number;
+  /** Times this Sniper has called a supply drop. The price climbs with this. */
+  supplyUses: number;
+  /** Supply drop already called this wave. */
+  supplyUsed: boolean;
 }
 
 export interface Enemy {
@@ -156,6 +163,8 @@ export interface Projectile {
   life: number;
   /** Pyro shot. Ignites, and hits harder when the target is not burning. */
   fire: boolean;
+  /** Sniper round. Slower, and drawn as a heavy slug. */
+  heavy?: boolean;
 }
 
 export interface Particle {

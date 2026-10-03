@@ -55,7 +55,10 @@ A **Mint** costs 100 gold. It prints gold only while a wave is running, and it s
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
 | Mace   | Two More Maces — two extra maces join the spin |
+| Sniper | Supply Drop — 1 life and 35 gold, once each wave, and the price rises |
 | Nuke   | Detonates on placement. 200 gold. No upgrade |
+
+The **Sniper** costs 130 gold. It has no range limit. The round is slow and heavy, hard enough that a wave-1 grunt falls in one hit. **Supply Drop** gives 1 life and 35 gold. Each sniper can call it once per wave. The first call costs 50 gold, and every call after that costs 25 more.
 
 The **Mace** costs 90 gold. One mace spins around the tower and strikes every enemy it passes. Damage upgrades and area upgrades both raise how hard it hits and how wide it swings. Area upgrades widen the circle more. Damage upgrades raise the hit more. **Two More Maces** adds two flails, so three maces share the circle.
 

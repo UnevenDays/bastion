@@ -576,6 +576,22 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);
+    } else if (t.kind === "sniper") {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG +${Math.round(t.buffRate * 100)}% SPD`
+          : "";
+      upgradeStats.textContent = `DMG ${t.damage} · SPD ${t.fireRate}/s · no range limit${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
+      hintEl.textContent = t.supplyReady
+        ? "No range limit. The bullet is slow and heavy. Supply Drop gives 1 life and 35 gold, once this wave."
+        : "Supply Drop was already called this wave. It is ready again when the wave ends, at a higher price.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting, t.inverted);
     } else {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0
@@ -614,9 +630,13 @@ function syncBastionHud(hud: HudSnapshot): void {
     upgradeSpeedBtn.disabled =
       !started || t.speedCost === null || !t.canAffordSpeed;
     upgradeSpecialBtn.textContent =
-      t.specialCost === null
-        ? `${t.specialName} ✓`
-        : `${t.specialName} (${t.specialCost}g)`;
+      t.kind === "sniper"
+        ? t.supplyReady
+          ? `Supply Drop (${t.supplyCost}g)`
+          : `Used this wave · next ${t.supplyCost}g`
+        : t.specialCost === null
+          ? `${t.specialName} ✓`
+          : `${t.specialName} (${t.specialCost}g)`;
     upgradeSpecialBtn.disabled =
       !started || t.specialCost === null || !t.canAffordSpecial;
     upgradeSpecialBtn.title = t.specialDescription;
@@ -631,6 +651,10 @@ function syncBastionHud(hud: HudSnapshot): void {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
         : "Shovel already used this wave.";
+    } else if (hud.selected === "sniper") {
+      hintEl.textContent =
+        "Sniper has no range limit. Shots are slow and heavy. Supply Drop gives 1 life and 35 gold once each wave, and each call costs more." +
+        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
     } else if (hud.selected === "nuke") {
       hintEl.textContent =
         "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run." +
