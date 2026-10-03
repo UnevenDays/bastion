@@ -1,5 +1,5 @@
 import "./style.css";
-import { TOWER_DEFS } from "./game/config";
+import { MAX_UPGRADE, TOWER_DEFS } from "./game/config";
 import { Game, type HudSnapshot } from "./game/engine";
 import type { TowerKind } from "./game/types";
 
@@ -21,7 +21,7 @@ app.innerHTML = `
       <div class="overlay" id="start-overlay">
         <div class="overlay-card">
           <h2>Bastion Breach</h2>
-          <p>Place towers along the trail. Stop every wave before they reach the red gate. Survive all 12 waves.</p>
+          <p>Place towers, upgrade their damage and attack speed, and stop splitters and bosses before they reach the red gate. Survive all 12 waves.</p>
           <button class="btn btn-primary" id="start-btn" type="button">Start Defense</button>
         </div>
       </div>
@@ -35,6 +35,15 @@ app.innerHTML = `
     </div>
 
     <p class="hint" id="hint">Select a tower, then click an empty grass tile to build.</p>
+
+    <div class="upgrade-bar hidden" id="upgrade-bar">
+      <div class="upgrade-info">
+        <span class="upgrade-title" id="upgrade-title">Tower</span>
+        <span class="upgrade-stats" id="upgrade-stats"></span>
+      </div>
+      <button class="btn btn-upgrade" type="button" id="upgrade-damage">+ Damage</button>
+      <button class="btn btn-upgrade" type="button" id="upgrade-speed">+ Attack Speed</button>
+    </div>
 
     <div class="toolbar">
       ${(Object.keys(TOWER_DEFS) as TowerKind[])
@@ -72,6 +81,13 @@ const endTitle = document.querySelector<HTMLElement>("#end-title")!;
 const endMsg = document.querySelector<HTMLElement>("#end-msg")!;
 const startBtn = document.querySelector<HTMLButtonElement>("#start-btn")!;
 const restartBtn = document.querySelector<HTMLButtonElement>("#restart-btn")!;
+const upgradeBar = document.querySelector<HTMLElement>("#upgrade-bar")!;
+const upgradeTitle = document.querySelector<HTMLElement>("#upgrade-title")!;
+const upgradeStats = document.querySelector<HTMLElement>("#upgrade-stats")!;
+const upgradeDamageBtn =
+  document.querySelector<HTMLButtonElement>("#upgrade-damage")!;
+const upgradeSpeedBtn =
+  document.querySelector<HTMLButtonElement>("#upgrade-speed")!;
 
 let started = false;
 
@@ -91,8 +107,44 @@ function syncHud(hud: HudSnapshot): void {
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
     const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
     const cost = TOWER_DEFS[kind].cost;
-    btn.disabled = !started || hud.phase === "won" || hud.phase === "lost" || hud.gold < cost;
+    btn.disabled =
+      !started || hud.phase === "won" || hud.phase === "lost" || hud.gold < cost;
     btn.classList.toggle("selected", hud.selected === kind);
+  }
+
+  if (hud.selectedTower) {
+    const t = hud.selectedTower;
+    upgradeBar.classList.remove("hidden");
+    upgradeTitle.textContent = `${t.name} selected`;
+    upgradeStats.textContent = `DMG ${t.damage} (Lv ${t.damageLevel}/${MAX_UPGRADE}) · SPD ${t.fireRate}/s (Lv ${t.speedLevel}/${MAX_UPGRADE})`;
+
+    if (t.damageCost === null) {
+      upgradeDamageBtn.textContent = "Damage Max";
+      upgradeDamageBtn.disabled = true;
+    } else {
+      upgradeDamageBtn.textContent = `+ Damage (${t.damageCost}g)`;
+      upgradeDamageBtn.disabled = !started || !t.canAffordDamage;
+    }
+
+    if (t.speedCost === null) {
+      upgradeSpeedBtn.textContent = "Speed Max";
+      upgradeSpeedBtn.disabled = true;
+    } else {
+      upgradeSpeedBtn.textContent = `+ Attack Speed (${t.speedCost}g)`;
+      upgradeSpeedBtn.disabled = !started || !t.canAffordSpeed;
+    }
+
+    hintEl.textContent =
+      "Upgrade this tower’s damage or attack speed. Cost scales with the tower’s base price.";
+  } else {
+    upgradeBar.classList.add("hidden");
+    if (hud.selected) {
+      const d = TOWER_DEFS[hud.selected];
+      hintEl.textContent = `${d.name} selected (${d.cost}g). Click grass to build, or click a placed tower to upgrade.`;
+    } else {
+      hintEl.textContent =
+        "Select a tower type to build, or click a placed tower to upgrade it.";
+    }
   }
 
   if (hud.phase === "won") {
@@ -104,13 +156,6 @@ function syncHud(hud: HudSnapshot): void {
     endMsg.textContent = `The line fell on wave ${hud.wave}. Rebuild and try again.`;
     endOverlay.classList.remove("hidden");
   }
-
-  if (hud.selected) {
-    const d = TOWER_DEFS[hud.selected];
-    hintEl.textContent = `${d.name} selected (${d.cost}g). Click grass to build. Path tiles are blocked.`;
-  } else {
-    hintEl.textContent = "Select a tower type, then click an empty grass tile.";
-  }
 }
 
 game.onHudChange = syncHud;
@@ -121,6 +166,7 @@ syncHud({
   totalWaves: 12,
   phase: game.phase,
   selected: game.selected,
+  selectedTower: null,
   waveInProgress: false,
   enemiesLeft: 0,
 });
@@ -132,7 +178,18 @@ for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
   });
 }
 
-cancelBtn.addEventListener("click", () => game.selectTower(null));
+cancelBtn.addEventListener("click", () => game.clearSelection());
+
+upgradeDamageBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.upgradeSelected("damage");
+});
+
+upgradeSpeedBtn.addEventListener("click", () => {
+  if (!started) return;
+  game.upgradeSelected("speed");
+});
+
 waveBtn.addEventListener("click", () => {
   if (!started) return;
   game.startWave();
@@ -142,16 +199,6 @@ startBtn.addEventListener("click", () => {
   started = true;
   startOverlay.classList.add("hidden");
   game.selectTower("archer");
-  syncHud({
-    gold: game.gold,
-    lives: game.lives,
-    wave: game.wave,
-    totalWaves: 12,
-    phase: game.phase,
-    selected: game.selected,
-    waveInProgress: false,
-    enemiesLeft: 0,
-  });
 });
 
 restartBtn.addEventListener("click", () => {
@@ -175,7 +222,7 @@ canvas.addEventListener("pointerleave", () => game.setHover(-1, null));
 canvas.addEventListener("pointerdown", (e) => {
   if (!started) return;
   const { col, row } = pointerCell(e);
-  game.tryPlace(col, row);
+  game.handleClick(col, row);
 });
 
 let last = performance.now();

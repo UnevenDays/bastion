@@ -2,6 +2,14 @@ export type Vec2 = { x: number; y: number };
 
 export type TowerKind = "archer" | "cannon" | "frost";
 
+export type EnemyKind =
+  | "normal"
+  | "fast"
+  | "tank"
+  | "splitter"
+  | "splitling"
+  | "boss";
+
 export interface TowerDef {
   kind: TowerKind;
   name: string;
@@ -18,11 +26,13 @@ export interface TowerDef {
 }
 
 export interface EnemyDef {
+  kind: EnemyKind;
   hp: number;
   speed: number;
   reward: number;
   radius: number;
   color: string;
+  leakDamage?: number;
 }
 
 export interface Tower {
@@ -30,10 +40,13 @@ export interface Tower {
   row: number;
   kind: TowerKind;
   cooldown: number;
+  damageLevel: number;
+  speedLevel: number;
 }
 
 export interface Enemy {
   id: number;
+  kind: EnemyKind;
   pathIndex: number;
   progress: number; // 0..1 along current segment
   hp: number;
@@ -44,6 +57,7 @@ export interface Enemy {
   radius: number;
   color: string;
   slowTimer: number;
+  leakDamage: number;
   x: number;
   y: number;
 }

@@ -7,8 +7,13 @@ import {
   START_LIVES,
   TOTAL_WAVES,
   TOWER_DEFS,
+  MAX_UPGRADE,
+  damageMultiplier,
   enemyForWave,
+  fireRateMultiplier,
   spawnInterval,
+  splitlingFrom,
+  upgradeCost,
   waveEnemyCount,
 } from "./config";
 import type {
@@ -21,6 +26,21 @@ import type {
 } from "./types";
 
 export type GamePhase = "ready" | "playing" | "won" | "lost";
+export type UpgradeStat = "damage" | "speed";
+
+export interface SelectedTowerInfo {
+  index: number;
+  kind: TowerKind;
+  name: string;
+  damageLevel: number;
+  speedLevel: number;
+  damageCost: number | null;
+  speedCost: number | null;
+  canAffordDamage: boolean;
+  canAffordSpeed: boolean;
+  damage: number;
+  fireRate: number;
+}
 
 export interface HudSnapshot {
   gold: number;
@@ -29,6 +49,7 @@ export interface HudSnapshot {
   totalWaves: number;
   phase: GamePhase;
   selected: TowerKind | null;
+  selectedTower: SelectedTowerInfo | null;
   waveInProgress: boolean;
   enemiesLeft: number;
 }
@@ -58,6 +79,7 @@ export class Game {
   wave = 0;
   phase: GamePhase = "ready";
   selected: TowerKind | null = "archer";
+  selectedTowerIndex: number | null = null;
 
   towers: Tower[] = [];
   enemies: Enemy[] = [];
@@ -79,6 +101,34 @@ export class Game {
     this.emitHud();
   }
 
+  private selectedTowerInfo(): SelectedTowerInfo | null {
+    if (this.selectedTowerIndex === null) return null;
+    const t = this.towers[this.selectedTowerIndex];
+    if (!t) return null;
+    const def = TOWER_DEFS[t.kind];
+    const dCost =
+      t.damageLevel < MAX_UPGRADE
+        ? upgradeCost(def.cost, t.damageLevel)
+        : null;
+    const sCost =
+      t.speedLevel < MAX_UPGRADE ? upgradeCost(def.cost, t.speedLevel) : null;
+    return {
+      index: this.selectedTowerIndex,
+      kind: t.kind,
+      name: def.name,
+      damageLevel: t.damageLevel,
+      speedLevel: t.speedLevel,
+      damageCost: dCost,
+      speedCost: sCost,
+      canAffordDamage: dCost !== null && this.gold >= dCost,
+      canAffordSpeed: sCost !== null && this.gold >= sCost,
+      damage: Math.round(def.damage * damageMultiplier(t.damageLevel)),
+      fireRate:
+        Math.round(def.fireRate * fireRateMultiplier(t.speedLevel) * 100) /
+        100,
+    };
+  }
+
   private emitHud(): void {
     this.onHudChange?.({
       gold: this.gold,
@@ -87,6 +137,7 @@ export class Game {
       totalWaves: TOTAL_WAVES,
       phase: this.phase,
       selected: this.selected,
+      selectedTower: this.selectedTowerInfo(),
       waveInProgress: this.waveInProgress,
       enemiesLeft: this.enemies.length + this.spawnQueue,
     });
@@ -94,6 +145,13 @@ export class Game {
 
   selectTower(kind: TowerKind | null): void {
     this.selected = kind;
+    if (kind !== null) this.selectedTowerIndex = null;
+    this.emitHud();
+  }
+
+  clearSelection(): void {
+    this.selected = null;
+    this.selectedTowerIndex = null;
     this.emitHud();
   }
 
@@ -109,6 +167,22 @@ export class Game {
     this.hover = { col, row };
   }
 
+  /** Click a cell: upgrade-select existing tower, or place a new one. */
+  handleClick(col: number, row: number): boolean {
+    if (this.phase === "won" || this.phase === "lost") return false;
+    if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return false;
+
+    const existing = this.towers.findIndex((t) => t.col === col && t.row === row);
+    if (existing >= 0) {
+      this.selected = null;
+      this.selectedTowerIndex = existing;
+      this.emitHud();
+      return true;
+    }
+
+    return this.tryPlace(col, row);
+  }
+
   tryPlace(col: number, row: number): boolean {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (!this.selected) return false;
@@ -122,9 +196,41 @@ export class Game {
     if (this.gold < def.cost) return false;
 
     this.gold -= def.cost;
-    this.towers.push({ col, row, kind: this.selected, cooldown: 0 });
+    this.towers.push({
+      col,
+      row,
+      kind: this.selected,
+      cooldown: 0,
+      damageLevel: 0,
+      speedLevel: 0,
+    });
     this.towerOccupied.add(key);
+    this.selectedTowerIndex = this.towers.length - 1;
     this.burst(col * CELL + CELL / 2, row * CELL + CELL / 2, def.color, 8);
+    this.emitHud();
+    return true;
+  }
+
+  upgradeSelected(stat: UpgradeStat): boolean {
+    if (this.selectedTowerIndex === null) return false;
+    if (this.phase === "won" || this.phase === "lost") return false;
+    const t = this.towers[this.selectedTowerIndex];
+    if (!t) return false;
+
+    const def = TOWER_DEFS[t.kind];
+    const level = stat === "damage" ? t.damageLevel : t.speedLevel;
+    if (level >= MAX_UPGRADE) return false;
+
+    const cost = upgradeCost(def.cost, level);
+    if (this.gold < cost) return false;
+
+    this.gold -= cost;
+    if (stat === "damage") t.damageLevel += 1;
+    else t.speedLevel += 1;
+
+    const cx = t.col * CELL + CELL / 2;
+    const cy = t.row * CELL + CELL / 2;
+    this.burst(cx, cy, def.color, 10);
     this.emitHud();
     return true;
   }
@@ -148,6 +254,7 @@ export class Game {
     this.wave = 0;
     this.phase = "ready";
     this.selected = "archer";
+    this.selectedTowerIndex = null;
     this.towers = [];
     this.enemies = [];
     this.projectiles = [];
@@ -188,18 +295,18 @@ export class Game {
     this.checkWaveEnd();
   }
 
-  private spawnEnemies(dt: number): void {
-    if (!this.waveInProgress || this.spawnQueue <= 0) return;
-    this.spawnTimer -= dt;
-    if (this.spawnTimer > 0) return;
-
-    const index = waveEnemyCount(this.wave) - this.spawnQueue;
-    const def = enemyForWave(this.wave, index);
-    const start = this.waypoints[0];
-    this.enemies.push({
+  private makeEnemy(
+    def: ReturnType<typeof enemyForWave>,
+    pathIndex: number,
+    progress: number,
+    x: number,
+    y: number,
+  ): Enemy {
+    return {
       id: this.nextEnemyId++,
-      pathIndex: 0,
-      progress: 0,
+      kind: def.kind,
+      pathIndex,
+      progress,
       hp: def.hp,
       maxHp: def.hp,
       speed: def.speed,
@@ -208,11 +315,25 @@ export class Game {
       radius: def.radius,
       color: def.color,
       slowTimer: 0,
-      x: start.x,
-      y: start.y,
-    });
+      leakDamage: def.leakDamage ?? 1,
+      x,
+      y,
+    };
+  }
+
+  private spawnEnemies(dt: number): void {
+    if (!this.waveInProgress || this.spawnQueue <= 0) return;
+    this.spawnTimer -= dt;
+    if (this.spawnTimer > 0) return;
+
+    const index = waveEnemyCount(this.wave) - this.spawnQueue;
+    const def = enemyForWave(this.wave, index);
+    const start = this.waypoints[0];
+    this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
     this.spawnQueue -= 1;
-    this.spawnTimer = spawnInterval(this.wave);
+    // Bosses take longer between prior spawn and themselves
+    this.spawnTimer =
+      def.kind === "boss" ? spawnInterval(this.wave) + 0.8 : spawnInterval(this.wave);
     this.emitHud();
   }
 
@@ -245,8 +366,8 @@ export class Game {
       }
 
       if (e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
-        this.lives -= 1;
-        this.burst(e.x, e.y, "#e85d4a", 10);
+        this.lives -= e.leakDamage;
+        this.burst(e.x, e.y, e.kind === "boss" ? "#6b2d8a" : "#e85d4a", 10);
         if (this.lives <= 0) {
           this.lives = 0;
           this.phase = "lost";
@@ -266,6 +387,8 @@ export class Game {
       if (t.cooldown > 0) continue;
 
       const def = TOWER_DEFS[t.kind];
+      const dmg = def.damage * damageMultiplier(t.damageLevel);
+      const rate = def.fireRate * fireRateMultiplier(t.speedLevel);
       const tx = t.col * CELL + CELL / 2;
       const ty = t.row * CELL + CELL / 2;
       const rangePx = def.range * CELL;
@@ -287,7 +410,7 @@ export class Game {
         y: ty,
         vx: Math.cos(angle) * def.projectileSpeed,
         vy: Math.sin(angle) * def.projectileSpeed,
-        damage: def.damage,
+        damage: dmg,
         splash: (def.splash ?? 0) * CELL,
         slow: def.slow ?? 0,
         slowDuration: def.slowDuration ?? 0,
@@ -295,7 +418,7 @@ export class Game {
         targetId: best.id,
         life: 1.2,
       });
-      t.cooldown = 1 / def.fireRate;
+      t.cooldown = 1 / rate;
     }
   }
 
@@ -305,7 +428,6 @@ export class Game {
       p.life -= dt;
       if (p.life <= 0) continue;
 
-      // Homing lightly toward current target
       const target = this.enemies.find((e) => e.id === p.targetId);
       if (target) {
         const angle = Math.atan2(target.y - p.y, target.x - p.x);
@@ -331,7 +453,13 @@ export class Game {
         }
       }
 
-      if (!hit && p.x > -20 && p.y > -20 && p.x < this.width + 20 && p.y < this.height + 20) {
+      if (
+        !hit &&
+        p.x > -20 &&
+        p.y > -20 &&
+        p.x < this.width + 20 &&
+        p.y < this.height + 20
+      ) {
         next.push(p);
       }
     }
@@ -353,13 +481,44 @@ export class Game {
       this.burst(e.x, e.y, p.color, p.splash > 0 ? 6 : 4);
     }
 
+    const spawned: Enemy[] = [];
     this.enemies = this.enemies.filter((e) => {
       if (e.hp > 0) return true;
-      this.gold += e.reward;
-      this.burst(e.x, e.y, "#e8c547", 12);
+      this.onEnemyDeath(e, spawned);
       return false;
     });
+    if (spawned.length) this.enemies.push(...spawned);
     this.emitHud();
+  }
+
+  private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
+    this.gold += e.reward;
+    this.burst(
+      e.x,
+      e.y,
+      e.kind === "boss" ? "#e8c547" : e.kind === "splitter" ? "#c978c0" : "#e8c547",
+      e.kind === "boss" ? 22 : 12,
+    );
+
+    if (e.kind !== "splitter") return;
+
+    const child = splitlingFrom(e.maxHp, this.wave);
+    // Slight path offsets so the two don't stack perfectly
+    const offsets = [-0.08, 0.08];
+    for (const off of offsets) {
+      let pathIndex = e.pathIndex;
+      let progress = Math.min(0.98, Math.max(0, e.progress + off));
+      if (progress < 0 && pathIndex > 0) {
+        pathIndex -= 1;
+        progress = 0.9;
+      }
+      const a = this.waypoints[pathIndex];
+      const b =
+        this.waypoints[Math.min(pathIndex + 1, this.waypoints.length - 1)];
+      const x = a.x + (b.x - a.x) * progress;
+      const y = a.y + (b.y - a.y) * progress;
+      spawned.push(this.makeEnemy(child, pathIndex, progress, x, y));
+    }
   }
 
   private checkWaveEnd(): void {
@@ -425,7 +584,6 @@ export class Game {
         ctx.fillStyle = shade;
         ctx.fillRect(x, y, CELL, CELL);
 
-        // subtle grass ticks
         ctx.fillStyle = "rgba(94, 207, 138, 0.06)";
         ctx.fillRect(x + 8, y + 10, 3, 8);
         ctx.fillRect(x + 22, y + 28, 2, 6);
@@ -455,7 +613,6 @@ export class Game {
     });
     ctx.stroke();
 
-    // path edge dashes
     ctx.strokeStyle = "rgba(232, 197, 71, 0.15)";
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 10]);
@@ -504,20 +661,27 @@ export class Game {
     const { col, row } = this.hover;
     const key = pathKey(col, row);
     const def = TOWER_DEFS[this.selected];
+    const occupied = this.towerOccupied.has(key);
     const valid =
-      !this.pathSet.has(key) &&
-      !this.towerOccupied.has(key) &&
-      this.gold >= def.cost;
+      !this.pathSet.has(key) && !occupied && this.gold >= def.cost;
 
     const cx = col * CELL + CELL / 2;
     const cy = row * CELL + CELL / 2;
+
+    if (occupied) {
+      ctx.fillStyle = "rgba(232, 197, 71, 0.15)";
+      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+      return;
+    }
 
     ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.2)" : "rgba(232, 93, 74, 0.25)";
     ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
 
     ctx.beginPath();
     ctx.arc(cx, cy, def.range * CELL, 0, Math.PI * 2);
-    ctx.strokeStyle = valid ? "rgba(232, 197, 71, 0.45)" : "rgba(232, 93, 74, 0.4)";
+    ctx.strokeStyle = valid
+      ? "rgba(232, 197, 71, 0.45)"
+      : "rgba(232, 93, 74, 0.4)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -528,31 +692,44 @@ export class Game {
   }
 
   private drawTowers(ctx: CanvasRenderingContext2D): void {
-    for (const t of this.towers) {
+    this.towers.forEach((t, i) => {
       const cx = t.col * CELL + CELL / 2;
       const cy = t.row * CELL + CELL / 2;
       const def = TOWER_DEFS[t.kind];
+      const selected = this.selectedTowerIndex === i;
 
-      // range hint when idle-ish
-      if (t.cooldown < 0.15) {
+      if (selected || t.cooldown < 0.15) {
         ctx.beginPath();
         ctx.arc(cx, cy, def.range * CELL, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(232, 197, 71, 0.08)";
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = selected
+          ? "rgba(232, 197, 71, 0.4)"
+          : "rgba(232, 197, 71, 0.08)";
+        ctx.lineWidth = selected ? 2 : 1;
         ctx.stroke();
       }
 
+      const size = 16 + (t.damageLevel + t.speedLevel) * 1.5;
       ctx.fillStyle = "#152219";
       ctx.beginPath();
-      ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+      ctx.arc(cx, cy, size, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = def.color;
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = selected ? "#e8c547" : def.color;
+      ctx.lineWidth = selected ? 3 : 2.5;
       ctx.stroke();
 
       ctx.fillStyle = def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind);
-    }
+
+      // Upgrade pips under tower
+      const total = t.damageLevel + t.speedLevel;
+      if (total > 0) {
+        ctx.fillStyle = "#e8c547";
+        ctx.font = "600 10px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(`+${total}`, cx, cy + size + 2);
+      }
+    });
   }
 
   private drawTowerGlyph(
@@ -577,7 +754,6 @@ export class Game {
       ctx.fill();
       ctx.fillRect(2, -3, 10, 6);
     } else {
-      // frost crystal
       ctx.beginPath();
       ctx.moveTo(0, -8);
       ctx.lineTo(5, 0);
@@ -592,9 +768,37 @@ export class Game {
   private drawEnemies(ctx: CanvasRenderingContext2D): void {
     for (const e of this.enemies) {
       const slowed = e.slowTimer > 0;
+
+      if (e.kind === "boss") {
+        ctx.fillStyle = "rgba(107, 45, 138, 0.25)";
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (e.kind === "splitter") {
+        // Outer ring hint that it will split
+        ctx.strokeStyle = "rgba(201, 120, 192, 0.7)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       ctx.fillStyle = e.color;
       ctx.beginPath();
-      ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+      if (e.kind === "boss") {
+        // Squarish boss silhouette
+        const r = e.radius;
+        ctx.moveTo(e.x, e.y - r);
+        ctx.lineTo(e.x + r * 0.85, e.y - r * 0.2);
+        ctx.lineTo(e.x + r * 0.7, e.y + r * 0.75);
+        ctx.lineTo(e.x - r * 0.7, e.y + r * 0.75);
+        ctx.lineTo(e.x - r * 0.85, e.y - r * 0.2);
+        ctx.closePath();
+      } else {
+        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+      }
       ctx.fill();
 
       if (slowed) {
@@ -607,15 +811,27 @@ export class Game {
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      // HP bar
-      const barW = e.radius * 2.2;
-      const barH = 4;
+      if (e.kind === "boss") {
+        ctx.fillStyle = "#e8c547";
+        ctx.font = "700 10px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("BOSS", e.x, e.y);
+      }
+
+      const barW = e.kind === "boss" ? e.radius * 2.8 : e.radius * 2.2;
+      const barH = e.kind === "boss" ? 6 : 4;
       const bx = e.x - barW / 2;
-      const by = e.y - e.radius - 10;
+      const by = e.y - e.radius - (e.kind === "boss" ? 14 : 10);
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.fillRect(bx, by, barW, barH);
       const pct = Math.max(0, e.hp / e.maxHp);
-      ctx.fillStyle = pct > 0.4 ? "#5ecf8a" : "#e85d4a";
+      ctx.fillStyle =
+        e.kind === "boss"
+          ? "#c47ae0"
+          : pct > 0.4
+            ? "#5ecf8a"
+            : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
     }
   }

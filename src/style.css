@@ -271,6 +271,68 @@ body {
   padding: 2px 0;
 }
 
+.upgrade-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(26, 42, 31, 0.9);
+  border: 1px solid var(--gold-dim);
+  border-radius: 4px;
+}
+
+.upgrade-bar.hidden {
+  display: none;
+}
+
+.upgrade-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.upgrade-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--gold);
+  font-size: 0.95rem;
+}
+
+.upgrade-stats {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.btn-upgrade {
+  background: linear-gradient(180deg, #2a4534 0%, #1e3226 100%);
+  color: var(--text);
+  border: 1px solid var(--panel-edge);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  padding: 10px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.btn-upgrade:hover:not(:disabled) {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
+.btn-upgrade:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

@@ -15,14 +15,20 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 
 1. Click **Start Defense**.
 2. Select a tower type, then click an empty grass tile to build (path tiles are blocked).
-3. Press **Start Wave** when you are ready.
-4. Earn gold from kills and cleared waves. Survive all 12 waves with lives remaining.
+3. Click a placed tower to upgrade **Damage** or **Attack Speed** (cost scales with that tower’s base price, up to 3 levels each).
+4. Press **Start Wave** when you are ready.
+5. Earn gold from kills and cleared waves. Survive all 12 waves with lives remaining.
 
 | Tower  | Role                          |
 |--------|-------------------------------|
 | Archer | Cheap, fast single-target     |
 | Cannon | Slow, splash damage           |
 | Frost  | Slows enemies on hit          |
+
+| Enemy    | Notes                                      |
+|----------|--------------------------------------------|
+| Splitter | Pink units that split into two on death    |
+| Boss     | Huge health; appears on waves 6, 9, and 12 |
 
 ## Build
 
