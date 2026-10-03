@@ -563,6 +563,11 @@ body {
   display: none;
 }
 
+#mint-deposit.hidden,
+#mint-deposit-all.hidden {
+  display: none;
+}
+
 .stat.hidden,
 #shovel-stat-wrap.hidden {
   display: none;

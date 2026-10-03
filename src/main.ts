@@ -195,11 +195,16 @@ let chosenDifficulty: Difficulty = "normal";
 let chosenMode: GameMode = "bastion";
 let activeMode: GameMode = "bastion";
 
-const MODE_BLURBS: Record<Difficulty, string> = {
-  normal:
-    "Wounded enemies heal to full health if nothing hits them for 3 seconds.",
-  hard: "More enemies and health each wave, with a gentler ramp. 110 gold, 17 lives.",
-};
+function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
+  if (mode === "dungeon") {
+    return difficulty === "hard"
+      ? "A few more adventurers, with a milder health bonus. 120 gold and 10 lives."
+      : "Adventurers are softer. Spikes, snares, goblins, and ogres are stronger.";
+  }
+  return difficulty === "hard"
+    ? "More enemies and health each wave, with a gentler ramp. 110 gold and 17 lives."
+    : "Wounded enemies heal to full health if nothing hits them for 3 seconds.";
+}
 
 const GAME_BLURBS: Record<GameMode, string> = {
   bastion:
@@ -214,7 +219,7 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
   modeHardBtn.classList.toggle("selected", difficulty === "hard");
   endModeNormalBtn.classList.toggle("selected", difficulty === "normal");
   endModeHardBtn.classList.toggle("selected", difficulty === "hard");
-  modeBlurb.textContent = MODE_BLURBS[difficulty];
+  modeBlurb.textContent = difficultyBlurb(chosenMode, difficulty);
 }
 
 function syncGameModeButtons(mode: GameMode): void {
@@ -222,6 +227,7 @@ function syncGameModeButtons(mode: GameMode): void {
   gmBastionBtn.classList.toggle("selected", mode === "bastion");
   gmDungeonBtn.classList.toggle("selected", mode === "dungeon");
   gamemodeBlurb.textContent = GAME_BLURBS[mode];
+  modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
   startBtn.textContent =
     mode === "bastion" ? "Start Defense" : "Start Ambush";
   startHeading.textContent =
