@@ -323,10 +323,26 @@ export function enemyForWave(
     );
   }
 
-  const isSplitter = wave >= 3 && index % 6 === 3;
-  const isTank = wave >= 4 && index % 5 === 4;
-  const isFast = wave >= 3 && index % 4 === 2 && !isSplitter;
+  const isSpawner = wave >= 5 && index % 7 === 5;
+  const isSplitter = wave >= 3 && index % 6 === 3 && !isSpawner;
+  const isTank = wave >= 4 && index % 5 === 4 && !isSpawner;
+  const isFast = wave >= 3 && index % 4 === 2 && !isSplitter && !isSpawner;
 
+  if (isSpawner) {
+    return applyHard(
+      {
+        kind: "spawner",
+        hp: Math.round(110 * scale),
+        speed: 38,
+        reward: 18 + wave * 2,
+        radius: 15,
+        color: "#6a7a3a",
+        leakDamage: 2,
+      },
+      wave,
+      difficulty,
+    );
+  }
   if (isSplitter) {
     return applyHard(
       {

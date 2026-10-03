@@ -223,6 +223,8 @@ function syncGameModeButtons(mode: GameMode): void {
     mode === "bastion"
       ? "Hold the gate with roadside towers."
       : "Line the zigzag road with traps and monsters.";
+  // Only show build buttons for the selected mode
+  applyChrome(mode);
 }
 
 function applyChrome(mode: GameMode): void {

@@ -12,7 +12,8 @@ export const DUNGEON_WAVES = 10;
 export const DUNGEON_SELL_REFUND = 0.5;
 
 export type DungeonBuildKind = "spikes" | "snare" | "goblin" | "ogre";
-export type AdventurerKind = "scout" | "fighter" | "knight" | "hero";
+/** Adventurers themed to match traps/monsters (drawn as triangles). */
+export type AdventurerKind = "spikeRaider" | "snareScout" | "goblinHunter" | "ogreSlayer";
 
 export interface DungeonBuildDef {
   kind: DungeonBuildKind;
@@ -42,21 +43,26 @@ export interface AdventurerDef {
   leakDamage: number;
 }
 
-/** Dense zigzag road for ambush mode — place traps/monsters ON these tiles. */
+/**
+ * Shorter zigzag road for ambush mode — fewer rows, place traps/monsters ON these tiles.
+ */
 export const ZIGZAG_PATH: { col: number; row: number }[] = (() => {
   const path: { col: number; row: number }[] = [];
-  const rows = [1, 3, 5, 7, 8];
+  // Three short horizontal runs with short connectors
+  const rows = [2, 4, 6];
+  const colStart = 1;
+  const colEnd = 12; // shorter than full width
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const leftToRight = i % 2 === 0;
     if (leftToRight) {
-      for (let col = 0; col < DCOLS; col++) path.push({ col, row });
+      for (let col = colStart; col <= colEnd; col++) path.push({ col, row });
     } else {
-      for (let col = DCOLS - 1; col >= 0; col--) path.push({ col, row });
+      for (let col = colEnd; col >= colStart; col--) path.push({ col, row });
     }
     if (i < rows.length - 1) {
       const next = rows[i + 1];
-      const joinCol = leftToRight ? DCOLS - 1 : 0;
+      const joinCol = leftToRight ? colEnd : colStart;
       for (let r = row + 1; r < next; r++) path.push({ col: joinCol, row: r });
     }
   }
@@ -137,57 +143,61 @@ export function adventurerForWave(
   const scale = 1 + (wave - 1) * 0.2;
   const hard = d === "hard" ? 1.2 : 1;
 
+  // Final ogre-slayer (matches Ogre)
   if (wave === DUNGEON_WAVES && index === count - 1) {
     return {
-      kind: "hero",
-      name: "Hero",
+      kind: "ogreSlayer",
+      name: "Ogre Slayer",
       hp: Math.round(480 * hard),
       speed: 48,
       damage: 38,
       reward: 80,
       radius: 14,
-      color: "#e8c547",
+      color: "#8b5a3c",
       leakDamage: 4,
     };
   }
 
+  // Goblin hunters (match Goblin) — tougher mid-wave
   if (wave >= 6 && index % 5 === 4) {
     return {
-      kind: "knight",
-      name: "Knight",
+      kind: "goblinHunter",
+      name: "Goblin Hunter",
       hp: Math.round(140 * scale * hard),
       speed: 50,
       damage: 22,
       reward: 16 + wave,
       radius: 12,
-      color: "#7a8aa0",
+      color: "#4a9b6e",
       leakDamage: 2,
     };
   }
 
+  // Snare scouts (match Snare) — fast
   if (wave >= 3 && index % 4 === 2) {
     return {
-      kind: "scout",
-      name: "Scout",
+      kind: "snareScout",
+      name: "Snare Scout",
       hp: Math.round(36 * scale * hard),
       speed: 100,
       damage: 10,
       reward: 8 + Math.floor(wave / 2),
       radius: 9,
-      color: "#d4a84b",
+      color: "#5a9eb8",
       leakDamage: 1,
     };
   }
 
+  // Spike raiders (match Spike Trap) — default
   return {
-    kind: "fighter",
-    name: "Fighter",
+    kind: "spikeRaider",
+    name: "Spike Raider",
     hp: Math.round(55 * scale * hard),
     speed: 62 + wave,
     damage: 14,
     reward: 7 + Math.floor(wave / 2),
     radius: 11,
-    color: "#c4785a",
+    color: "#c45c4a",
     leakDamage: 1,
   };
 }

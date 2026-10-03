@@ -7,6 +7,7 @@ import {
   TOWER_DEFS,
   SPECIAL_UPGRADES,
   MAX_UPGRADE,
+  NORMAL_SPEED,
   combatStats,
   enemyForWave,
   mintIncome,
@@ -481,6 +482,7 @@ export class Game {
     this.pulse += dt;
     this.spawnEnemies(dt);
     this.updateEnemies(dt);
+    this.updateSpawners(dt);
     this.updateTowers(dt);
     this.updateProjectiles(dt);
     this.updateParticles(dt);
@@ -510,7 +512,42 @@ export class Game {
       leakDamage: def.leakDamage ?? 1,
       x,
       y,
+      spawnTimer: def.kind === "spawner" ? 2.5 : 0,
     };
+  }
+
+  /** Spawners summon weak enemies every few seconds while alive. */
+  private updateSpawners(dt: number): void {
+    const spawned: Enemy[] = [];
+    for (const e of this.enemies) {
+      if (e.kind !== "spawner" || e.hp <= 0) continue;
+      e.spawnTimer -= dt;
+      if (e.spawnTimer > 0) continue;
+      e.spawnTimer = 3.2;
+      const scale = 1 + (this.wave - 1) * 0.15;
+      spawned.push(
+        this.makeEnemy(
+          {
+            kind: "normal",
+            hp: Math.round(22 * scale),
+            speed: NORMAL_SPEED + 8,
+            reward: 3,
+            radius: 9,
+            color: "#9aaa4a",
+            leakDamage: 1,
+          },
+          e.pathIndex,
+          Math.min(0.9, e.progress + 0.05),
+          e.x,
+          e.y,
+        ),
+      );
+      this.burst(e.x, e.y, "#6a7a3a", 6);
+    }
+    if (spawned.length) {
+      this.enemies.push(...spawned);
+      this.emitHud();
+    }
   }
 
   private spawnEnemies(dt: number): void {
@@ -1122,6 +1159,16 @@ export class Game {
         ctx.stroke();
       }
 
+      if (e.kind === "spawner") {
+        ctx.strokeStyle = "rgba(154, 170, 74, 0.85)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
       ctx.fillStyle = e.color;
       ctx.beginPath();
       if (boss) {
@@ -1131,6 +1178,13 @@ export class Game {
         ctx.lineTo(e.x + r * 0.7, e.y + r * 0.75);
         ctx.lineTo(e.x - r * 0.7, e.y + r * 0.75);
         ctx.lineTo(e.x - r * 0.85, e.y - r * 0.2);
+        ctx.closePath();
+      } else if (e.kind === "spawner") {
+        const r = e.radius;
+        ctx.moveTo(e.x - r, e.y - r * 0.6);
+        ctx.lineTo(e.x + r, e.y - r * 0.6);
+        ctx.lineTo(e.x + r * 0.7, e.y + r);
+        ctx.lineTo(e.x - r * 0.7, e.y + r);
         ctx.closePath();
       } else {
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
@@ -1159,6 +1213,12 @@ export class Game {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("BOSS", e.x, e.y);
+      } else if (e.kind === "spawner") {
+        ctx.fillStyle = "#e8efe6";
+        ctx.font = "700 8px 'Chakra Petch', sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("SPAWN", e.x, e.y);
       }
 
       const barW = boss ? e.radius * 2.8 : e.radius * 2.2;

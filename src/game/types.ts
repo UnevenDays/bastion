@@ -13,6 +13,7 @@ export type EnemyKind =
   | "tank"
   | "splitter"
   | "splitling"
+  | "spawner"
   | "boss"
   | "finalBoss";
 
@@ -78,6 +79,8 @@ export interface Enemy {
   leakDamage: number;
   x: number;
   y: number;
+  /** Spawner: countdown until next summoned enemy. */
+  spawnTimer: number;
 }
 
 export interface Projectile {

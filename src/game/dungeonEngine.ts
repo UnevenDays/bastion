@@ -806,29 +806,23 @@ export class DungeonGame {
   private drawAdventurers(ctx: CanvasRenderingContext2D): void {
     for (const a of this.adventurers) {
       const fighting = a.fightingUnitId !== null;
+      const r = a.radius;
+      // All adventurers are triangles, colored to match trap/monster types
       ctx.fillStyle = a.color;
       ctx.beginPath();
-      if (a.kind === "hero" || a.kind === "knight") {
-        const r = a.radius;
-        ctx.moveTo(a.x, a.y - r);
-        ctx.lineTo(a.x + r * 0.75, a.y + r * 0.7);
-        ctx.lineTo(a.x - r * 0.75, a.y + r * 0.7);
-        ctx.closePath();
-      } else {
-        ctx.arc(a.x, a.y, a.radius, 0, Math.PI * 2);
-      }
+      ctx.moveTo(a.x, a.y - r);
+      ctx.lineTo(a.x + r * 0.9, a.y + r * 0.75);
+      ctx.lineTo(a.x - r * 0.9, a.y + r * 0.75);
+      ctx.closePath();
       ctx.fill();
 
-      if (fighting) {
-        ctx.strokeStyle = "#e85d4a";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-      if (a.slowTimer > 0) {
-        ctx.strokeStyle = "#7ec8e0";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
+      ctx.strokeStyle = fighting
+        ? "#e85d4a"
+        : a.slowTimer > 0
+          ? "#7ec8e0"
+          : "rgba(0,0,0,0.35)";
+      ctx.lineWidth = fighting || a.slowTimer > 0 ? 2 : 1;
+      ctx.stroke();
 
       const barW = a.radius * 2.2;
       const bx = a.x - barW / 2;
@@ -838,12 +832,12 @@ export class DungeonGame {
       ctx.fillStyle = a.hp / a.maxHp > 0.4 ? "#5ecf8a" : "#e85d4a";
       ctx.fillRect(bx, by, barW * Math.max(0, a.hp / a.maxHp), 4);
 
-      if (a.kind === "hero") {
-        ctx.fillStyle = "#1a1508";
-        ctx.font = "700 9px 'Chakra Petch', sans-serif";
+      if (a.kind === "ogreSlayer") {
+        ctx.fillStyle = "#e8efe6";
+        ctx.font = "700 8px 'Chakra Petch', sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("HERO", a.x, a.y);
+        ctx.fillText("SLAYER", a.x, a.y + 1);
       }
     }
   }

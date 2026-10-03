@@ -34,6 +34,7 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|
 | Splitter   | Pink units that split into two on death       |
+| Spawner    | Summons extra enemies every few seconds       |
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
 
