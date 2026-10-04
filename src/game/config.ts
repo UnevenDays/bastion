@@ -40,7 +40,9 @@ export const FLY_SPEED = 240;
 export const DRONE_SPEED = 190;
 export const DRONE_COUNT = 3;
 /** Mini drones deal this fraction of the wasp's shot damage. */
-export const DRONE_DAMAGE_RATIO = 0.3;
+export const DRONE_DAMAGE_RATIO = 0.25;
+/** Each Wasp damage rank adds this share of the base shot. */
+export const WASP_DAMAGE_STEP = 0.3;
 
 /** Each Banner adds this much damage and attack speed. Upgrades raise it. */
 export const BANNER_BUFF = 0.2;
@@ -335,8 +337,9 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   wasp: {
     name: "Drone Wing",
-    description: "Three mini drones. Each hunts an enemy until it is destroyed",
-    costMultiplier: 1.3,
+    description: "Three mini drones at a quarter of the wasp's damage. Each hunts an enemy until it is destroyed",
+    costMultiplier: 1,
+    cost: 264,
   },
   banner: {
     name: "Grand Banner",
@@ -561,6 +564,11 @@ export function damageMultiplier(damageLevel: number): number {
   return 1 + damageLevel * 0.4;
 }
 
+/** Wasp damage ranks climb a little slower than a normal tower. */
+export function waspDamageMultiplier(damageLevel: number): number {
+  return 1 + damageLevel * WASP_DAMAGE_STEP;
+}
+
 export function fireRateMultiplier(speedLevel: number): number {
   return 1 + speedLevel * 0.3;
 }
@@ -600,7 +608,9 @@ export function combatStats(t: Tower): CombatStats {
   }
 
   let range = def.range;
-  let damage = def.damage * damageMultiplier(t.damageLevel);
+  let damage =
+    def.damage *
+    (t.kind === "wasp" ? waspDamageMultiplier(t.damageLevel) : damageMultiplier(t.damageLevel));
   let fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
   let splash = def.splash ?? 0;
   if (t.kind === "cannon") splash *= 1 + t.damageLevel * 0.14;

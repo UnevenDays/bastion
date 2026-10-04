@@ -861,8 +861,8 @@ function syncBastionHud(hud: HudSnapshot): void {
         t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
       hintEl.textContent = t.flying
         ? t.special
-          ? "The wasp and its three drones each stick to one enemy until that enemy is destroyed."
-          : "No range circle. The wasp flies to its target and stays until that enemy falls. Drone Wing adds three mini drones."
+          ? "The wasp and its three drones each stick to one enemy until that enemy is destroyed. Each drone hits for a quarter of the wasp."
+          : "No range circle. The wasp flies to its target and stays until that enemy falls. Damage ranks add 30% each. Drone Wing adds three mini drones."
         : t.kind === "pyro"
           ? t.special
             ? "Inner Flame shrinks the radius and burns every enemy inside it. A slow still puts the fire out."

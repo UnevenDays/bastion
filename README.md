@@ -44,7 +44,7 @@ Waves 1–5 use the old health curve. From wave 6 the pack's health is multiplie
 | Cannon | 80 gold. A tight blast. Area Damage widens it and hits harder. Focus Charge adds damage, shortens range, and fires faster |
 | Frost  | Shots slow enemies to 52% speed. Glacier Field costs 180 gold and pulses a chill at 40% speed. Area widens it, Chill lengthens it, and Shorter Cooldown brings the next pulse sooner |
 | Mint   | Midas Bank — deposit coins; each wave pays 25% and that gold leaves the bank |
-| Wasp   | Drone Wing — three mini drones that hunt until their target falls |
+| Wasp   | Drone Wing (264g) — three mini drones at a quarter of the wasp's damage |
 | Banner | Grand Banner — the same damage and attack-speed buff reaches every tower |
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
@@ -67,7 +67,7 @@ The **Storm** costs 45 gold. It has no range circle and no aim. It sticks lightn
 
 The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). **Grand Banner** applies the same buff to every tower on the map. Several banners stack, up to +60% damage and +60% attack speed.
 
-The **Wasp** costs 180 gold. It has no range circle. It flies a bit slower than before, hits for less, and stays on one enemy until that enemy is destroyed, then picks another. **Drone Wing** launches three smaller drones that do the same at 30% of the wasp's shot damage. They spread out when several enemies are on the path.
+The **Wasp** costs 180 gold. It has no range circle. It flies to one enemy and stays until that enemy is destroyed, then picks another. Each damage rank adds 30% of the base shot. **Drone Wing** costs 264 gold and launches three smaller drones that hunt the same way at 25% of the wasp's shot damage. They spread out when several enemies are on the path.
 
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|
