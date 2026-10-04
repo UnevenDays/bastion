@@ -1,6 +1,14 @@
 import "./style.css";
 import { buildAlmanac, chapterFor, paintAlmanac, type AlmanacChapter } from "./almanac";
-import { BANNER_CAP, BANNER_LIMIT, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
+import {
+  BANNER_CAP,
+  BANNER_LIMIT,
+  BANK_DEPOSIT_CHUNK,
+  CLOUD_HP,
+  TOWER_DEFS,
+  cloudStrikeDamage,
+  stormDamageUpgradeCost,
+} from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { mountEditor } from "./editorPanel";
@@ -1106,9 +1114,11 @@ function syncBastionHud(hud: HudSnapshot): void {
       upgradeDurationBtn.classList.remove("hidden");
       upgradeDurationBtn.textContent =
         t.durationCost === null ? "Hit Chance Max" : `+ Hit Chance (${t.durationCost}g)`;
+      const cloudHit = Math.round(cloudStrikeDamage(t.damageLevel));
+      const rankPrice = [0, 1, 2].map((level) => `${stormDamageUpgradeCost(level)}`).join(", then ");
       hintEl.textContent = t.special
-        ? "Cloud Allies send a cloud onto the path every 15 seconds, up to five. Each has 150 health and hits for 26. Enemies strike back. A small cloud marks this tower."
-        : "Storm sticks lightning on random spots. Hit Chance makes more of those strikes lock onto a living enemy.";
+        ? `Cloud Allies send a cloud onto the path every 15 seconds, up to five. Each has ${CLOUD_HP} health and hits for ${cloudHit}. The last Damage rank is +55%, and those ranks cost ${rankPrice}. Enemies strike back. A small cloud marks this tower.`
+        : `Storm sticks lightning on random spots. Damage ranks end at +55% and cost ${rankPrice}. Hit Chance makes more of those strikes lock onto a living enemy.`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);

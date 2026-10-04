@@ -78,6 +78,7 @@ import {
   weakerEnemy,
   startingGold,
   startingLives,
+  stormDamageUpgradeCost,
   stormGuaranteesHit,
   stormHitChance,
   SNIPER_SUPPLY_GOLD,
@@ -434,7 +435,12 @@ export class Game {
     const received = this.bannerBuffFor(t);
     const priced = (level: number) =>
       t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
-    const dCost = t.damageLevel < MAX_UPGRADE ? priced(t.damageLevel) : null;
+    const dCost =
+      t.damageLevel < MAX_UPGRADE
+        ? t.kind === "storm"
+          ? stormDamageUpgradeCost(t.damageLevel)
+          : priced(t.damageLevel)
+        : null;
     const sCost = t.speedLevel < MAX_UPGRADE ? priced(t.speedLevel) : null;
     const offersExtra =
       (t.kind === "frost" && t.special) ||
@@ -886,7 +892,12 @@ export class Game {
       stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;
 
-    const cost = t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
+    const cost =
+      t.kind === "mint"
+        ? mintUpgradeCost(level)
+        : t.kind === "storm" && stat === "damage"
+          ? stormDamageUpgradeCost(level)
+          : upgradeCost(def.cost, level);
     if (this.gold < cost) return false;
 
     this.gold -= cost;

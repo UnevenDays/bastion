@@ -12,6 +12,9 @@ import {
   GATE_REPAIR_AMOUNT,
   GATE_REPAIR_EACH,
   GATE_VOLLEY_COST,
+  CLOUD_DAMAGE,
+  CLOUD_DAMAGE_FINAL,
+  CLOUD_HP,
   ELITE_FROM_WAVE,
   ELITE_HP,
   ELITE_REWARD,
@@ -34,6 +37,7 @@ import {
   TOWER_DEFS,
   gateReinforceCost,
   specialCost,
+  stormDamageUpgradeCost,
   stormHitChance,
 } from "./game/config";
 import { DUNGEON_BUILDS } from "./game/dungeonConfig";
@@ -137,6 +141,8 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
   const nuke = TOWER_DEFS.nuke;
   const hit = Math.round(stormHitChance(0) * 100);
   const hitMax = Math.round(stormHitChance(3) * 100);
+  const cloudBonus = Math.round(CLOUD_DAMAGE_FINAL * 100);
+  const stormRanks = [0, 1, 2].map((level) => `${stormDamageUpgradeCost(level)}g`).join(", ");
 
   const towers: AlmanacEntry[] = [
     {
@@ -302,12 +308,13 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
       ...towerPlace(query, "storm"),
       stats: [
         ["Cost", gold(storm.cost)],
-        ["Damage", String(storm.damage)],
+        ["Damage", `${storm.damage}, +${cloudBonus}% at the last rank`],
         ["Rate", rate(storm.fireRate)],
+        ["Damage ranks", stormRanks],
         ["Hit Chance", `${hit}%, +12% a rank, up to ${hitMax}%`],
-        [SPECIAL_UPGRADES.storm.name, `${gold(specialCost("storm"))} · 150 health, 26 damage`],
+        [SPECIAL_UPGRADES.storm.name, `${gold(specialCost("storm"))} · ${CLOUD_HP} health, ${CLOUD_DAMAGE} damage, +${cloudBonus}% at the last rank`],
       ],
-      about: "No range circle and no aim. Lightning strikes across the map. Hit Chance raises how often a bolt locks onto a living enemy. The rest only hurt enemies standing in the splash. Cloud Allies summons a cloud at the entrance every 15 seconds, up to five. A small cloud circles the tower once the special is bought.",
+      about: "No range circle and no aim. Lightning strikes across the map. Damage ranks raise the lightning and the cloud hits, and the last rank is +55%. Those ranks cost more than a usual upgrade. Hit Chance raises how often a bolt locks onto a living enemy. The rest only hurt enemies standing in the splash. Cloud Allies summons a cloud at the entrance every 15 seconds, up to five. A cloud starts at 26 damage. A small cloud circles the tower once the special is bought.",
       pairsTitle: "Works with",
       pairs: [
         { id: "banner", name: "Banner", note: "The buff raises the lightning and the cloud's hits." },

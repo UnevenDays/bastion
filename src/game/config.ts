@@ -178,6 +178,8 @@ export const CLOUD_CAP = 5;
 export const CLOUD_HP = 150;
 /** Cloud strike. A wave-1 grunt has 40, so one hit leaves it standing. */
 export const CLOUD_DAMAGE = 26;
+/** Extra damage at the last Storm Damage rank. Lightning and cloud hits share it. */
+export const CLOUD_DAMAGE_FINAL = 0.55;
 export const CLOUD_SPEED = 72;
 export const CLOUD_REACH = 28;
 export const CLOUD_HIT_INTERVAL = 1;
@@ -394,7 +396,7 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   storm: {
     name: "Cloud Allies",
-    description: "A cloud ally on the path every 15 seconds. 150 health and 26 damage",
+    description: "A cloud ally on the path every 15 seconds. 150 health. Hits for 26, and the last Damage rank is +55%",
     costMultiplier: 1,
     cost: 200,
   },
@@ -488,9 +490,18 @@ export function stormGuaranteesHit(roll: number, chance = STORM_SURE_HIT): boole
   return roll < chance;
 }
 
+/**
+ * Storm Damage ranks. Three ranks land on +55% for lightning and cloud hits.
+ * The last rank is exact, so a full bar is 1.55× and not a rounding of the steps.
+ */
+export function cloudDamageMultiplier(damageLevel: number): number {
+  if (damageLevel >= MAX_UPGRADE) return 1 + CLOUD_DAMAGE_FINAL;
+  return 1 + (damageLevel * CLOUD_DAMAGE_FINAL) / MAX_UPGRADE;
+}
+
 /** Cloud strike before banner bonuses. Damage upgrades raise it. */
 export function cloudStrikeDamage(damageLevel: number): number {
-  return CLOUD_DAMAGE * damageMultiplier(damageLevel);
+  return CLOUD_DAMAGE * cloudDamageMultiplier(damageLevel);
 }
 
 /** Health a cloud loses each time an enemy in reach strikes back. */
@@ -598,6 +609,14 @@ export function mintUpgradeCost(currentLevel: number): number {
   return Math.round(TOWER_DEFS.mint.cost * 0.7 * (currentLevel + 1));
 }
 
+/**
+ * Storm Damage ranks cost more than a normal upgrade.
+ * A 45-gold Storm pays 45, then 90, then 135. Speed and Hit Chance stay on the usual curve.
+ */
+export function stormDamageUpgradeCost(currentLevel: number): number {
+  return Math.round(TOWER_DEFS.storm.cost * (currentLevel + 1));
+}
+
 /** How far Glacier Field reaches. Area ranks widen it. */
 export function glacierRange(damageLevel: number): number {
   return TOWER_DEFS.frost.range * 1.12 * (1 + damageLevel * 0.18);
@@ -666,7 +685,11 @@ export function combatStats(t: Tower): CombatStats {
   let range = def.support ? bannerRange(t.durationLevel) : def.range;
   let damage =
     def.damage *
-    (t.kind === "wasp" ? waspDamageMultiplier(t.damageLevel) : damageMultiplier(t.damageLevel));
+    (t.kind === "wasp"
+      ? waspDamageMultiplier(t.damageLevel)
+      : t.kind === "storm"
+        ? cloudDamageMultiplier(t.damageLevel)
+        : damageMultiplier(t.damageLevel));
   let fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
   let splash = def.splash ?? 0;
   if (t.kind === "cannon") splash *= 1 + t.damageLevel * 0.14;
