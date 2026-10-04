@@ -4,6 +4,27 @@ export interface RoadPaint {
   dash: string;
 }
 
+/** A short name under a tower, enemy, or plant, drawn so it stays readable on the board. */
+export function paintTag(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  color = "#f4efe4",
+): void {
+  ctx.save();
+  ctx.font = "700 9px 'Chakra Petch', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(8, 12, 10, 0.92)";
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
 export function tileHash(n: number): number {
   const x = Math.sin(n * 12.9898) * 43758.5453;
   return x - Math.floor(x);

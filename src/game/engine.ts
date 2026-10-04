@@ -89,7 +89,7 @@ import {
   waveEnemyCount,
 } from "./config";
 import { campaignById, type CampaignLevel } from "./campaign";
-import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
+import { blobShadow, paintBoardLight, paintTag, paintWideRoad, speckleTile } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   DeathRecap,
@@ -272,6 +272,20 @@ export function shotBlockedByTrees(
 
 function isBossKind(kind: Enemy["kind"]): boolean {
   return kind === "boss" || kind === "finalBoss";
+}
+
+/** A word under the enemy. Bosses already carry a word on the body. */
+function enemyTag(e: Enemy): { text: string; color: string } | null {
+  if (e.elite) return { text: "Crown", color: "#e8c547" };
+  if (e.kind === "normal") return { text: "Grunt", color: "#f4efe4" };
+  if (e.kind === "fast") return { text: "Fast", color: "#f4efe4" };
+  if (e.kind === "tank") return { text: "Tank", color: "#f4efe4" };
+  if (e.kind === "splitter") return { text: "Split", color: "#f4efe4" };
+  if (e.kind === "splitling") return { text: "Bit", color: "#f4efe4" };
+  if (e.kind === "thief") return { text: "Thief", color: "#f4efe4" };
+  if (e.kind === "sapper") return { text: "Sapper", color: "#f4efe4" };
+  if (e.kind === "husk") return { text: e.cracked ? "Sprint" : "Husk", color: "#f4efe4" };
+  return null;
 }
 
 /** Three peaks and a jewel, drawn above a crowned enemy. `y` is the base of the crown. */
@@ -3199,6 +3213,7 @@ export class Game {
     ctx.globalAlpha = 0.7;
     this.drawTowerGlyph(ctx, cx, cy, this.selected);
     ctx.globalAlpha = 1;
+    paintTag(ctx, TOWER_DEFS[this.selected].name, cx, cy + 18);
   }
 
   private drawCarryingGhost(ctx: CanvasRenderingContext2D): void {
@@ -3212,6 +3227,7 @@ export class Game {
     ctx.fillStyle = TOWER_DEFS[this.carrying.kind].color;
     this.drawTowerGlyph(ctx, cx, cy, this.carrying.kind);
     ctx.globalAlpha = 1;
+    paintTag(ctx, TOWER_DEFS[this.carrying.kind].name, cx, cy + 18);
   }
 
   private drawTowers(ctx: CanvasRenderingContext2D): void {
@@ -3326,22 +3342,13 @@ export class Game {
         this.drawMaces(ctx, t, cx, cy);
       }
 
-      if (t.inverted) {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "700 9px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "bottom";
-        ctx.fillText("INV", cx, cy - size - 1);
-      }
+      if (t.inverted) paintTag(ctx, "Flip", cx, cy - size - 14, "#e8c547");
 
-      const total = t.damageLevel + t.speedLevel + (t.special ? 1 : 0);
-      if (total > 0) {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "600 10px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillText(t.special ? `★${total}` : `+${total}`, cx, cy + size + 2);
-      }
+      const nameY = cy + size + 2;
+      paintTag(ctx, def.name, cx, nameY);
+      const ranks = t.damageLevel + t.speedLevel;
+      if (t.silenced > 0) paintTag(ctx, "Off", cx, nameY + 11, "#e85d4a");
+      else if (ranks > 0) paintTag(ctx, `Up ${ranks}`, cx, nameY + 11, "#e8c547");
     });
   }
 
@@ -3914,6 +3921,9 @@ export class Game {
           endlessMutator(this.wave) === "marked";
         drawCrown(ctx, e.x, by - (marked ? 12 : 2));
       }
+
+      const tag = enemyTag(e);
+      if (tag) paintTag(ctx, tag.text, e.x, e.y + e.radius + 3, tag.color);
 
       if (this.difficulty !== "hard" && e.kind === "tank") {
         ctx.beginPath();

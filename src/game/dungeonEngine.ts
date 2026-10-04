@@ -15,6 +15,7 @@ import {
   type AdventurerKind,
   type DungeonBuildKind,
 } from "./dungeonConfig";
+import { paintTag } from "./paint";
 import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
 
 const LEAK_ORDER: readonly AdventurerKind[] = [
@@ -797,6 +798,9 @@ export class DungeonGame {
       : "rgba(232, 93, 74, 0.28)";
     ctx.fillRect(col * DCELL, row * DCELL, DCELL, DCELL);
 
+    const hoverName =
+      this.selected === "spikes" ? "Spikes" : this.selected === "snare" ? "Snare" : this.selected === "goblin" ? "Goblin" : "Ogre";
+    paintTag(ctx, hoverName, col * DCELL + DCELL / 2, row * DCELL + DCELL / 2 + 20);
     if (onPath) {
       ctx.globalAlpha = 0.75;
       this.drawUnitGlyph(
@@ -840,13 +844,10 @@ export class DungeonGame {
 
       this.drawUnitGlyph(ctx, cx, cy, u.kind, def.color);
 
-      if (u.damageLevel > 0) {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "600 10px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillText(`+${u.damageLevel}`, cx, cy + 18);
-      }
+      const unitName =
+        u.kind === "spikes" ? "Spikes" : u.kind === "snare" ? "Snare" : u.kind === "goblin" ? "Goblin" : "Ogre";
+      paintTag(ctx, unitName, cx, cy + 20);
+      if (u.damageLevel > 0) paintTag(ctx, `Up ${u.damageLevel}`, cx, cy + 31, "#e8c547");
 
       if (u.kind === "goblin") this.drawReachAt(ctx, u.pathIndex, selected);
 
@@ -968,13 +969,15 @@ export class DungeonGame {
       ctx.fillStyle = a.hp / a.maxHp > 0.4 ? "#5ecf8a" : "#e85d4a";
       ctx.fillRect(bx, by, barW * Math.max(0, a.hp / a.maxHp), 4);
 
-      if (a.kind === "ogreSlayer") {
-        ctx.fillStyle = "#e8efe6";
-        ctx.font = "700 8px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("SLAYER", a.x, a.y + 1);
-      }
+      const adventurerName =
+        a.kind === "spikeRaider"
+          ? "Raider"
+          : a.kind === "snareScout"
+            ? "Scout"
+            : a.kind === "goblinHunter"
+              ? "Hunter"
+              : "Slayer";
+      paintTag(ctx, adventurerName, a.x, a.y + a.radius + 2);
     }
   }
 

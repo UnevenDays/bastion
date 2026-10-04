@@ -18,7 +18,7 @@ import {
   type ZombieKind,
 } from "./lawnConfig";
 import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
-import { blobShadow, paintBoardLight, speckleTile } from "./paint";
+import { blobShadow, paintBoardLight, paintTag, speckleTile } from "./paint";
 
 const LEAK_ORDER: readonly ZombieKind[] = ["shambler", "cone", "runner", "brute"];
 
@@ -632,6 +632,7 @@ export class LawnGame {
       ctx.fillRect(c.x - 16, c.y + 22, 32, 4);
       ctx.fillStyle = pct > 0.4 ? "#5ecf8a" : "#e85d4a";
       ctx.fillRect(c.x - 16, c.y + 22, 32 * pct, 4);
+      paintTag(ctx, def.name, c.x, c.y + 28);
     });
   }
 
@@ -660,13 +661,9 @@ export class LawnGame {
       ctx.fillRect(z.x - 16, z.y - z.radius - 10, 32, 4);
       ctx.fillStyle = pct > 0.4 ? "#c45c4a" : "#e8c547";
       ctx.fillRect(z.x - 16, z.y - z.radius - 10, 32 * pct, 4);
-      if (z.kind === "brute") {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "700 9px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("BRUTE", z.x, z.y);
-      }
+      const zombieName =
+        z.kind === "shambler" ? "Shambler" : z.kind === "cone" ? "Cone" : z.kind === "runner" ? "Runner" : "Brute";
+      paintTag(ctx, zombieName, z.x, z.y + z.radius + 2, z.kind === "brute" ? "#e8c547" : "#f4efe4");
     }
   }
 
@@ -695,6 +692,9 @@ export class LawnGame {
         ? "rgba(94, 207, 138, 0.28)"
         : "rgba(232, 93, 74, 0.22)";
     ctx.fillRect(LOFFX + col * LCELL, LOFFY + row * LCELL, LCELL, LCELL);
+    const c = this.cellCenter(col, row);
+    const label = this.digging ? "Dig" : def?.name;
+    if (label) paintTag(ctx, label, c.x, c.y + 8);
   }
 
   private drawParticles(ctx: CanvasRenderingContext2D): void {

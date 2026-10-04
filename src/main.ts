@@ -79,6 +79,7 @@ app.innerHTML = `
     <div class="stats" id="stats">
       <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
       <div class="speed-row" id="speed-row" role="group" aria-label="Game speed">
+        <span class="speed-label">Speed</span>
         <button class="speed-btn" type="button" data-speed="0.5" title="Half speed. Click again for 1×.">0.5×</button>
         <button class="speed-btn" type="button" data-speed="1.25" title="1.25× speed. Click again for 1×.">1.25×</button>
         <button class="speed-btn" type="button" data-speed="2" title="Double speed. Click again for 1×.">2×</button>
@@ -188,12 +189,12 @@ app.innerHTML = `
       </div>
       <div id="target-row" class="target-row hidden" role="group" aria-label="Target priority">
         <span class="target-label">Aim</span>
-        <button class="target-btn" type="button" data-target="first" title="Enemy closest to the exit">First</button>
-        <button class="target-btn" type="button" data-target="strongest" title="Enemy with the most health">Strong</button>
-        <button class="target-btn" type="button" data-target="weakest" title="Enemy with the least health">Weak</button>
-        <button class="target-btn" type="button" data-target="last" title="Enemy closest to the entrance">Last</button>
-        <button class="target-btn" type="button" data-target="auto" title="Nearest enemy">Auto</button>
-        <button class="target-btn invert" type="button" data-invert="1" title="Flip First and Last, Strong and Weak, and nearest and farthest">Invert</button>
+        <button class="target-btn" type="button" data-target="first" title="Enemy closest to the exit"><span>First</span><span class="target-note">To the exit</span></button>
+        <button class="target-btn" type="button" data-target="strongest" title="Enemy with the most health"><span>Strong</span><span class="target-note">Most health</span></button>
+        <button class="target-btn" type="button" data-target="weakest" title="Enemy with the least health"><span>Weak</span><span class="target-note">Least health</span></button>
+        <button class="target-btn" type="button" data-target="last" title="Enemy closest to the entrance"><span>Last</span><span class="target-note">To the entrance</span></button>
+        <button class="target-btn" type="button" data-target="auto" title="Nearest enemy"><span>Auto</span><span class="target-note">Nearest</span></button>
+        <button class="target-btn invert" type="button" data-invert="1" title="Flip First and Last, Strong and Weak, and nearest and farthest"><span>Invert</span><span class="target-note">Flip aim</span></button>
       </div>
       <div id="dungeon-upgrades" class="upgrade-actions hidden">
         <button class="btn btn-upgrade" type="button" id="dungeon-upgrade">+ Power</button>
