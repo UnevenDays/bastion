@@ -1,4 +1,5 @@
 import "./style.css";
+import { buildAlmanac, chapterFor, paintAlmanac, type AlmanacChapter } from "./almanac";
 import { BANNER_CAP, BANNER_LIMIT, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
@@ -42,6 +43,10 @@ app.innerHTML = `
         <span class="home-choice-name">Level editor</span>
         <span class="home-choice-meta">Lay a road and choose its enemies</span>
       </button>
+      <button class="home-choice" type="button" id="home-almanac">
+        <span class="home-choice-name">Almanac</span>
+        <span class="home-choice-meta">What you have, and what works together</span>
+      </button>
     </div>
   </section>
 
@@ -52,6 +57,7 @@ app.innerHTML = `
     <p class="draft-count" id="draft-count">0 / 8</p>
     <div class="draft-grid" id="draft-grid"></div>
     <div class="draft-actions">
+      <button class="btn btn-ghost" type="button" id="draft-almanac">Almanac</button>
       <button class="btn btn-ghost" type="button" id="draft-back">Back</button>
       <button class="btn btn-primary" type="button" id="draft-continue" disabled>Continue</button>
     </div>
@@ -60,6 +66,7 @@ app.innerHTML = `
   <header class="top-bar">
     <div class="brand-wrap">
       <div class="brand" id="brand-title">Bastion Breach</div>
+      <button class="almanac-open" type="button" id="almanac-open">Almanac</button>
       <span class="mode-badge hidden" id="mode-badge">Hard</span>
       <span class="mode-badge warrant hidden" id="warrant-badge">Red Column</span>
     </div>
@@ -243,6 +250,27 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="almanac hidden" id="almanac">
+    <div class="book" role="dialog" aria-modal="true" aria-labelledby="almanac-title">
+      <div class="book-top">
+        <div>
+          <p class="book-series">Field almanac</p>
+          <h2 id="almanac-title">Classic</h2>
+          <p id="almanac-sub"></p>
+        </div>
+        <button class="btn btn-ghost" type="button" id="almanac-close">Close</button>
+      </div>
+      <div class="book-tabs" role="tablist">
+        <button class="book-tab selected" type="button" id="almanac-towers" data-chapter="towers">Towers</button>
+        <button class="book-tab" type="button" id="almanac-enemies" data-chapter="enemies">Enemies</button>
+      </div>
+      <div class="book-spread">
+        <nav class="book-index" id="almanac-index" aria-label="Entries"></nav>
+        <article class="book-page" id="almanac-page"></article>
+      </div>
+    </div>
+  </div>
 `;
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
@@ -349,6 +377,13 @@ const draftCount = document.querySelector<HTMLElement>("#draft-count")!;
 const draftLead = document.querySelector<HTMLElement>("#draft-lead")!;
 const draftContinue = document.querySelector<HTMLButtonElement>("#draft-continue")!;
 const rosterNote = document.querySelector<HTMLElement>("#roster-note")!;
+const almanacEl = document.querySelector<HTMLElement>("#almanac")!;
+const almanacIndex = document.querySelector<HTMLElement>("#almanac-index")!;
+const almanacPage = document.querySelector<HTMLElement>("#almanac-page")!;
+const almanacTitle = document.querySelector<HTMLElement>("#almanac-title")!;
+const almanacSub = document.querySelector<HTMLElement>("#almanac-sub")!;
+const almanacTowersTab = document.querySelector<HTMLButtonElement>("#almanac-towers")!;
+const almanacEnemiesTab = document.querySelector<HTMLButtonElement>("#almanac-enemies")!;
 const benchLine = document.querySelector<HTMLElement>("#bench-line")!;
 const speedRow = document.querySelector<HTMLElement>("#speed-row")!;
 const speedButtons = [
@@ -374,9 +409,12 @@ const LOAD_TIPS = [
   "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
   "The field holds 3 banners. Only one of them can be a Grand Banner.",
   "The bastion holds the exit. Leaks crack the gate, and it mends between waves.",
+  "The almanac lists your bench, the enemies on the road, and which towers work together.",
 ];
 
 let loadout: TowerKind[] = [];
+let almanacChapter: AlmanacChapter = "towers";
+let almanacId: string | null = null;
 
 function randomTip(): string {
   return LOAD_TIPS[Math.floor(Math.random() * LOAD_TIPS.length)]!;
@@ -444,6 +482,70 @@ function toggleDraft(kind: TowerKind): void {
 
 function rosterNames(): string[] {
   return loadout.map((kind) => TOWER_DEFS[kind].name);
+}
+
+function almanacMode(): GameMode {
+  const menuOpen = !startOverlay.classList.contains("hidden");
+  if (started && !menuOpen) return activeMode;
+  if (menuOpen && menuView === "minigames") return chosenMode === "lawn" ? "lawn" : "dungeon";
+  return "bastion";
+}
+
+function currentAlmanacQuery() {
+  const mode = almanacMode();
+  const menuOpen = !startOverlay.classList.contains("hidden");
+  const editor =
+    mode === "bastion" && ((started && activeLevel !== null) || (menuOpen && menuView === "editor"));
+  const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
+  const warrant = level.warrants[warrantByLevel.get(level.id) ?? 0] ?? level.warrants[0]!;
+  const faced = new Set<string>();
+  let roadLabel = `${level.name} · ${warrant.name}`;
+  if (editor) {
+    roadLabel = "This level";
+    if (activeLevel) {
+      for (const wave of activeLevel.waves) {
+        for (const group of wave.enemies) faced.add(group.kind);
+      }
+    }
+  } else if (mode === "bastion") {
+    for (const kind of warrant.enemies) faced.add(kind);
+    faced.add("boss");
+    faced.add(chosenDifficulty === "endless" ? "challenger" : "finalBoss");
+  }
+  return {
+    mode,
+    bench: loadout,
+    benchLimited: mode === "bastion" && !editor && loadout.length > 0,
+    built: started && mode === "bastion" ? bastion.placedCounts() : {},
+    volley: started && mode === "bastion" ? bastion.gateHasVolley() : false,
+    faced: [...faced],
+    roadLabel,
+    custom: editor,
+  };
+}
+
+function refreshAlmanac(): void {
+  const book = buildAlmanac(currentAlmanacQuery());
+  almanacTowersTab.classList.toggle("selected", almanacChapter === "towers");
+  almanacEnemiesTab.classList.toggle("selected", almanacChapter === "enemies");
+  almanacId = paintAlmanac(
+    almanacIndex,
+    almanacPage,
+    almanacTitle,
+    almanacSub,
+    book,
+    almanacChapter,
+    almanacId,
+  );
+}
+
+function openAlmanac(): void {
+  almanacEl.classList.remove("hidden");
+  refreshAlmanac();
+}
+
+function closeAlmanac(): void {
+  almanacEl.classList.add("hidden");
 }
 
 function paintRosterNote(): void {
@@ -1485,6 +1587,42 @@ document.querySelector("#home-classic")!.addEventListener("click", () => {
   paintDraft();
   showStage("draft");
 });
+document.querySelector("#home-almanac")!.addEventListener("click", openAlmanac);
+document.querySelector("#draft-almanac")!.addEventListener("click", openAlmanac);
+document.querySelector("#almanac-open")!.addEventListener("click", openAlmanac);
+document.querySelector("#almanac-close")!.addEventListener("click", closeAlmanac);
+almanacTowersTab.addEventListener("click", () => {
+  almanacChapter = "towers";
+  almanacId = null;
+  refreshAlmanac();
+});
+almanacEnemiesTab.addEventListener("click", () => {
+  almanacChapter = "enemies";
+  almanacId = null;
+  refreshAlmanac();
+});
+almanacEl.addEventListener("click", (event) => {
+  if (event.target === almanacEl) closeAlmanac();
+});
+almanacIndex.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-almanac-id]");
+  if (!button?.dataset.almanacId) return;
+  almanacId = button.dataset.almanacId;
+  refreshAlmanac();
+});
+almanacPage.addEventListener("click", (event) => {
+  const button = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-almanac-jump]");
+  const id = button?.dataset.almanacJump;
+  if (!id) return;
+  const next = chapterFor(buildAlmanac(currentAlmanacQuery()), id);
+  if (!next) return;
+  almanacChapter = next;
+  almanacId = id;
+  refreshAlmanac();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !almanacEl.classList.contains("hidden")) closeAlmanac();
+});
 document.querySelector("#home-minigames")!.addEventListener("click", () => {
   menuView = "minigames";
   activeLevel = null;
@@ -1569,9 +1707,10 @@ let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  const reading = !almanacEl.classList.contains("hidden");
   if (activeMode === "bastion") {
     const speed = bastion.difficulty === "endless" ? gameSpeed : 1;
-    let left = dt * speed;
+    let left = reading ? 0 : dt * speed;
     while (left > 0) {
       const step = Math.min(0.05, left);
       bastion.update(step);
@@ -1579,10 +1718,10 @@ function frame(now: number): void {
     }
     bastion.draw(ctx);
   } else if (activeMode === "lawn") {
-    lawn.update(dt);
+    if (!reading) lawn.update(dt);
     lawn.draw(ctx);
   } else {
-    dungeon.update(dt);
+    if (!reading) dungeon.update(dt);
     dungeon.draw(ctx);
   }
   requestAnimationFrame(frame);

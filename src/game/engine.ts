@@ -973,6 +973,18 @@ export class Game {
     this.emitHud();
   }
 
+  /** Towers standing on the field. A detonated Nuke is already gone. */
+  placedCounts(): Partial<Record<TowerKind, number>> {
+    const counts: Partial<Record<TowerKind, number>> = {};
+    for (const t of this.towers) counts[t.kind] = (counts[t.kind] ?? 0) + 1;
+    return counts;
+  }
+
+  /** The warden already bought the bow. */
+  gateHasVolley(): boolean {
+    return this.gateVolley;
+  }
+
   private applyCampaign(level: CampaignLevel): void {
     this.campaign = level;
     this.usePath(level.path);
