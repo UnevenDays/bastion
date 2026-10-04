@@ -479,3 +479,320 @@ export function blobShadow(
   ctx.fill();
   ctx.restore();
 }
+
+export type HallowFigure =
+  | "lantern"
+  | "wisp"
+  | "coffin"
+  | "split"
+  | "pip"
+  | "trick"
+  | "crow"
+  | "brew"
+  | "king";
+
+function paintLantern(ctx: CanvasRenderingContext2D, step: number, scale = 1): void {
+  paintShape(ctx, "#5a3018", () => {
+    ctx.rect(-3.2 * scale, 2 + step, 2.2 * scale, 6 * scale);
+    ctx.rect(1 * scale, 2 - step, 2.2 * scale, 6 * scale);
+  });
+  paintShape(ctx, "#e07a12", () => {
+    ctx.ellipse(0, -2, 7.2 * scale, 6.2 * scale, 0, 0, Math.PI * 2);
+  });
+  ctx.strokeStyle = "#9a4e08";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-3.2 * scale, -7 * scale);
+  ctx.quadraticCurveTo(-3.5 * scale, -2, -3.2 * scale, 3 * scale);
+  ctx.moveTo(3.2 * scale, -7 * scale);
+  ctx.quadraticCurveTo(3.5 * scale, -2, 3.2 * scale, 3 * scale);
+  ctx.stroke();
+  ctx.fillStyle = "#2a1208";
+  ctx.beginPath();
+  ctx.moveTo(-4.2 * scale, -3.4 * scale);
+  ctx.lineTo(-2.1 * scale, -1.2 * scale);
+  ctx.lineTo(-4.4 * scale, -0.8 * scale);
+  ctx.closePath();
+  ctx.moveTo(2.1 * scale, -3.4 * scale);
+  ctx.lineTo(4.2 * scale, -1.2 * scale);
+  ctx.lineTo(2.3 * scale, -0.8 * scale);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-3 * scale, 1.1 * scale);
+  ctx.lineTo(-1.2 * scale, 2.5 * scale);
+  ctx.lineTo(0, 1.1 * scale);
+  ctx.lineTo(1.4 * scale, 2.5 * scale);
+  ctx.lineTo(3.1 * scale, 1.1 * scale);
+  ctx.lineTo(0, 3.3 * scale);
+  ctx.closePath();
+  ctx.fill();
+  paintShape(ctx, "#2f6a32", () => {
+    ctx.rect(-0.9 * scale, -9.4 * scale, 1.8 * scale, 3.6 * scale);
+  });
+}
+
+/** Night figures for Hallow Gate. Same footprint as the daytime crew. */
+export function paintHallow(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  kind: HallowFigure,
+  options: { faceLeft?: boolean; walk?: number; purse?: boolean } = {},
+): void {
+  const step = Math.sin(options.walk ?? 0) * 2.2;
+  const scale = radius / 9.2;
+  ctx.save();
+  ctx.translate(x, y + radius * 0.08);
+  ctx.scale(options.faceLeft ? -scale : scale, scale);
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  if (kind === "wisp") {
+    paintShape(ctx, "#f4f7ff", () => {
+      ctx.moveTo(0, -10);
+      ctx.quadraticCurveTo(8, -6, 6.2, 3);
+      ctx.quadraticCurveTo(4, 1 + step, 2, 6);
+      ctx.quadraticCurveTo(0, 3, -2, 6 - step * 0.6);
+      ctx.quadraticCurveTo(-5, 2, -6.2, 3);
+      ctx.quadraticCurveTo(-8, -6, 0, -10);
+      ctx.closePath();
+    });
+    ctx.fillStyle = "#2a2438";
+    ctx.beginPath();
+    ctx.ellipse(-2.2, -2.4, 1.05, 1.45, 0, 0, Math.PI * 2);
+    ctx.ellipse(2.2, -2.4, 1.05, 1.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === "coffin") {
+    paintShape(ctx, "#3a2a38", () => {
+      ctx.moveTo(-5.2, -9);
+      ctx.lineTo(5.2, -9);
+      ctx.lineTo(7, 7);
+      ctx.lineTo(-7, 7);
+      ctx.closePath();
+    });
+    ctx.strokeStyle = "#e8c547";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, -5);
+    ctx.lineTo(0, 3);
+    ctx.moveTo(-2.2, -1);
+    ctx.lineTo(2.2, -1);
+    ctx.stroke();
+    paintShape(ctx, "#c4b4a4", () => {
+      ctx.rect(-8, 1 + step * 0.2, 2.2, 5);
+    });
+    paintShape(ctx, "#c4b4a4", () => {
+      ctx.rect(5.8, 1 - step * 0.2, 2.2, 5);
+    });
+  } else if (kind === "split") {
+    ctx.save();
+    ctx.translate(-4.2, 0.4);
+    paintLantern(ctx, step, 0.72);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(4.4, -0.6);
+    paintLantern(ctx, -step, 0.62);
+    ctx.restore();
+  } else if (kind === "pip") {
+    paintLantern(ctx, step, 0.78);
+  } else if (kind === "trick") {
+    paintShape(ctx, "#3a2460", () => {
+      ctx.moveTo(-5, 6);
+      ctx.lineTo(-4, -1);
+      ctx.quadraticCurveTo(-6, -8, 0, -9);
+      ctx.quadraticCurveTo(6, -8, 4, -1);
+      ctx.lineTo(5, 6);
+      ctx.closePath();
+    });
+    paintShape(ctx, "#f4efe4", () => {
+      ctx.ellipse(0, -3.2, 2.6, 2.2, 0, 0, Math.PI * 2);
+    });
+    ctx.fillStyle = "#1a1020";
+    ctx.fillRect(-1.6, -3.6, 1, 1.1);
+    ctx.fillRect(0.6, -3.6, 1, 1.1);
+    paintShape(ctx, "#e07a12", () => {
+      ctx.moveTo(5, -2);
+      ctx.lineTo(9, 1);
+      ctx.lineTo(8, 6);
+      ctx.lineTo(4, 5);
+      ctx.closePath();
+    });
+    if (options.purse) {
+      ctx.fillStyle = "#e8c547";
+      ctx.beginPath();
+      ctx.arc(7, -6, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (kind === "crow") {
+    paintShape(ctx, "#8a5a28", () => {
+      ctx.moveTo(-6.5, -6);
+      ctx.lineTo(6.5, -6);
+      ctx.lineTo(4.2, -3.2);
+      ctx.lineTo(-4.2, -3.2);
+      ctx.closePath();
+    });
+    paintShape(ctx, "#e6c27a", () => {
+      ctx.ellipse(0, -1.5, 3.2, 2.8, 0, 0, Math.PI * 2);
+    });
+    paintShape(ctx, "#6a3a22", () => {
+      ctx.moveTo(-4, 6);
+      ctx.lineTo(-3, 0);
+      ctx.lineTo(3, 0);
+      ctx.lineTo(4, 6);
+      ctx.closePath();
+    });
+    ctx.strokeStyle = "#c4a15a";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-3, 1);
+    ctx.lineTo(-8, 3 + step * 0.3);
+    ctx.moveTo(3, 1);
+    ctx.lineTo(8, 2 - step * 0.3);
+    ctx.stroke();
+    ctx.fillStyle = "#2a1208";
+    ctx.fillRect(-1.3, -2, 0.8, 0.9);
+    ctx.fillRect(0.5, -2, 0.8, 0.9);
+  } else if (kind === "brew") {
+    paintShape(ctx, "#241820", () => {
+      ctx.moveTo(-6, -1);
+      ctx.quadraticCurveTo(-7, 7, 0, 7);
+      ctx.quadraticCurveTo(7, 7, 6, -1);
+      ctx.closePath();
+    });
+    ctx.strokeStyle = "#6a6870";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(0, -1, 6.2, 2.1, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "#3ecf6e";
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(-2, -4 - (step > 0 ? 1 : 0), 1.5, 0, Math.PI * 2);
+    ctx.arc(2.2, -6, 1.2, 0, Math.PI * 2);
+    ctx.arc(0.4, -8, 1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (kind === "king") {
+    paintShape(ctx, "#6a1848", () => {
+      ctx.moveTo(-4, -2);
+      ctx.lineTo(-9, 7);
+      ctx.lineTo(9, 7);
+      ctx.lineTo(4, -2);
+      ctx.closePath();
+    });
+    paintLantern(ctx, step * 0.4, 1.15);
+    ctx.fillStyle = "#e8c547";
+    ctx.beginPath();
+    ctx.moveTo(-6, -12);
+    ctx.lineTo(-4, -8);
+    ctx.lineTo(-2, -12);
+    ctx.lineTo(0, -8);
+    ctx.lineTo(2, -12);
+    ctx.lineTo(4, -8);
+    ctx.lineTo(6, -12);
+    ctx.lineTo(6, -7);
+    ctx.lineTo(-6, -7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#e85d4a";
+    ctx.beginPath();
+    ctx.arc(0, -9.2, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    paintLantern(ctx, step, 1);
+  }
+
+  ctx.restore();
+}
+
+/** A small pumpkin or stone on an empty night tile. */
+export function paintHallowYard(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  col: number,
+  row: number,
+): void {
+  const roll = tileHash(col * 19 + row * 47 + 3);
+  if (roll < 0.72) return;
+  if (roll < 0.9) paintYardMark(ctx, x + 8, y + 10, "pumpkin", 0.55);
+  else paintYardMark(ctx, x + 10, y + 8, "grave", 0.7);
+}
+
+export function paintYardMark(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  kind: "pumpkin" | "grave",
+  scale = 1,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  if (kind === "grave") {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(12, 28, 12, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    paintShape(ctx, "#8a8494", () => {
+      ctx.moveTo(4, 24);
+      ctx.lineTo(4, 10);
+      ctx.quadraticCurveTo(4, 2, 12, 2);
+      ctx.quadraticCurveTo(20, 2, 20, 10);
+      ctx.lineTo(20, 24);
+      ctx.closePath();
+    });
+    ctx.fillStyle = "#2a2430";
+    ctx.fillRect(10, 10, 4, 8);
+  } else {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+    ctx.beginPath();
+    ctx.ellipse(12, 26, 11, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    paintShape(ctx, "#e07a12", () => {
+      ctx.ellipse(12, 16, 10, 8, 0, 0, Math.PI * 2);
+    });
+    ctx.strokeStyle = "#9a4e08";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(8, 10);
+    ctx.quadraticCurveTo(8, 16, 8, 22);
+    ctx.moveTo(16, 10);
+    ctx.quadraticCurveTo(16, 16, 16, 22);
+    ctx.stroke();
+    ctx.fillStyle = "#2a1208";
+    ctx.beginPath();
+    ctx.moveTo(7, 14);
+    ctx.lineTo(10, 16);
+    ctx.lineTo(7, 17);
+    ctx.closePath();
+    ctx.moveTo(17, 14);
+    ctx.lineTo(14, 16);
+    ctx.lineTo(17, 17);
+    ctx.closePath();
+    ctx.fill();
+    paintShape(ctx, "#2f6a32", () => {
+      ctx.rect(11, 6, 2, 5);
+    });
+  }
+  ctx.restore();
+}
+
+export function paintHallowMoon(ctx: CanvasRenderingContext2D, width: number): void {
+  ctx.save();
+  ctx.fillStyle = "rgba(255, 236, 186, 0.14)";
+  ctx.beginPath();
+  ctx.arc(width - 58, 46, 34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f6e7c0";
+  ctx.beginPath();
+  ctx.arc(width - 58, 46, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#1a1028";
+  ctx.beginPath();
+  ctx.arc(width - 51, 42, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}

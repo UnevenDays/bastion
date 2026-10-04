@@ -293,6 +293,12 @@ body {
   border-color: #f0d78a;
 }
 
+.mode-badge.hallow {
+  color: #1a0c08;
+  background: linear-gradient(180deg, #f0a020 0%, #c45a12 100%);
+  border-color: #ffd18a;
+}
+
 .menu-tabs {
   display: flex;
   gap: 0;
@@ -304,8 +310,8 @@ body {
   flex: 1;
   font-family: var(--font-display);
   font-weight: 600;
-  font-size: 0.95rem;
-  padding: 10px 8px 8px;
+  font-size: 0.82rem;
+  padding: 10px 4px 8px;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
@@ -325,6 +331,58 @@ body {
 
 .menu-panel.hidden {
   display: none;
+}
+
+.mode-picker.hidden,
+#mode-blurb.hidden,
+#start-btn.hidden {
+  display: none !important;
+}
+
+.ticket-bar {
+  margin: 0 0 14px;
+  text-align: left;
+}
+
+.ticket-bar-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f0a020;
+}
+
+.ticket-track {
+  height: 16px;
+  border-radius: 999px;
+  background: #120a18;
+  border: 1px solid #6a3a78;
+  overflow: hidden;
+}
+
+.ticket-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c45a12, #f0a020 58%, #ffe08a);
+}
+
+.ticket-note {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.event-card {
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid #c46a2a;
+  background: #2a1428;
 }
 
 .minigame-card {
@@ -1456,7 +1514,7 @@ body {
 }
 
 .overlay-card.overlay-wide {
-  max-width: 440px;
+  max-width: 520px;
 }
 
 .game-mode-picker .mode-btn {

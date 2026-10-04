@@ -92,7 +92,8 @@ import {
   waveEnemyCount,
 } from "./config";
 import { campaignById, openSideSpurs, type CampaignLevel, type LevelWarrant } from "./campaign";
-import { blobShadow, paintBoardLight, paintCrew, paintTag, paintWideRoad, speckleTile, type CrewKind } from "./paint";
+import { HALLOW_LEVEL, HALLOW_MARKS } from "./hallow";
+import { blobShadow, paintBoardLight, paintCrew, paintHallow, paintHallowMoon, paintHallowYard, paintTag, paintWideRoad, paintYardMark, speckleTile, type CrewKind, type HallowFigure } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   DeathRecap,
@@ -208,6 +209,8 @@ export interface HudSnapshot {
   carrySellRefund: number;
   /** A level from the editor, with its own road and waves. */
   custom: boolean;
+  /** Hallow Gate, when this run is the Halloween event. */
+  event: "" | "hallow";
   /** Campaign road name. Empty on an editor level. */
   levelName: string;
   /** This road has water that cannot hold a tower. */
@@ -294,6 +297,29 @@ function enemyTag(e: Enemy): { text: string; color: string } | null {
   return null;
 }
 
+function hallowFigure(kind: Enemy["kind"]): HallowFigure {
+  if (kind === "fast") return "wisp";
+  if (kind === "tank") return "coffin";
+  if (kind === "splitter") return "split";
+  if (kind === "splitling") return "pip";
+  if (kind === "thief") return "trick";
+  if (kind === "sapper") return "crow";
+  if (kind === "spawner") return "brew";
+  if (kind === "boss" || kind === "finalBoss") return "king";
+  return "lantern";
+}
+
+function hallowTag(e: Enemy): { text: string; color: string } | null {
+  if (e.kind === "normal") return { text: "Lantern", color: "#f6e7c0" };
+  if (e.kind === "fast") return { text: "Wisp", color: "#f4f7ff" };
+  if (e.kind === "tank") return { text: "Coffin", color: "#f4efe4" };
+  if (e.kind === "splitter") return { text: "Split", color: "#f6e7c0" };
+  if (e.kind === "splitling") return { text: "Pip", color: "#f6e7c0" };
+  if (e.kind === "thief") return { text: "Trick", color: "#f4efe4" };
+  if (e.kind === "sapper") return { text: "Crow", color: "#f4efe4" };
+  return null;
+}
+
 function crewFor(kind: Enemy["kind"]): CrewKind {
   if (kind === "normal") return "grunt";
   if (kind === "fast") return "fast";
@@ -368,6 +394,7 @@ export class Game {
     y: p.row * CELL + CELL / 2,
   }));
   private custom: CustomLevel | null = null;
+  private eventId: "hallow" | null = null;
   private campaign: CampaignLevel = campaignById("road");
   private warrantIndex = 0;
   private roadCells: { col: number; row: number }[] = PATH.map((p) => ({ col: p.col, row: p.row }));
@@ -544,6 +571,7 @@ export class Game {
           ? 0
           : this.campaign.waves,
       custom: this.custom !== null,
+      event: this.eventId ?? "",
       levelName: this.custom ? "" : this.campaign.name,
       hasWater: !this.custom && this.campaign.water.length > 0,
       hasTrees: !this.custom && this.treeCells.length > 0,
@@ -1170,6 +1198,7 @@ export class Game {
 
   beginRun(difficulty: Difficulty, levelId = "road", warrant = 0): void {
     this.custom = null;
+    this.eventId = null;
     this.applyCampaign(campaignById(levelId));
     this.warrantIndex = this.clampWarrant(warrant);
     this.restart(difficulty);
@@ -1196,6 +1225,22 @@ export class Game {
   beginCustom(level: CustomLevel): void {
     const next = normalizeLevel(level);
     this.custom = next;
+    this.eventId = null;
+    this.applyCampaign(campaignById("road"));
+    this.water.clear();
+    this.usePath(next.path);
+    this.restart("normal");
+    this.gold = next.gold;
+    this.lives = next.lives;
+    this.maxLives = next.lives;
+    this.emitHud();
+  }
+
+  /** Hallow Gate: a night yard, then tickets for the lives still on the gate. */
+  beginHallow(): void {
+    const next = normalizeLevel(HALLOW_LEVEL);
+    this.custom = next;
+    this.eventId = "hallow";
     this.applyCampaign(campaignById("road"));
     this.water.clear();
     this.usePath(next.path);
@@ -2908,6 +2953,10 @@ export class Game {
     col: number,
     row: number,
   ): void {
+    if (this.eventId === "hallow") {
+      paintHallowYard(ctx, x, y, col, row);
+      return;
+    }
     const pattern = this.campaign.pattern;
     if (pattern === "blossom") {
       const sway = Math.sin(this.pulse * 1.3 + col * 0.8) * 1.6;
@@ -3040,13 +3089,18 @@ export class Game {
         const y = r * CELL;
         const crater = this.craters.has(pathKey(c, r));
         const wet = this.water.has(pathKey(c, r));
+        const night = this.eventId === "hallow";
         const shade = crater
           ? "#140e0c"
           : wet
             ? "#14343c"
-            : (c + r) % 2 === 0
-              ? this.grassA
-              : this.grassB;
+            : night
+              ? (c + r) % 2 === 0
+                ? "#241433"
+                : "#1a1028"
+              : (c + r) % 2 === 0
+                ? this.grassA
+                : this.grassB;
         ctx.fillStyle = shade;
         ctx.fillRect(x, y, CELL, CELL);
         if (wet && !crater) {
@@ -3094,10 +3148,22 @@ export class Game {
         this.drawGrassDecor(ctx, c * CELL, r * CELL, c, r);
       }
     }
+
+    if (this.eventId === "hallow") {
+      for (const mark of HALLOW_MARKS) {
+        if (this.pathSet.has(pathKey(mark.col, mark.row))) continue;
+        paintYardMark(ctx, mark.col * CELL + 6, mark.row * CELL + 4, mark.kind, 1);
+      }
+      paintHallowMoon(ctx, this.width);
+    }
   }
 
   private drawPath(ctx: CanvasRenderingContext2D): void {
-    paintWideRoad(ctx, this.waypoints, this.campaign.road, CELL);
+    const road =
+      this.eventId === "hallow"
+        ? { edge: "#c46a2a", fill: "#4a2414", dash: "rgba(255, 186, 72, 0.85)" }
+        : this.campaign.road;
+    paintWideRoad(ctx, this.waypoints, road, CELL);
     for (const spur of this.spurs) {
       paintWideRoad(
         ctx,
@@ -3914,12 +3980,17 @@ export class Game {
       const step = e.spur >= 0 ? e.spurIndex : e.pathIndex;
       const from = route?.[step] ?? { x: e.x, y: e.y };
       const to = route?.[Math.min(step + 1, (route?.length ?? 1) - 1)] ?? from;
-      paintCrew(ctx, e.x, e.y, e.radius, e.color, crewFor(e.kind), {
+      const facing = {
         faceLeft: to.x < from.x - 0.5,
         walk: this.pulse * 8 + e.id,
         cracked: e.cracked,
         purse: e.kind === "thief" && banditPurseOpen(e.age),
-      });
+      };
+      if (this.eventId === "hallow") {
+        paintHallow(ctx, e.x, e.y, e.radius, hallowFigure(e.kind), facing);
+      } else {
+        paintCrew(ctx, e.x, e.y, e.radius, e.color, crewFor(e.kind), facing);
+      }
 
       if (
         this.difficulty === "endless" &&
@@ -4003,13 +4074,17 @@ export class Game {
       ctx.fillRect(bx, by, barW * pct, barH);
       if (boss || e.kind === "challenger" || e.kind === "spawner") {
         const word =
-          e.kind === "finalBoss"
-            ? "FINAL"
-            : e.kind === "boss"
-              ? "BOSS"
-              : e.kind === "challenger"
-                ? "RIVAL"
-                : "SPAWN";
+          this.eventId === "hallow" && e.kind === "boss"
+            ? "KING"
+            : this.eventId === "hallow" && e.kind === "spawner"
+              ? "BREW"
+              : e.kind === "finalBoss"
+                ? "FINAL"
+                : e.kind === "boss"
+                  ? "BOSS"
+                  : e.kind === "challenger"
+                    ? "RIVAL"
+                    : "SPAWN";
         paintTag(ctx, word, e.x, by - 12, "#e8c547");
       }
       if (e.elite) {
@@ -4020,7 +4095,7 @@ export class Game {
         drawCrown(ctx, e.x, by - (marked ? 12 : 2));
       }
 
-      const tag = enemyTag(e);
+      const tag = this.eventId === "hallow" ? hallowTag(e) : enemyTag(e);
       if (tag) paintTag(ctx, tag.text, e.x, e.y + e.radius + 3, tag.color);
 
       if (this.difficulty !== "hard" && e.kind === "tank") {

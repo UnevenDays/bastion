@@ -16,6 +16,7 @@ import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
 import { CAMPAIGN } from "./game/campaign";
+import { TICKET_CAP, grantTickets, hallowPayout, loadTickets } from "./game/hallow";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
 import type { DeathRecap, Difficulty, GameMode, PatternKind, TargetMode, TowerKind } from "./game/types";
@@ -50,6 +51,10 @@ app.innerHTML = `
       <button class="home-choice" type="button" id="home-editor">
         <span class="home-choice-name">Level editor</span>
         <span class="home-choice-meta">Lay a road and choose its enemies</span>
+      </button>
+      <button class="home-choice" type="button" id="home-event">
+        <span class="home-choice-name">Event</span>
+        <span class="home-choice-meta">Hallow Gate pays event tickets</span>
       </button>
       <button class="home-choice" type="button" id="home-tutorial">
         <span class="home-choice-name">Tutorial</span>
@@ -118,6 +123,7 @@ app.innerHTML = `
             <button class="menu-tab selected" type="button" role="tab" id="tab-classic" aria-selected="true">Classic</button>
             <button class="menu-tab" type="button" role="tab" id="tab-minigames" aria-selected="false">Minigames</button>
             <button class="menu-tab" type="button" role="tab" id="tab-editor" aria-selected="false">Editor</button>
+            <button class="menu-tab" type="button" role="tab" id="tab-event" aria-selected="false">Event</button>
           </div>
           <h2 id="start-heading">Classic</h2>
 
@@ -135,6 +141,23 @@ app.innerHTML = `
             </div>
           </div>
           <div id="panel-editor" class="menu-panel hidden"></div>
+          <div id="panel-event" class="menu-panel hidden">
+            <p class="mode-blurb">Hallow Gate is one night on a pumpkin road. Lanterns, wisps, coffins, tricks, crows, and cauldrons, then the Pumpkin King. A coffin heals if nothing hits it. A trick steals gold.</p>
+            <div class="ticket-bar">
+              <div class="ticket-bar-head">
+                <span>Event tickets</span>
+                <span id="ticket-count">0 / 24</span>
+              </div>
+              <div class="ticket-track" id="ticket-track" role="progressbar" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0" aria-label="Event tickets">
+                <div class="ticket-fill" id="ticket-fill"></div>
+              </div>
+              <p class="ticket-note" id="ticket-note">Clear Hallow Gate. The lives still on the gate become tickets.</p>
+            </div>
+            <div class="event-card">
+              <span class="minigame-name">Hallow Gate</span>
+              <span class="minigame-meta">Six waves. The yard is dark, and the last wave is the Pumpkin King.</span>
+            </div>
+          </div>
           <div id="panel-minigames" class="menu-panel hidden">
             <button class="minigame-card selected" type="button" id="minigame-dungeon">
               <span class="minigame-name">Dungeon Crawler</span>
@@ -393,7 +416,13 @@ const panelMinigames = document.querySelector<HTMLElement>("#panel-minigames")!;
 const tabClassic = document.querySelector<HTMLButtonElement>("#tab-classic")!;
 const tabMinigames = document.querySelector<HTMLButtonElement>("#tab-minigames")!;
 const tabEditor = document.querySelector<HTMLButtonElement>("#tab-editor")!;
+const tabEvent = document.querySelector<HTMLButtonElement>("#tab-event")!;
 const panelEditor = document.querySelector<HTMLElement>("#panel-editor")!;
+const panelEvent = document.querySelector<HTMLElement>("#panel-event")!;
+const ticketCountEl = document.querySelector<HTMLElement>("#ticket-count")!;
+const ticketFillEl = document.querySelector<HTMLElement>("#ticket-fill")!;
+const ticketTrackEl = document.querySelector<HTMLElement>("#ticket-track")!;
+const ticketNoteEl = document.querySelector<HTMLElement>("#ticket-note")!;
 const menuBoard = document.querySelector<HTMLElement>("#menu-board")!;
 const menuScoreList = document.querySelector<HTMLOListElement>("#menu-score-list")!;
 const endlessScore = document.querySelector<HTMLElement>("#endless-score")!;
@@ -520,6 +549,7 @@ const LOAD_TIPS = [
   "The bastion holds the exit. Leaks crack the gate, and it mends between waves.",
   "The almanac lists your bench, the enemies on the road, and which towers work together.",
   "The tutorial puts one Archer on the first bend and shows the range over both roads.",
+  "Hallow Gate pays event tickets for the lives still on the gate.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -806,7 +836,9 @@ let chosenMode: GameMode = "bastion";
 let chosenLevel = "road";
 const warrantByLevel = new Map<string, number>();
 let activeMode: GameMode = "bastion";
-let menuView: "classic" | "minigames" | "editor" = "classic";
+let menuView: "classic" | "minigames" | "editor" | "event" = "classic";
+let eventAwarded = false;
+let eventGrant = { gained: 0, total: 0 };
 let activeLevel: CustomLevel | null = null;
 let savedThisRun = false;
 let pendingScore: { wave: number; gold: number } | null = null;
@@ -866,27 +898,50 @@ function syncDifficultyButtons(difficulty: Difficulty): void {
   );
 }
 
+function paintTickets(): void {
+  const total = loadTickets(localStorage);
+  ticketCountEl.textContent = `${total} / ${TICKET_CAP}`;
+  ticketFillEl.style.width = `${(total / TICKET_CAP) * 100}%`;
+  ticketTrackEl.setAttribute("aria-valuemax", String(TICKET_CAP));
+  ticketTrackEl.setAttribute("aria-valuenow", String(total));
+  ticketNoteEl.textContent =
+    total >= TICKET_CAP
+      ? "The ticket bar is full."
+      : total > 0
+        ? "Another clear adds the lives still on the gate."
+        : "Clear Hallow Gate. The lives still on the gate become tickets.";
+}
+
+function ticketPhrase(count: number): string {
+  return count === 1 ? "1 event ticket" : `${count} event tickets`;
+}
+
 function syncGameModeButtons(mode: GameMode): void {
   chosenMode = mode;
   const editor = menuView === "editor";
-  const minigames = !editor && mode !== "bastion";
+  const event = menuView === "event";
+  const minigames = !editor && !event && mode !== "bastion";
   tabClassic.classList.toggle("selected", menuView === "classic");
   tabMinigames.classList.toggle("selected", menuView === "minigames");
   tabEditor.classList.toggle("selected", editor);
+  tabEvent.classList.toggle("selected", event);
   tabClassic.setAttribute("aria-selected", String(menuView === "classic"));
   tabMinigames.setAttribute("aria-selected", String(menuView === "minigames"));
   tabEditor.setAttribute("aria-selected", String(editor));
+  tabEvent.setAttribute("aria-selected", String(event));
   panelClassic.classList.toggle("hidden", menuView !== "classic");
   panelMinigames.classList.toggle("hidden", menuView !== "minigames");
   panelEditor.classList.toggle("hidden", !editor);
+  panelEvent.classList.toggle("hidden", !event);
+  if (event) paintTickets();
   startOverlay.classList.toggle("editor-open", editor && !started);
-  modePicker.classList.toggle("hidden", editor);
-  modeBlurb.classList.toggle("hidden", editor);
+  modePicker.classList.toggle("hidden", editor || event);
+  modeBlurb.classList.toggle("hidden", editor || event);
   startBtn.classList.toggle("hidden", editor);
   dungeonCard.classList.toggle("selected", mode === "dungeon");
   lawnCard.classList.toggle("selected", mode === "lawn");
-  modeEndlessBtn.classList.toggle("hidden", minigames || editor);
-  endModeEndlessBtn.classList.toggle("hidden", minigames || editor);
+  modeEndlessBtn.classList.toggle("hidden", minigames || editor || event);
+  endModeEndlessBtn.classList.toggle("hidden", minigames || editor || event);
   if (minigames && chosenDifficulty === "endless") {
     syncDifficultyButtons("normal");
   }
@@ -894,25 +949,34 @@ function syncGameModeButtons(mode: GameMode): void {
     "hidden",
     menuView !== "classic" || chosenDifficulty !== "endless",
   );
-  startHeading.textContent = editor ? "Level Editor" : minigames ? "Minigames" : "Classic";
-  startBtn.textContent =
-    mode === "lawn"
+  startHeading.textContent = editor
+    ? "Level Editor"
+    : event
+      ? "Event"
+      : minigames
+        ? "Minigames"
+        : "Classic";
+  startBtn.textContent = event
+    ? "Enter Hallow Gate"
+    : mode === "lawn"
       ? "Play Sun Lawn"
       : mode === "dungeon"
         ? "Play Dungeon Crawler"
         : "Start Classic";
-  if (!minigames && !editor) paintRosterNote();
+  if (!minigames && !editor && !event) paintRosterNote();
   if (!editor) modeBlurb.textContent = difficultyBlurb(mode, chosenDifficulty);
   if (!started) {
     hintEl.textContent = editor
       ? "Lay the road, set gold and lives, then set the enemies in each wave."
-      : mode === "lawn"
+      : event
+        ? "Hallow Gate is a night yard. Build on the dark grass."
+        : mode === "lawn"
         ? "Plant on the lawn. The first 30 seconds have no zombies."
         : mode === "dungeon"
           ? "Select a trap or monster, then place it on the zigzag road."
           : "Select a tower, then click an empty grass tile to build.";
   }
-  applyChrome(editor ? "bastion" : mode);
+  applyChrome(editor || event ? "bastion" : mode);
   if (editor && !started) {
     toolbarBastion.classList.add("hidden");
     toolbarDungeon.classList.add("hidden");
@@ -963,10 +1027,15 @@ function syncBastionHud(hud: HudSnapshot): void {
     "lawn",
     "endless",
     "custom",
+    "hallow",
     "armor",
     "marked",
   );
-  if (hud.custom) {
+  if (hud.event === "hallow") {
+    modeBadge.classList.add("hallow");
+    modeBadge.textContent = "Hallow";
+    brandTitle.textContent = "Hallow Gate";
+  } else if (hud.custom) {
     modeBadge.classList.add("custom");
     modeBadge.textContent = "Custom";
   } else if (hud.difficulty === "hard") {
@@ -1316,14 +1385,25 @@ function syncBastionHud(hud: HudSnapshot): void {
           ? `Three banners is the limit. Sell one before placing another. Only one can be a Grand Banner.${terrainNote(hud)}`
           : `The field holds ${hud.banners} of ${BANNER_LIMIT} banners. Only one can be a Grand Banner. Click grass to build.${terrainNote(hud)}`;
     } else if (hud.selected) {
-      const onBench = menuView !== "editor" && loadout.includes(hud.selected);
+      const onBench = menuView === "classic" && loadout.includes(hud.selected);
       hintEl.textContent = `${TOWER_DEFS[hud.selected].name} ${onBench ? "is on your bench" : "selected"}. Click grass to build.${terrainNote(hud)}`;
+    } else if (hud.event === "hallow") {
+      hintEl.textContent = "Hallow Gate. Lanterns walk the orange road. Build on the dark grass.";
     } else {
       hintEl.textContent = `Select a tower, or click a placed tower to upgrade.${terrainNote(hud)}`;
     }
   }
 
-  showEndIfNeeded(hud.phase, hud.difficulty, hud.wave, "bastion", hud.custom, hud.gold);
+  showEndIfNeeded(
+    hud.phase,
+    hud.difficulty,
+    hud.wave,
+    "bastion",
+    hud.custom,
+    hud.gold,
+    hud.event,
+    hud.lives,
+  );
 }
 
 function syncTargeting(mode: TargetMode | null, inverted = false): void {
@@ -1354,6 +1434,7 @@ function syncDungeonHud(hud: DungeonHud): void {
     "lawn",
     "endless",
     "custom",
+    "hallow",
     "armor",
     "marked",
   );
@@ -1439,6 +1520,7 @@ function syncLawnHud(hud: LawnHud): void {
     "lawn",
     "endless",
     "custom",
+    "hallow",
     "armor",
     "marked",
   );
@@ -1515,6 +1597,8 @@ function showEndIfNeeded(
   mode: GameMode,
   custom = false,
   gold = 0,
+  event: "" | "hallow" = "",
+  lives = 0,
 ): void {
   const endlessLoss = phase === "lost" && mode === "bastion" && difficulty === "endless" && !custom;
   endlessScore.classList.toggle("hidden", !endlessLoss);
@@ -1524,51 +1608,66 @@ function showEndIfNeeded(
     scoreSaveBtn.disabled = savedThisRun;
     refreshBoards();
   }
+  if (phase === "won" && event === "hallow" && !eventAwarded) {
+    eventAwarded = true;
+    eventGrant = grantTickets(localStorage, hallowPayout(lives));
+    paintTickets();
+  }
   if (phase === "won") {
     deathRecapEl.classList.add("hidden");
     endTitle.textContent =
-      mode === "lawn"
-        ? difficulty === "hard"
-          ? "Lawn Held"
-          : "Lawn Clear"
-        : mode === "dungeon"
+      event === "hallow"
+        ? "Yard Held"
+        : mode === "lawn"
           ? difficulty === "hard"
-            ? "Crawler Cleared"
-            : "Dungeon Cleared"
-          : custom
-            ? "Level Clear"
-            : difficulty === "hard"
-              ? "Hard Victory"
-              : "Victory";
+            ? "Lawn Held"
+            : "Lawn Clear"
+          : mode === "dungeon"
+            ? difficulty === "hard"
+              ? "Crawler Cleared"
+              : "Dungeon Cleared"
+            : custom
+              ? "Level Clear"
+              : difficulty === "hard"
+                ? "Hard Victory"
+                : "Victory";
     endMsg.textContent =
-      mode === "lawn"
-        ? "The last shambler fell before it reached the house."
-        : mode === "dungeon"
-          ? "No adventurer escaped the zigzag. Your traps and monsters held the road."
-          : custom
-            ? "Every wave on your road is down."
-            : difficulty === "hard"
-              ? "You held the line on Hard — even against the Final Boss."
-              : "The Final Boss fell. The bastion holds.";
+      event === "hallow"
+        ? eventGrant.gained > 0
+          ? `The Pumpkin King fell. You earned ${ticketPhrase(eventGrant.gained)}. The Event tab bar reads ${eventGrant.total} of ${TICKET_CAP}.`
+          : `The Pumpkin King fell. The ticket bar is already full at ${TICKET_CAP}.`
+        : mode === "lawn"
+          ? "The last shambler fell before it reached the house."
+          : mode === "dungeon"
+            ? "No adventurer escaped the zigzag. Your traps and monsters held the road."
+            : custom
+              ? "Every wave on your road is down."
+              : difficulty === "hard"
+                ? "You held the line on Hard — even against the Final Boss."
+                : "The Final Boss fell. The bastion holds.";
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   } else if (phase === "lost") {
     endTitle.textContent =
-      mode === "lawn"
-        ? "They Reached the House"
-        : mode === "dungeon"
-          ? "Breach Escape"
-          : custom
-            ? "Road Fell"
-            : "Breach";
+      event === "hallow"
+        ? "Yard Fell"
+        : mode === "lawn"
+          ? "They Reached the House"
+          : mode === "dungeon"
+            ? "Breach Escape"
+            : custom
+              ? "Road Fell"
+              : "Breach";
     endMsg.textContent =
-      mode === "lawn"
-        ? `Shamblers crossed on wave ${wave}. Plant earlier and hold the lanes.`
-        : mode === "dungeon"
-          ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
-          : custom
-            ? `Your level fell on wave ${wave}.`
-            : difficulty === "endless"
+      event === "hallow"
+        ? `The yard broke through on wave ${wave}. A clear turns the lives you have left into tickets.`
+        : mode === "lawn"
+          ? `Shamblers crossed on wave ${wave}. Plant earlier and hold the lanes.`
+          : mode === "dungeon"
+            ? `Adventurers escaped on wave ${wave}. Fortify the road and try again.`
+            : custom
+              ? `Your level fell on wave ${wave}.`
+              : difficulty === "endless"
               ? `The endless run ended on wave ${wave}. Put your name on the board.`
               : difficulty === "hard"
                 ? `Hard mode crushed the line on wave ${wave}.`
@@ -1611,6 +1710,17 @@ function leakNames(mode: GameMode, kind: string): [string, string] {
     if (kind === "goblinHunter") return ["Goblin Hunter", "Goblin Hunters"];
     return ["Ogre Slayer", "Ogre Slayers"];
   }
+  if (menuView === "event") {
+    if (kind === "normal") return ["Lantern", "Lanterns"];
+    if (kind === "fast") return ["Wisp", "Wisps"];
+    if (kind === "tank") return ["Coffin", "Coffins"];
+    if (kind === "splitter") return ["Split Pumpkin", "Split Pumpkins"];
+    if (kind === "splitling") return ["Pip", "Pips"];
+    if (kind === "thief") return ["Trick", "Tricks"];
+    if (kind === "sapper") return ["Crow", "Crows"];
+    if (kind === "spawner") return ["Cauldron", "Cauldrons"];
+    if (kind === "boss") return ["Pumpkin King", "Pumpkin Kings"];
+  }
   if (kind === "normal") return ["Grunt", "Grunts"];
   if (kind === "fast") return ["Runner", "Runners"];
   if (kind === "tank") return ["Tank", "Tanks"];
@@ -1638,6 +1748,14 @@ function runnersDominate(leaks: DeathRecap["leaks"]): boolean {
 
 function deathTip(mode: GameMode, difficulty: Difficulty, custom: boolean, recap: DeathRecap): string {
   const leaks = recap.leaks;
+  if (menuView === "event") {
+    if (recap.spent === 0) return "Place an Archer on the dark grass before the lanterns walk.";
+    if (leakCount(leaks, "boss") > 0) return "The Pumpkin King costs several lives. Slow it before the gate.";
+    if (leakCount(leaks, "thief") > 0) return "A trick that reaches the gate keeps the gold it stole.";
+    if (runnersDominate(leaks)) return "Wisps are fast. Frost, or a corner, gives the line more shots.";
+    if (leakCount(leaks, "tank") > 0) return "A coffin heals to full after 3 quiet seconds. Keep a shot on it.";
+    return "Hold the yard through six waves. Lives left become event tickets.";
+  }
   if (mode === "lawn") {
     if (recap.spent === 0) return "The lawn pays 25 sun before the first wave. Plant with it.";
     const runners = leakCount(leaks, "runner");
@@ -1803,6 +1921,11 @@ tabEditor.addEventListener("click", () => {
   menuView = "editor";
   syncGameModeButtons("bastion");
 });
+tabEvent.addEventListener("click", () => {
+  menuView = "event";
+  activeLevel = null;
+  syncGameModeButtons("bastion");
+});
 dungeonCard.addEventListener("click", () => syncGameModeButtons("dungeon"));
 lawnCard.addEventListener("click", () => syncGameModeButtons("lawn"));
 
@@ -1913,13 +2036,19 @@ function startChosen(): void {
   started = true;
   savedThisRun = false;
   pendingScore = null;
+  eventAwarded = false;
   startOverlay.classList.remove("editor-open");
   startOverlay.classList.add("hidden");
   endOverlay.classList.add("hidden");
   deathRecapEl.classList.add("hidden");
   applyChrome(chosenMode);
   showStage("play");
-  if (chosenMode === "bastion" && activeLevel && menuView === "editor") {
+  if (chosenMode === "bastion" && menuView === "event") {
+    activeLevel = null;
+    bastion.setRoster(null);
+    bastion.beginHallow();
+    bastion.selectTower("archer");
+  } else if (chosenMode === "bastion" && activeLevel && menuView === "editor") {
     bastion.setRoster(null);
     bastion.beginCustom(activeLevel);
     bastion.selectTower("archer");
@@ -2015,6 +2144,12 @@ document.querySelector("#home-minigames")!.addEventListener("click", () => {
 });
 document.querySelector("#home-editor")!.addEventListener("click", () => {
   menuView = "editor";
+  syncGameModeButtons("bastion");
+  showStage("menu");
+});
+document.querySelector("#home-event")!.addEventListener("click", () => {
+  menuView = "event";
+  activeLevel = null;
   syncGameModeButtons("bastion");
   showStage("menu");
 });
