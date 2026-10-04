@@ -78,6 +78,12 @@ app.innerHTML = `
     </div>
     <div class="stats" id="stats">
       <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
+      <div class="speed-row" id="speed-row" role="group" aria-label="Game speed">
+        <button class="speed-btn" type="button" data-speed="0.5" title="Half speed. Click again for 1×.">0.5×</button>
+        <button class="speed-btn" type="button" data-speed="1.25" title="1.25× speed. Click again for 1×.">1.25×</button>
+        <button class="speed-btn" type="button" data-speed="2" title="Double speed. Click again for 1×.">2×</button>
+        <button class="speed-btn" type="button" data-speed="5" title="5× speed. Click again for 1×.">5×</button>
+      </div>
       <div class="stat"><span class="stat-label" id="lives-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
       <div class="stat"><span class="stat-label">Wave</span><span class="stat-value wave" id="wave">0</span></div>
       <div class="stat" id="shovel-stat-wrap"><span class="stat-label">Shovel</span><span class="stat-value shovel" id="shovel-stat">Ready</span></div>
@@ -213,13 +219,6 @@ app.innerHTML = `
         <span class="meta">Move or sell · 1× per wave</span>
       </button>
       <div class="actions">
-        <div class="speed-row hidden" id="speed-row" role="group" aria-label="Endless speed">
-          <span class="speed-label">Speed</span>
-          <button class="speed-btn selected" type="button" data-speed="1">1×</button>
-          <button class="speed-btn" type="button" data-speed="2">2×</button>
-          <button class="speed-btn" type="button" data-speed="5">5×</button>
-          <button class="speed-btn" type="button" data-speed="10">10×</button>
-        </div>
         <button class="btn btn-ghost" type="button" id="cancel-btn">Cancel</button>
         <button class="btn btn-primary" type="button" id="wave-btn">Start Wave</button>
       </div>
@@ -410,8 +409,20 @@ const speedButtons = [
   ...speedRow.querySelectorAll<HTMLButtonElement>(".speed-btn"),
 ];
 
-const GAME_SPEEDS = [1, 2, 5, 10] as const;
-let gameSpeed: (typeof GAME_SPEEDS)[number] = 1;
+const GAME_SPEEDS = [0.5, 1.25, 2, 5] as const;
+type GameSpeed = (typeof GAME_SPEEDS)[number];
+/** 1× until a speed button is on. Clicking the lit rate again returns here. */
+let gameSpeed = 1;
+
+function isGameSpeed(value: number): value is GameSpeed {
+  return GAME_SPEEDS.some((speed) => speed === value);
+}
+
+function paintSpeedButtons(): void {
+  for (const btn of speedButtons) {
+    btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
+  }
+}
 
 const TOWER_LIMIT = 8;
 const LOAD_TIPS = [
@@ -747,7 +758,7 @@ function refreshBoards(): void {
 
 function difficultyBlurb(mode: GameMode, difficulty: Difficulty): string {
   if (difficulty === "endless") {
-    return "No final wave. Speed is 1×, 2×, 5×, or 10×. Enemy health compounds by 10% of the current total at waves 15, 20, 25, 40, then every 15 waves. From wave 15, every five waves alternate: Armor soaks damage off each hit, then Marked, where only towers set to Strongest can hurt the pack. From wave 30, enemies drop no gold. A normal Mint is unchanged. Only a Midas Bank prints twice as slowly. A Challenger on waves 30, 40, and every 10 after leaves two bosses.";
+    return "No final wave. Next to gold, the match can run at 0.5×, 1.25×, 2×, or 5×. Enemy health compounds by 10% of the current total at waves 15, 20, 25, 40, then every 15 waves. From wave 15, every five waves alternate: Armor soaks damage off each hit, then Marked, where only towers set to Strongest can hurt the pack. From wave 30, enemies drop no gold. A normal Mint is unchanged. Only a Midas Bank prints twice as slowly. A Challenger on waves 30, 40, and every 10 after leaves two bosses.";
   }
   if (difficulty === "hard") {
     return "More enemies, more health, and a steeper ramp. Only true gamers would choose this.";
@@ -864,11 +875,6 @@ function syncBastionHud(hud: HudSnapshot): void {
       : "Used";
   shovelStatEl.classList.toggle("ready", hud.shovelReady && !hud.carrying);
   shovelStatEl.classList.toggle("used", !hud.shovelReady && !hud.carrying);
-
-  speedRow.classList.toggle("hidden", hud.difficulty !== "endless" || hud.custom);
-  for (const btn of speedButtons) {
-    btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
-  }
 
   modeBadge.classList.remove(
     "hidden",
@@ -1562,11 +1568,9 @@ speedRow.addEventListener("click", (event) => {
   );
   if (!btn?.dataset.speed) return;
   const next = Number(btn.dataset.speed);
-  if (next !== 1 && next !== 2 && next !== 5 && next !== 10) return;
-  gameSpeed = next;
-  for (const other of speedButtons) {
-    other.classList.toggle("selected", other === btn);
-  }
+  if (!isGameSpeed(next)) return;
+  gameSpeed = gameSpeed === next ? 1 : next;
+  paintSpeedButtons();
 });
 endModeNormalBtn.addEventListener("click", () => syncDifficultyButtons("normal"));
 endModeHardBtn.addEventListener("click", () => syncDifficultyButtons("hard"));
@@ -1885,20 +1889,23 @@ function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   const reading = !almanacEl.classList.contains("hidden");
-  if (activeMode === "bastion") {
-    const speed = bastion.difficulty === "endless" ? gameSpeed : 1;
-    let left = reading ? 0 : dt * speed;
+  const advance = (update: (step: number) => void) => {
+    if (reading) return;
+    let left = dt * gameSpeed;
     while (left > 0) {
       const step = Math.min(0.05, left);
-      bastion.update(step);
+      update(step);
       left -= step;
     }
+  };
+  if (activeMode === "bastion") {
+    advance((step) => bastion.update(step));
     bastion.draw(ctx);
   } else if (activeMode === "lawn") {
-    if (!reading) lawn.update(dt);
+    advance((step) => lawn.update(step));
     lawn.draw(ctx);
   } else {
-    if (!reading) dungeon.update(dt);
+    advance((step) => dungeon.update(step));
     dungeon.draw(ctx);
   }
   requestAnimationFrame(frame);
