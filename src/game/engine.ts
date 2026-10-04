@@ -91,9 +91,9 @@ import {
   upgradeCost,
   waveEnemyCount,
 } from "./config";
-import { campaignById, openSideSpurs, type CampaignLevel, type LevelWarrant } from "./campaign";
+import { campaignById, openSideSpurs, portalEnemyBonus, type CampaignLevel, type LevelWarrant } from "./campaign";
 import { HALLOW_LEVEL, HALLOW_MARKS } from "./hallow";
-import { blobShadow, paintBoardLight, paintCrew, paintHallow, paintHallowMoon, paintHallowYard, paintTag, paintWideRoad, paintYardMark, speckleTile, type CrewKind, type HallowFigure } from "./paint";
+import { blobShadow, paintBoardLight, paintCrew, paintHallow, paintHallowMoon, paintHallowYard, paintPortal, paintTag, paintWideRoad, paintYardMark, speckleTile, type CrewKind, type HallowFigure } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   DeathRecap,
@@ -221,6 +221,12 @@ export interface HudSnapshot {
   hasRocks: boolean;
   /** Night Watch fog shortens Auto range. */
   hasFog: boolean;
+  /** Blue portals on this road. 0 on the original road and on an editor level. */
+  portalTotal: number;
+  /** A later portal opens on this wave, or on the next one between waves. */
+  portalOpens: boolean;
+  /** When the next sealed portal opens. Empty once every mouth is open. */
+  portalSoon: string;
   /** Endless rule for this wave, or the next one while you are between waves. */
   mutator: EndlessMutator;
   /** Pack health multiplier for this wave, or the next one between waves. 1 through wave 5. */
@@ -399,6 +405,12 @@ export class Game {
   private warrantIndex = 0;
   private roadCells: { col: number; row: number }[] = PATH.map((p) => ({ col: p.col, row: p.row }));
   private spurs: { leave: number; rejoin: number; points: Vec2[] }[] = [];
+  private portals: {
+    openWave: number;
+    joinIndex: number;
+    cells: { col: number; row: number }[];
+    points: Vec2[];
+  }[] = [];
   private water = new Set<string>();
   private treeSet = new Set<string>();
   private treeCells: { col: number; row: number }[] = [];
@@ -577,6 +589,9 @@ export class Game {
       hasTrees: !this.custom && this.treeCells.length > 0,
       hasRocks: !this.custom && this.campaign.rocks,
       hasFog: !this.custom && this.campaign.fog,
+      portalTotal: this.custom ? 0 : this.portals.length,
+      portalOpens: this.portalOpensOn(this.shownWave()),
+      portalSoon: this.portalSoonText(),
       mutator:
         this.difficulty === "endless" && !this.custom
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
@@ -1326,6 +1341,40 @@ export class Game {
     for (const spur of built) {
       for (const cell of spur.cells) this.pathSet.add(pathKey(cell.col, cell.row));
     }
+    this.refreshPortals();
+  }
+
+  /** Blue mouths. Editor roads and Hallow Gate keep a single entrance. */
+  private refreshPortals(): void {
+    this.portals = [];
+    if (this.custom) return;
+    for (const spec of this.campaign.portals) {
+      if (spec.cells.length === 0) {
+        const start = this.waypoints[0];
+        if (!start) continue;
+        this.portals.push({ openWave: spec.openWave, joinIndex: 0, cells: [], points: [start] });
+        continue;
+      }
+      const joinIndex = this.roadCells.findIndex(
+        (cell) => cell.col === spec.join.col && cell.row === spec.join.row,
+      );
+      const join = this.waypoints[joinIndex];
+      if (joinIndex < 1 || !join) continue;
+      const cells = spec.cells.map((cell) => ({ col: cell.col, row: cell.row }));
+      this.portals.push({
+        openWave: spec.openWave,
+        joinIndex,
+        cells,
+        points: [
+          ...cells.map((cell) => ({
+            x: cell.col * CELL + CELL / 2,
+            y: cell.row * CELL + CELL / 2,
+          })),
+          join,
+        ],
+      });
+      for (const cell of cells) this.pathSet.add(pathKey(cell.col, cell.row));
+    }
   }
 
   private company(): LevelWarrant | undefined {
@@ -1350,10 +1399,49 @@ export class Game {
     return kind === "normal" && summoned;
   }
 
-  private queuedSpawns(): number {
+  private baseSpawns(): number {
     return this.custom
       ? customSpawnCount(this.custom, this.wave)
       : waveEnemyCount(this.wave, this.difficulty);
+  }
+
+  private queuedSpawns(): number {
+    return this.baseSpawns() + this.portalBonus();
+  }
+
+  /** 10% more enemies for each side portal that has opened. */
+  private portalBonus(): number {
+    return portalEnemyBonus(this.baseSpawns(), this.openSidePortals().length);
+  }
+
+  private openSidePortals() {
+    return this.portals.filter(
+      (portal) => portal.cells.length > 0 && this.portalIsOpen(portal.openWave),
+    );
+  }
+
+  private portalIsOpen(openWave: number): boolean {
+    if (this.wave <= 0) return openWave <= 1;
+    return this.wave >= openWave;
+  }
+
+  /** The wave on the button: the one running, or the next one between waves. */
+  private shownWave(): number {
+    if (this.custom) return this.wave;
+    if (this.waveInProgress) return this.wave;
+    return this.wave + 1;
+  }
+
+  private portalOpensOn(wave: number): boolean {
+    return this.portals.some((portal) => portal.openWave === wave && portal.openWave > 1);
+  }
+
+  private portalSoonText(): string {
+    if (this.custom) return "";
+    const next = this.portals.find(
+      (portal) => portal.cells.length > 0 && !this.portalIsOpen(portal.openWave),
+    );
+    return next ? `The next portal opens on wave ${next.openWave}.` : "";
   }
 
   screenToCell(sx: number, sy: number, canvas: HTMLCanvasElement): {
@@ -1567,6 +1655,9 @@ export class Game {
       spurIndex: 0,
       spurProgress: 0,
       nextSpur: 0,
+      portal: -1,
+      portalIndex: 0,
+      portalProgress: 0,
     };
   }
 
@@ -1600,6 +1691,7 @@ export class Game {
           e.y,
         );
         child.side = this.walksSide("normal", true);
+        this.keepOnPortal(e, child, 0.08 + n * 0.04);
         spawned.push(child);
       }
       this.burst(e.x, e.y, "#6a7a3a", 6);
@@ -1615,26 +1707,37 @@ export class Game {
     this.spawnTimer -= dt;
     if (this.spawnTimer > 0) return;
 
-    const index = this.queuedSpawns() - this.spawnQueue;
+    const total = this.queuedSpawns();
+    const bonus = this.portalBonus();
+    const index = total - this.spawnQueue;
+    const lanes = this.openSidePortals();
+    const lane = index < bonus ? lanes[index % Math.max(1, lanes.length)] : undefined;
+    const packIndex = index < bonus ? 0 : index - bonus;
     const def = this.custom
       ? customEnemyAt(this.custom, this.wave, index)
       : enemyForWave(
           this.wave,
-          index,
+          packIndex,
           this.difficulty,
           this.campaign.waves,
           this.activeWarrant()?.enemies,
         );
-    const start = this.waypoints[0];
+    const start = lane?.points[0] ?? this.waypoints[0];
     const leavesWeaker =
       !this.custom &&
+      !lane &&
       pressureMultiplier(this.wave) > 1 &&
       def.kind !== "boss" &&
       def.kind !== "finalBoss" &&
       def.kind !== "challenger" &&
       def.kind !== "splitter" &&
       def.kind !== "splitling";
-    const enemy = this.makeEnemy(this.dress(def), 0, 0, start.x, start.y, leavesWeaker);
+    const enemy = this.makeEnemy(this.dress(def), lane ? 0 : 0, 0, start?.x ?? 0, start?.y ?? 0, leavesWeaker);
+    if (lane) {
+      enemy.portal = this.portals.indexOf(lane);
+      enemy.portalIndex = 0;
+      enemy.portalProgress = 0;
+    }
     enemy.side = this.walksSide(def.kind, false);
     this.enemies.push(enemy);
     this.spawnQueue -= 1;
@@ -1684,7 +1787,7 @@ export class Game {
 
       if (!holding) this.moveEnemy(e, e.speed * dt);
 
-      if (e.spur < 0 && e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
+      if (e.spur < 0 && e.portal < 0 && e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
         this.recordLeak(e.kind);
         this.lives -= e.leakDamage;
         this.gateFlash = 0.45;
@@ -2632,6 +2735,10 @@ export class Game {
     let guard = 0;
     while (remaining > 0 && guard < 12) {
       guard += 1;
+      if (e.portal >= 0) {
+        remaining = this.walkPortal(e, remaining);
+        continue;
+      }
       if (e.spur >= 0) {
         remaining = this.walkSpur(e, remaining);
         continue;
@@ -2662,6 +2769,73 @@ export class Game {
         remaining = 0;
       }
     }
+  }
+
+  /** Walk a portal lane onto the road that leads to the bastion. */
+  private walkPortal(e: Enemy, remaining: number): number {
+    const lane = this.portals[e.portal];
+    if (!lane) {
+      e.portal = -1;
+      return remaining;
+    }
+    while (remaining > 0 && e.portalIndex < lane.points.length - 1) {
+      const a = lane.points[e.portalIndex];
+      const b = lane.points[e.portalIndex + 1];
+      if (!a || !b) break;
+      const segLen = dist(a, b);
+      if (segLen <= 0) {
+        e.portalIndex += 1;
+        e.portalProgress = 0;
+        continue;
+      }
+      const distLeft = (1 - e.portalProgress) * segLen;
+      if (remaining >= distLeft) {
+        remaining -= distLeft;
+        e.portalIndex += 1;
+        e.portalProgress = 0;
+        e.x = b.x;
+        e.y = b.y;
+      } else {
+        e.portalProgress += remaining / segLen;
+        e.x = a.x + (b.x - a.x) * e.portalProgress;
+        e.y = a.y + (b.y - a.y) * e.portalProgress;
+        return 0;
+      }
+    }
+    if (e.portalIndex >= lane.points.length - 1) {
+      e.pathIndex = lane.joinIndex;
+      e.progress = 0;
+      const back = this.waypoints[lane.joinIndex];
+      if (back) {
+        e.x = back.x;
+        e.y = back.y;
+      }
+      e.portal = -1;
+      this.tryEnterSpur(e);
+    }
+    return remaining;
+  }
+
+  /** A child born on a portal lane stays on that lane. */
+  private keepOnPortal(parent: Enemy, child: Enemy, offset: number): void {
+    if (parent.portal < 0) return;
+    const lane = this.portals[parent.portal];
+    if (!lane || lane.points.length < 2) return;
+    let index = parent.portalIndex;
+    let progress = parent.portalProgress + offset;
+    if (progress >= 1 && index < lane.points.length - 2) {
+      index += 1;
+      progress = 0.15;
+    }
+    progress = Math.min(0.9, Math.max(0, progress));
+    const a = lane.points[index];
+    const b = lane.points[Math.min(index + 1, lane.points.length - 1)];
+    if (!a || !b) return;
+    child.portal = parent.portal;
+    child.portalIndex = index;
+    child.portalProgress = progress;
+    child.x = a.x + (b.x - a.x) * progress;
+    child.y = a.y + (b.y - a.y) * progress;
   }
 
   /** Walk a side lane and rejoin the road. Returns distance still to walk. */
@@ -2820,7 +2994,9 @@ export class Game {
         this.waypoints[Math.min(pathIndex + 1, this.waypoints.length - 1)];
       const x = a.x + (b.x - a.x) * progress;
       const y = a.y + (b.y - a.y) * progress;
-      spawned.push(this.makeEnemy(child, pathIndex, progress, x, y));
+      const born = this.makeEnemy(child, pathIndex, progress, x, y);
+      this.keepOnPortal(e, born, off);
+      spawned.push(born);
     }
   }
 
@@ -3164,6 +3340,18 @@ export class Game {
         ? { edge: "#c46a2a", fill: "#4a2414", dash: "rgba(255, 186, 72, 0.85)" }
         : this.campaign.road;
     paintWideRoad(ctx, this.waypoints, road, CELL);
+    for (const portal of this.portals) {
+      if (portal.points.length < 2) continue;
+      const open = this.portalIsOpen(portal.openWave);
+      paintWideRoad(
+        ctx,
+        portal.points,
+        open
+          ? { edge: "#6eb6e8", fill: "#24506e", dash: "rgba(190, 230, 255, 0.8)" }
+          : { edge: "#3d5870", fill: "#1c3344", dash: "rgba(140, 170, 190, 0.35)" },
+        CELL,
+      );
+    }
     for (const spur of this.spurs) {
       paintWideRoad(
         ctx,
@@ -3254,6 +3442,18 @@ export class Game {
     const prev = this.waypoints[this.waypoints.length - 2];
     if (!start || !end) return;
     const pulse = 0.5 + 0.5 * Math.sin(this.pulse * 3);
+
+    if (!this.custom && this.portals.length > 0) {
+      for (const portal of this.portals) {
+        const mouth = portal.points[0];
+        if (!mouth) continue;
+        const open = this.portalIsOpen(portal.openWave);
+        paintPortal(ctx, mouth.x, mouth.y, open, this.pulse * (open ? 1.4 : 0.2));
+        if (!open) paintTag(ctx, `Wave ${portal.openWave}`, mouth.x, mouth.y + 18, "#9fd4ff");
+      }
+      this.drawBastion(ctx, end, prev);
+      return;
+    }
 
     ctx.fillStyle = `rgba(94, 207, 138, ${0.25 + pulse * 0.2})`;
     ctx.beginPath();
@@ -3976,8 +4176,13 @@ export class Game {
         ctx.fill();
       }
 
-      const route = e.spur >= 0 ? this.spurs[e.spur]?.points : this.waypoints;
-      const step = e.spur >= 0 ? e.spurIndex : e.pathIndex;
+      const route =
+        e.portal >= 0
+          ? this.portals[e.portal]?.points
+          : e.spur >= 0
+            ? this.spurs[e.spur]?.points
+            : this.waypoints;
+      const step = e.portal >= 0 ? e.portalIndex : e.spur >= 0 ? e.spurIndex : e.pathIndex;
       const from = route?.[step] ?? { x: e.x, y: e.y };
       const to = route?.[Math.min(step + 1, (route?.length ?? 1) - 1)] ?? from;
       const facing = {

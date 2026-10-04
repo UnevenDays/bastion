@@ -15,7 +15,7 @@ import { mountEditor } from "./editorPanel";
 import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
-import { CAMPAIGN } from "./game/campaign";
+import { CAMPAIGN, portalNote } from "./game/campaign";
 import { TICKET_CAP, grantTickets, hallowPayout, loadTickets } from "./game/hallow";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
@@ -710,6 +710,9 @@ function currentAlmanacQuery() {
     }
   } else if (mode === "bastion") {
     for (const kind of warrant.enemies) faced.add(kind);
+    if (level.portals.length > 1) {
+      roadLabel += ` ${level.portals.length} blue portals. Later ones open along the road, and each adds 10% more enemies.`;
+    }
     faced.add("boss");
     faced.add(chosenDifficulty === "endless" ? "challenger" : "finalBoss");
   }
@@ -1066,10 +1069,11 @@ function syncBastionHud(hud: HudSnapshot): void {
     hud.mutator === "armor" ? " · Armor" : hud.mutator === "marked" ? " · Marked" : "";
   const pressureTag = hud.pressure > 1 ? ` · ×${hud.pressure.toFixed(2)}` : "";
   const eliteTag = hud.elites ? " · Crown" : "";
+  const portalTag = hud.portalOpens ? " · Portal" : "";
   waveBtn.textContent = hud.waveInProgress
-    ? `Wave ${hud.wave}${pressureTag}${mutatorTag}${eliteTag}…`
+    ? `Wave ${hud.wave}${pressureTag}${mutatorTag}${eliteTag}${portalTag}…`
     : hud.difficulty === "endless" || hud.wave < hud.totalWaves
-      ? `Start Wave ${hud.wave + 1}${pressureTag}${mutatorTag}${eliteTag}`
+      ? `Start Wave ${hud.wave + 1}${pressureTag}${mutatorTag}${eliteTag}${portalTag}`
       : "Complete";
 
   applyTowerRoster();
@@ -1390,7 +1394,8 @@ function syncBastionHud(hud: HudSnapshot): void {
     } else if (hud.event === "hallow") {
       hintEl.textContent = "Hallow Gate. Lanterns walk the orange road. Build on the dark grass.";
     } else {
-      hintEl.textContent = `Select a tower, or click a placed tower to upgrade.${terrainNote(hud)}`;
+      const portalHint = hud.portalSoon ? ` ${hud.portalSoon} Each new portal adds 10% more enemies.` : "";
+      hintEl.textContent = `Select a tower, or click a placed tower to upgrade.${terrainNote(hud)}${portalHint}`;
     }
   }
 
@@ -1841,7 +1846,7 @@ function paintLevels(): void {
   levelPicker.innerHTML = CAMPAIGN.map((level) => {
     return `<button class="level-btn${level.id === chosenLevel ? " selected" : ""}" type="button" data-level="${level.id}">
       <span class="level-name">${level.name}</span>
-      <span class="level-meta">${level.waves} waves${terrainTags(level)}</span>
+      <span class="level-meta">${level.waves} waves${terrainTags(level)}${level.portals.length > 1 ? ` · ${level.portals.length} portals` : ""}</span>
     </button>`;
   }).join("");
   paintWarrants();
@@ -1862,7 +1867,7 @@ function paintWarrants(): void {
   const huskNote = warrant.enemies.includes("husk")
     ? " A Desert Husk cracks at half health and sprints."
     : "";
-  warrantBlurb.textContent = `${level.blurb} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  warrantBlurb.textContent = `${level.blurb}${portalNote(level)} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
   if (!started) {
     bastion.beginRun(chosenDifficulty, level.id, picked);
   }

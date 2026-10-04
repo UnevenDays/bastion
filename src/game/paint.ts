@@ -780,6 +780,48 @@ export function paintYardMark(
   ctx.restore();
 }
 
+/** A blue mouth. Closed ones stay dim until their wave. */
+export function paintPortal(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  open: boolean,
+  spin: number,
+): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.beginPath();
+  ctx.ellipse(1, 4, 16, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = open ? "rgba(70, 160, 255, 0.55)" : "rgba(28, 52, 82, 0.8)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 16, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = open ? "#9fd8ff" : "#4a6a88";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = open ? "#e8f6ff" : "#7f9bb4";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 7, 5, spin, 0, Math.PI * 1.65);
+  ctx.stroke();
+  if (open) {
+    ctx.fillStyle = "rgba(210, 236, 255, 0.9)";
+    ctx.beginPath();
+    ctx.ellipse(-2, -1, 2.2, 1.4, spin, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.strokeStyle = "#14202c";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-7, 0);
+    ctx.lineTo(7, 0);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export function paintHallowMoon(ctx: CanvasRenderingContext2D, width: number): void {
   ctx.save();
   ctx.fillStyle = "rgba(255, 236, 186, 0.14)";

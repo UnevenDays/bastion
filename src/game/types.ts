@@ -204,6 +204,10 @@ export interface Enemy {
   spurProgress: number;
   /** Next side path this enemy has not taken yet. */
   nextSpur: number;
+  /** Portal lane while this enemy is still walking in from a side mouth. -1 on the main road. */
+  portal: number;
+  portalIndex: number;
+  portalProgress: number;
 }
 
 export interface Projectile {

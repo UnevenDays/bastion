@@ -36,8 +36,20 @@ export interface CampaignLevel {
   road: { edge: string; fill: string; dash: string };
   /** Soft tint over the grass. Empty on the original four roads. */
   wash: string;
+  /** Blue mouths on the later roads. Empty on the original road. */
+  portals: readonly LevelPortal[];
   /** Three enemy patterns. Each one sends one to four kinds. */
   warrants: readonly [LevelWarrant, LevelWarrant, LevelWarrant];
+}
+
+/** A blue mouth. An empty lane is the entrance that used to say IN. */
+export interface LevelPortal {
+  /** First wave this mouth sends. The entrance is wave 1. */
+  openWave: number;
+  /** Mouth first, not including the main-road tile it steps onto. */
+  cells: readonly CampaignCell[];
+  /** Main-road tile this lane joins. The entrance uses the start of the road. */
+  join: CampaignCell;
 }
 
 export interface LevelWarrant {
@@ -134,6 +146,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "tufts",
     road: DIRT,
     wash: "",
+    portals: [],
     warrants: [
       { id: "red-column", name: "Red Column", enemies: ["normal", "fast", "tank", "sapper"], gimmick: "Soaks 4 damage off every hit.", soak: 4 },
       { id: "cutpurse", name: "Cutpurse Line", enemies: ["normal", "thief", "splitter"], gimmick: "Bandits steal 3 gold a second.", steal: 3 },
@@ -161,6 +174,10 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "stripes",
     road: DIRT,
     wash: "",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 8 } },
+      { openWave: 7, cells: [{ col: 0, row: 1 }, { col: 1, row: 1 }], join: { col: 2, row: 1 } },
+    ],
     warrants: [
       { id: "sprinters", name: "Sprinters", enemies: ["fast", "thief"], gimmick: "The pack moves 30% faster.", speed: 1.3 },
       { id: "iron-fold", name: "Iron Fold", enemies: ["tank", "splitter", "normal"], gimmick: "The pack has 30% more health.", hp: 1.3 },
@@ -210,6 +227,20 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "marsh",
     road: DIRT,
     wash: "",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 3 } },
+      {
+        openWave: 8,
+        cells: [
+          { col: 0, row: 8 },
+          { col: 1, row: 8 },
+          { col: 2, row: 8 },
+          { col: 3, row: 8 },
+          { col: 4, row: 8 },
+        ],
+        join: { col: 5, row: 8 },
+      },
+    ],
     warrants: [
       { id: "bog-shields", name: "Bog Shields", enemies: ["tank", "spawner", "normal"], gimmick: "Soaks 6 damage off every hit.", soak: 6 },
       { id: "reed-split", name: "Reed Split", enemies: ["normal", "splitter", "sapper"], gimmick: "A splitter leaves three children.", children: 3 },
@@ -239,6 +270,11 @@ export const CAMPAIGN: CampaignLevel[] = [
     pattern: "cobble",
     road: DIRT,
     wash: "",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 1 } },
+      { openWave: 7, cells: [{ col: 0, row: 8 }, { col: 1, row: 8 }], join: { col: 2, row: 8 } },
+      { openWave: 13, cells: [{ col: 0, row: 4 }, { col: 1, row: 4 }], join: { col: 2, row: 4 } },
+    ],
     warrants: [
       { id: "long-split", name: "Long Split", enemies: ["splitter", "fast", "normal"], gimmick: "Splitter children keep half the parent's health.", childHp: 0.5 },
       { id: "bulwark", name: "Bulwark", enemies: ["tank"], gimmick: "Tanks have 50% more health and move slower.", hp: 1.5, speed: 0.85 },
@@ -289,6 +325,10 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(244, 190, 200, 0.4)",
     },
     wash: "rgba(255, 186, 196, 0.08)",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 2 } },
+      { openWave: 9, cells: [{ col: 0, row: 7 }, { col: 0, row: 8 }], join: { col: 1, row: 8 } },
+    ],
     warrants: [
       { id: "petal-rush", name: "Petal Rush", enemies: ["fast", "normal", "thief"], gimmick: "The pack moves 25% faster.", speed: 1.25 },
       { id: "bloom-nest", name: "Bloom Nest", enemies: ["splitter", "spawner"], gimmick: "The nest summons two at a time.", twins: true },
@@ -322,6 +362,19 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(214, 218, 210, 0.32)",
     },
     wash: "rgba(170, 196, 206, 0.07)",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 8 } },
+      { openWave: 8, cells: [{ col: 0, row: 1 }, { col: 1, row: 1 }], join: { col: 2, row: 1 } },
+      {
+        openWave: 15,
+        cells: [
+          { col: 15, row: 8 },
+          { col: 14, row: 8 },
+          { col: 13, row: 8 },
+        ],
+        join: { col: 12, row: 8 },
+      },
+    ],
     warrants: [
       { id: "stone-line", name: "Stone Line", enemies: ["tank", "normal", "splitter", "sapper"], gimmick: "The pack has 25% more health.", hp: 1.25 },
       { id: "dust-pockets", name: "Dust Pockets", enemies: ["thief", "splitter"], gimmick: "Bandits steal 2 gold, and a kill returns none of it.", steal: 2, refund: 0 },
@@ -355,6 +408,10 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(232, 208, 140, 0.4)",
     },
     wash: "rgba(16, 14, 36, 0.2)",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 1 } },
+      { openWave: 11, cells: [{ col: 0, row: 8 }, { col: 1, row: 8 }], join: { col: 2, row: 8 } },
+    ],
     warrants: [
       { id: "lantern-thieves", name: "Lantern Bandits", enemies: ["thief", "sapper", "fast"], gimmick: "Bandits steal 2 gold, and the pack is faster.", steal: 2, speed: 1.2 },
       { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"], gimmick: "The pack has more health, and summons come sooner.", hp: 1.15, brood: 2.2 },
@@ -388,6 +445,11 @@ export const CAMPAIGN: CampaignLevel[] = [
       dash: "rgba(255, 236, 196, 0.4)",
     },
     wash: "rgba(214, 168, 92, 0.12)",
+    portals: [
+      { openWave: 1, cells: [], join: { col: 0, row: 2 } },
+      { openWave: 9, cells: [{ col: 0, row: 8 }, { col: 1, row: 8 }], join: { col: 2, row: 8 } },
+      { openWave: 18, cells: [{ col: 0, row: 5 }, { col: 1, row: 5 }], join: { col: 2, row: 5 } },
+    ],
     warrants: [
       { id: "husk-line", name: "Husk Line", enemies: ["husk"], gimmick: "A Desert Husk cracks at 70% health.", crack: 0.7 },
       { id: "dry-wind", name: "Dry Wind", enemies: ["husk", "fast", "thief"], gimmick: "The pack is faster, and a cracked husk sprints harder.", speed: 1.2, sprint: 1.25 },
@@ -395,6 +457,21 @@ export const CAMPAIGN: CampaignLevel[] = [
     ],
   },
 ];
+
+/** Extra enemies from portals that have opened, 10% of the pack for each one. */
+export function portalEnemyBonus(base: number, openSides: number): number {
+  if (base <= 0 || openSides <= 0) return 0;
+  return openSides * Math.max(1, Math.round(base * 0.1));
+}
+
+/** One sentence for the road card. Empty on the original road. */
+export function portalNote(level: CampaignLevel): string {
+  const later = level.portals.filter((portal) => portal.openWave > 1);
+  if (later.length === 0) return "";
+  const waves = later.map((portal) => `wave ${portal.openWave}`).join(" and ");
+  const mouths = later.length === 1 ? "A second portal opens" : "Two more portals open";
+  return ` ${mouths} on ${waves}. Each one adds 10% more enemies, and its lane joins the road to the bastion.`;
+}
 
 export function campaignById(id: string): CampaignLevel {
   return CAMPAIGN.find((level) => level.id === id) ?? CAMPAIGN[0]!;
