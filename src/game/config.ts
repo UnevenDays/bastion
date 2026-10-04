@@ -66,6 +66,13 @@ export const SAPPER_SILENCE = 4;
 /** Cell distance at which a sapper stops on a tower. Covers the next tile, including a diagonal. */
 export const SAPPER_REACH = 1.5;
 
+/** Desert Husk health before wave scaling. A dried shell, tougher than a tank. */
+export const HUSK_HP = 130;
+/** Speed while the shell is whole. */
+export const HUSK_SPEED = 34;
+/** Speed after the shell cracks at half health. */
+export const HUSK_SPRINT = 108;
+
 /** How long a Pyro burn lasts. A slow clears it immediately. */
 export const PYRO_BURN_TIME = 2.4;
 /** Burn damage per second, as a fraction of the hit that set it. */
@@ -859,6 +866,17 @@ function fodderDef(kind: PatternKind, wave: number): EnemyDef {
       radius: 12,
       color: "#6e4b9a",
       leakDamage: 1,
+    };
+  }
+  if (kind === "husk") {
+    return {
+      kind,
+      hp: Math.round(HUSK_HP * scale),
+      speed: HUSK_SPEED,
+      reward: 14 + wave,
+      radius: 15,
+      color: "#e0b15a",
+      leakDamage: 2,
     };
   }
   return {

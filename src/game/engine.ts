@@ -45,6 +45,7 @@ import {
   nukeRemainingHp,
   SAPPER_REACH,
   SAPPER_SILENCE,
+  HUSK_SPRINT,
   PYRO_BURN_TIME,
   pyroBurnDps,
   pyroHitDamage,
@@ -937,6 +938,7 @@ export class Game {
       sapperRow: null,
       sapperLeft: 0,
       sapperDone: false,
+      cracked: false,
     };
   }
 
@@ -1799,6 +1801,25 @@ export class Game {
     if (dealt <= 0) return;
     e.hp -= dealt;
     e.sinceDamage = 0;
+    this.crackHusk(e);
+  }
+
+  /** A Desert Husk drops its shell at half health and sprints. */
+  private crackHusk(e: Enemy): void {
+    if (e.kind !== "husk" || e.cracked || e.hp <= 0 || e.hp > e.maxHp * 0.5) return;
+    e.cracked = true;
+    const sprint = Math.max(HUSK_SPRINT, Math.round(e.baseSpeed * 3.2));
+    if (e.slowTimer > 0 && e.baseSpeed > 0) {
+      const ratio = e.speed / e.baseSpeed;
+      e.baseSpeed = sprint;
+      e.speed = sprint * ratio;
+    } else {
+      e.baseSpeed = sprint;
+      e.speed = sprint;
+    }
+    e.radius = 10;
+    e.color = "#f3d7a2";
+    this.burst(e.x, e.y, "#e0b15a", 12);
   }
 
   /**
@@ -2047,6 +2068,15 @@ export class Game {
       ctx.lineTo(x + 34, y + 40);
       ctx.closePath();
       ctx.stroke();
+      return;
+    }
+    if (pattern === "dunes") {
+      ctx.fillStyle = "rgba(232, 196, 120, 0.2)";
+      ctx.beginPath();
+      ctx.ellipse(x + 20, y + 30, 14, 4.5, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(92, 58, 28, 0.55)";
+      ctx.fillRect(x + 34, y + 12, 2, 7);
       return;
     }
     if (pattern === "embers") {
@@ -2819,6 +2849,9 @@ export class Game {
         ctx.lineTo(e.x + r, e.y + r * 0.72);
         ctx.lineTo(e.x - r, e.y + r * 0.72);
         ctx.closePath();
+      } else if (e.kind === "husk") {
+        const r = e.radius;
+        ctx.ellipse(e.x, e.y, r * 1.2, r * 0.68, 0, 0, Math.PI * 2);
       } else {
         ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
       }
@@ -2898,6 +2931,14 @@ export class Game {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("$", e.x + 5, e.y - 1);
+      } else if (e.kind === "husk") {
+        ctx.strokeStyle = e.cracked ? "#6a3a18" : "rgba(90, 58, 24, 0.7)";
+        ctx.lineWidth = e.cracked ? 2.5 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(e.x - e.radius * 0.15, e.y - e.radius * 0.4);
+        ctx.lineTo(e.x + e.radius * 0.2, e.y + e.radius * 0.05);
+        ctx.lineTo(e.x - e.radius * 0.05, e.y + e.radius * 0.42);
+        ctx.stroke();
       } else if (e.kind === "sapper") {
         ctx.strokeStyle = "#2a140c";
         ctx.lineWidth = 2;

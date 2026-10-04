@@ -33,7 +33,8 @@ export type EnemyKind =
   | "finalBoss"
   | "challenger"
   | "thief"
-  | "sapper";
+  | "sapper"
+  | "husk";
 
 /** Kinds a road warrant may send. Bosses are added by the wave, not by the warrant. */
 export type PatternKind =
@@ -43,7 +44,8 @@ export type PatternKind =
   | "splitter"
   | "spawner"
   | "thief"
-  | "sapper";
+  | "sapper"
+  | "husk";
 
 export interface TowerDef {
   kind: TowerKind;
@@ -172,6 +174,8 @@ export interface Enemy {
   sapperLeft: number;
   /** This sapper already shut one tower off. */
   sapperDone: boolean;
+  /** Desert Husk has broken its shell and is sprinting. */
+  cracked: boolean;
 }
 
 export interface Projectile {

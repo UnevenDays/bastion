@@ -28,7 +28,7 @@ app.innerHTML = `
   <section class="gate hidden" id="home-screen">
     <p class="gate-kicker">Tower defense</p>
     <h1 class="gate-title">Bastion Breach</h1>
-    <p class="home-lead">Hold the road across seven maps. Bring a short bench of towers, then spend the gold they earn.</p>
+    <p class="home-lead">Hold the road across eight maps. Bring a short bench of towers, then spend the gold they earn.</p>
     <div class="home-actions">
       <button class="home-choice" type="button" id="home-classic">
         <span class="home-choice-name">Classic</span>
@@ -85,7 +85,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Seven roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Marsh has water you cannot build on.</p>
+            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Desert sends the Desert Husk. Marsh has water you cannot build on.</p>
             <p class="roster-note" id="roster-note"></p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <p class="warrant-label">Warrant</p>
@@ -366,6 +366,7 @@ const LOAD_TIPS = [
   "A Chomp on a Marked wave bites only if it is set to Strongest.",
   "Killing a Thief returns 20% of the gold it stole.",
   "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
+  "A Desert Husk cracks at half health, then it sprints.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -1112,6 +1113,7 @@ function patternLabel(kind: PatternKind): string {
   if (kind === "splitter") return "Splitters";
   if (kind === "spawner") return "Spawners";
   if (kind === "thief") return "Thieves";
+  if (kind === "husk") return "Desert Husks";
   return "Sappers";
 }
 
@@ -1145,7 +1147,13 @@ function paintWarrants(): void {
     })
     .join("");
   const warrant = level.warrants[picked] ?? level.warrants[0]!;
-  warrantBlurb.textContent = `${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.`;
+  const huskNote = warrant.enemies.includes("husk")
+    ? " A Desert Husk cracks at half health and sprints."
+    : "";
+  warrantBlurb.textContent = `${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  if (!started) {
+    bastion.beginRun(chosenDifficulty, level.id, picked);
+  }
 }
 
 syncGameModeButtons("bastion");

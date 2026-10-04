@@ -13,7 +13,8 @@ export type TilePattern =
   | "cobble"
   | "blossom"
   | "slate"
-  | "embers";
+  | "embers"
+  | "dunes";
 
 export interface CampaignLevel {
   id: string;
@@ -274,6 +275,36 @@ export const CAMPAIGN: CampaignLevel[] = [
       { id: "lantern-thieves", name: "Lantern Thieves", enemies: ["thief", "sapper", "fast"] },
       { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"] },
       { id: "single-spark", name: "Single Spark", enemies: ["fast"] },
+    ],
+  },
+  {
+    id: "desert",
+    name: "Desert",
+    waves: 26,
+    blurb: "Twenty-six waves. Sand dunes, and the Desert Husk.",
+    path: march([
+      { col: 0, row: 2 },
+      { col: 15, row: 2 },
+      { col: 15, row: 5 },
+      { col: 2, row: 5 },
+      { col: 2, row: 8 },
+      { col: 12, row: 8 },
+      { col: 12, row: 6 },
+      { col: 6, row: 6 },
+    ]),
+    water: [],
+    grass: ["#6b4e2e", "#5c4126"],
+    pattern: "dunes",
+    road: {
+      edge: "#c4a36a",
+      fill: "#8d6b3e",
+      dash: "rgba(255, 236, 196, 0.4)",
+    },
+    wash: "rgba(214, 168, 92, 0.12)",
+    warrants: [
+      { id: "husk-line", name: "Husk Line", enemies: ["husk"] },
+      { id: "dry-wind", name: "Dry Wind", enemies: ["husk", "fast", "thief"] },
+      { id: "shell-breach", name: "Shell Breach", enemies: ["husk", "sapper", "tank", "splitter"] },
     ],
   },
 ];
