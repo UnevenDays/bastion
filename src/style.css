@@ -71,6 +71,53 @@ body {
   flex-wrap: wrap;
 }
 
+.tutorial {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 8;
+  max-height: 46%;
+  overflow: auto;
+  padding: 12px 14px 14px;
+  border-radius: 10px;
+  background: rgba(16, 26, 18, 0.94);
+  border: 1px solid rgba(232, 197, 71, 0.55);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.tutorial.hidden {
+  display: none;
+}
+
+.tutorial-kicker {
+  font-family: var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  color: var(--gold);
+}
+
+.tutorial h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  line-height: 1.2;
+  margin: 2px 0 6px;
+}
+
+.tutorial-body {
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.tutorial-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .almanac-open {
   font-family: var(--font-display);
   font-weight: 600;

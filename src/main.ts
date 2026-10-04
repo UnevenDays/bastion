@@ -43,6 +43,10 @@ app.innerHTML = `
         <span class="home-choice-name">Level editor</span>
         <span class="home-choice-meta">Lay a road and choose its enemies</span>
       </button>
+      <button class="home-choice" type="button" id="home-tutorial">
+        <span class="home-choice-name">Tutorial</span>
+        <span class="home-choice-meta">One Archer on the first bend, then the controls</span>
+      </button>
       <button class="home-choice" type="button" id="home-almanac">
         <span class="home-choice-name">Almanac</span>
         <span class="home-choice-meta">What you have, and what works together</span>
@@ -57,6 +61,7 @@ app.innerHTML = `
     <p class="draft-count" id="draft-count">0 / 8</p>
     <div class="draft-grid" id="draft-grid"></div>
     <div class="draft-actions">
+      <button class="btn btn-ghost" type="button" id="draft-tutorial">Tutorial</button>
       <button class="btn btn-ghost" type="button" id="draft-almanac">Almanac</button>
       <button class="btn btn-ghost" type="button" id="draft-back">Back</button>
       <button class="btn btn-primary" type="button" id="draft-continue" disabled>Continue</button>
@@ -66,6 +71,7 @@ app.innerHTML = `
   <header class="top-bar">
     <div class="brand-wrap">
       <div class="brand" id="brand-title">Bastion Breach</div>
+      <button class="almanac-open" type="button" id="tutorial-open">Tutorial</button>
       <button class="almanac-open" type="button" id="almanac-open">Almanac</button>
       <span class="mode-badge hidden" id="mode-badge">Hard</span>
       <span class="mode-badge warrant hidden" id="warrant-badge">Red Column</span>
@@ -81,6 +87,15 @@ app.innerHTML = `
   <div class="game-shell">
     <div class="canvas-wrap">
       <canvas id="game" width="768" height="480"></canvas>
+      <div class="tutorial hidden" id="tutorial">
+        <p class="tutorial-kicker" id="tutorial-kicker">Tutorial</p>
+        <h2 id="tutorial-title">The first road</h2>
+        <p class="tutorial-body" id="tutorial-body"></p>
+        <div class="tutorial-actions">
+          <button class="btn btn-ghost" type="button" id="tutorial-skip">Skip</button>
+          <button class="btn btn-primary" type="button" id="tutorial-next">Next</button>
+        </div>
+      </div>
       <div class="overlay hidden" id="start-overlay">
         <div class="overlay-card overlay-wide">
           <button class="btn btn-ghost menu-home" type="button" id="back-home">Main menu</button>
@@ -384,6 +399,11 @@ const almanacTitle = document.querySelector<HTMLElement>("#almanac-title")!;
 const almanacSub = document.querySelector<HTMLElement>("#almanac-sub")!;
 const almanacTowersTab = document.querySelector<HTMLButtonElement>("#almanac-towers")!;
 const almanacEnemiesTab = document.querySelector<HTMLButtonElement>("#almanac-enemies")!;
+const tutorialEl = document.querySelector<HTMLElement>("#tutorial")!;
+const tutorialKicker = document.querySelector<HTMLElement>("#tutorial-kicker")!;
+const tutorialTitle = document.querySelector<HTMLElement>("#tutorial-title")!;
+const tutorialBody = document.querySelector<HTMLElement>("#tutorial-body")!;
+const tutorialNext = document.querySelector<HTMLButtonElement>("#tutorial-next")!;
 const benchLine = document.querySelector<HTMLElement>("#bench-line")!;
 const speedRow = document.querySelector<HTMLElement>("#speed-row")!;
 const speedButtons = [
@@ -410,9 +430,71 @@ const LOAD_TIPS = [
   "The field holds 3 banners. Only one of them can be a Grand Banner.",
   "The bastion holds the exit. Leaks crack the gate, and it mends between waves.",
   "The almanac lists your bench, the enemies on the road, and which towers work together.",
+  "The tutorial puts one Archer on the first bend and shows the range over both roads.",
 ];
 
 let loadout: TowerKind[] = [];
+
+const TUTORIAL_KEY = "bastion-tutorial-seen";
+const TUTORIAL_TILE = { col: 3, row: 3 };
+const TUTORIAL_STEPS = [
+  {
+    id: "road",
+    kicker: "1 · The road",
+    title: "Hold the first road",
+    body: "Enemies enter at IN and walk to the gate. The gate is your lives. Gold pays for towers. This lesson places one Archer.",
+    accept: false,
+    blockWave: true,
+    next: "Next",
+  },
+  {
+    id: "board",
+    kicker: "2 · Board control",
+    title: "Corners cover two roads",
+    body: "Build on grass. The road itself is blocked. The gold ring is an Archer's range over the first bend. It covers the road into the corner and the road leaving it.",
+    accept: false,
+    blockWave: true,
+    next: "Next",
+  },
+  {
+    id: "place",
+    kicker: "3 · Place",
+    title: "Put the Archer on the lit tile",
+    body: "Click the lit grass inside the ring. This lesson accepts only that tile.",
+    accept: true,
+    blockWave: true,
+    next: "Waiting for the Archer",
+  },
+  {
+    id: "range",
+    kicker: "4 · Range",
+    title: "The ring stays on the bend",
+    body: "The Archer is down. Enemies on both legs of the corner walk through that circle. A tower on a straight covers one line. This one covers two.",
+    accept: false,
+    blockWave: true,
+    next: "Next",
+  },
+  {
+    id: "mechanics",
+    kicker: "5 · Mechanics",
+    title: "Aim, gold, and the wave",
+    body: "Start Wave sends the pack. The Archer aims First, the enemy closest to the gate. Select the tower to switch to Strong, Weak, Last, or Auto. Invert flips that choice. Damage and Attack Speed spend gold between waves.",
+    accept: false,
+    blockWave: true,
+    next: "Next",
+  },
+  {
+    id: "control",
+    kicker: "6 · The board",
+    title: "Shovel, gate, and the book",
+    body: "The Shovel moves or sells one tower each wave. Between waves the gate mends, and Repair or Reinforce spend gold on it. The Almanac lists your bench and which towers work together. Start the wave when you are ready.",
+    accept: false,
+    blockWave: false,
+    next: "Start Wave",
+  },
+] as const;
+
+let tutorialIndex: number | null = null;
 let almanacChapter: AlmanacChapter = "towers";
 let almanacId: string | null = null;
 
@@ -569,7 +651,58 @@ function applyTowerRoster(): void {
   }
 }
 
+function showTutorialStep(index: number): void {
+  const step = TUTORIAL_STEPS[index];
+  if (!step) {
+    finishTutorial(false);
+    return;
+  }
+  tutorialIndex = index;
+  tutorialKicker.textContent = step.kicker;
+  tutorialTitle.textContent = step.title;
+  tutorialBody.textContent = step.body;
+  const waiting = step.id === "place" && !bastion.tutorialPlaced();
+  tutorialNext.textContent = step.next;
+  tutorialNext.disabled = waiting;
+  tutorialEl.classList.remove("hidden");
+  bastion.setTutorial(TUTORIAL_TILE, { accept: step.accept && waiting, blockWave: step.blockWave });
+}
+
+function startTutorial(): void {
+  closeAlmanac();
+  chosenMode = "bastion";
+  chosenDifficulty = "normal";
+  chosenLevel = "road";
+  warrantByLevel.set("road", 0);
+  menuView = "classic";
+  activeLevel = null;
+  loadout = ["archer"];
+  startChosen();
+  showTutorialStep(0);
+}
+
+function finishTutorial(startWave: boolean): void {
+  localStorage.setItem(TUTORIAL_KEY, "1");
+  tutorialIndex = null;
+  tutorialEl.classList.add("hidden");
+  bastion.setTutorial(null);
+  if (startWave) bastion.startWave();
+}
+
+function abandonTutorial(): void {
+  localStorage.setItem(TUTORIAL_KEY, "1");
+  tutorialIndex = null;
+  tutorialEl.classList.add("hidden");
+  bastion.setTutorial(null);
+  showHome();
+}
+
 function showHome(): void {
+  if (tutorialIndex !== null) {
+    tutorialIndex = null;
+    tutorialEl.classList.add("hidden");
+    bastion.setTutorial(null);
+  }
   started = false;
   endOverlay.classList.add("hidden");
   modeBadge.classList.add("hidden");
@@ -766,12 +899,14 @@ function syncBastionHud(hud: HudSnapshot): void {
   warrantBadge.textContent = hud.warrantName;
   warrantBadge.classList.toggle("hidden", !started || hud.custom || !hud.warrantName);
 
+  const lesson = tutorialIndex !== null ? TUTORIAL_STEPS[tutorialIndex] : null;
   waveBtn.disabled =
     !started ||
     hud.waveInProgress ||
     hud.carrying ||
     hud.phase === "won" ||
-    hud.phase === "lost";
+    hud.phase === "lost" ||
+    !!lesson?.blockWave;
   const mutatorTag =
     hud.mutator === "armor" ? " · Armor" : hud.mutator === "marked" ? " · Marked" : "";
   const pressureTag = hud.pressure > 1 ? ` · ×${hud.pressure.toFixed(2)}` : "";
@@ -805,7 +940,8 @@ function syncBastionHud(hud: HudSnapshot): void {
     !started ||
     hud.phase === "won" ||
     hud.phase === "lost" ||
-    (!hud.shovelReady && !hud.carrying);
+    (!hud.shovelReady && !hud.carrying) ||
+    lesson !== null;
   shovelBtn.classList.toggle("selected", hud.tool === "shovel" || hud.carrying);
 
   if (hud.carrying) {
@@ -1484,7 +1620,13 @@ digBtn.addEventListener("click", () => {
   lawn.selectDig();
 });
 
-cancelBtn.addEventListener("click", () => bastion.clearSelection());
+cancelBtn.addEventListener("click", () => {
+  if (tutorialIndex !== null) {
+    bastion.selectTower("archer");
+    return;
+  }
+  bastion.clearSelection();
+});
 dcancelBtn.addEventListener("click", () => dungeon.clearSelection());
 lcancelBtn.addEventListener("click", () => lawn.clearSelection());
 
@@ -1535,7 +1677,14 @@ carrySellBtn.addEventListener("click", () => {
 });
 
 waveBtn.addEventListener("click", () => {
-  if (started && activeMode === "bastion") bastion.startWave();
+  if (!(started && activeMode === "bastion")) return;
+  if (tutorialIndex !== null) {
+    const step = TUTORIAL_STEPS[tutorialIndex];
+    if (!step || step.blockWave) return;
+    finishTutorial(true);
+    return;
+  }
+  bastion.startWave();
 });
 dwaveBtn.addEventListener("click", () => {
   if (started && activeMode === "dungeon") dungeon.startWave();
@@ -1584,8 +1733,26 @@ restartBtn.addEventListener("click", startChosen);
 menuBtn.addEventListener("click", showHome);
 document.querySelector("#back-home")!.addEventListener("click", showHome);
 document.querySelector("#home-classic")!.addEventListener("click", () => {
+  if (!localStorage.getItem(TUTORIAL_KEY)) {
+    startTutorial();
+    return;
+  }
   paintDraft();
   showStage("draft");
+});
+document.querySelector("#home-tutorial")!.addEventListener("click", startTutorial);
+document.querySelector("#draft-tutorial")!.addEventListener("click", startTutorial);
+document.querySelector("#tutorial-open")!.addEventListener("click", startTutorial);
+document.querySelector("#tutorial-skip")!.addEventListener("click", abandonTutorial);
+tutorialNext.addEventListener("click", () => {
+  if (tutorialIndex === null) return;
+  const step = TUTORIAL_STEPS[tutorialIndex];
+  if (step.id === "place") return;
+  if (step.id === "control") {
+    finishTutorial(true);
+    return;
+  }
+  showTutorialStep(tutorialIndex + 1);
 });
 document.querySelector("#home-almanac")!.addEventListener("click", openAlmanac);
 document.querySelector("#draft-almanac")!.addEventListener("click", openAlmanac);
@@ -1698,8 +1865,18 @@ canvas.addEventListener("pointerleave", () => {
 canvas.addEventListener("pointerdown", (e) => {
   if (!started) return;
   const { col, row } = pointerCell(e);
-  if (activeMode === "bastion") bastion.handleClick(col, row);
-  else if (activeMode === "lawn") lawn.handleClick(col, row);
+  if (activeMode === "bastion") {
+    const placedBefore = bastion.tutorialPlaced();
+    bastion.handleClick(col, row);
+    if (
+      tutorialIndex !== null &&
+      TUTORIAL_STEPS[tutorialIndex]?.id === "place" &&
+      !placedBefore &&
+      bastion.tutorialPlaced()
+    ) {
+      showTutorialStep(tutorialIndex + 1);
+    }
+  } else if (activeMode === "lawn") lawn.handleClick(col, row);
   else dungeon.handleClick(col, row);
 });
 

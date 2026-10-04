@@ -265,6 +265,12 @@ export class Game {
   private gateVolley = false;
   private gateCooldown = 0;
   private gateFlash = 0;
+  /** Lit grass for the first-road lesson. Null when the lesson is closed. */
+  private tutorialSpot: { col: number; row: number } | null = null;
+  /** The lit tile is the only cell that accepts a tower. */
+  private tutorialAccept = false;
+  /** Start Wave waits until the lesson says the road is ready. */
+  private tutorialBlockWave = false;
   bastionSelected = false;
   wave = 0;
   phase: GamePhase = "ready";
@@ -510,6 +516,25 @@ export class Game {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return false;
 
+    if (this.tutorialSpot) {
+      const spot = this.tutorialSpot;
+      const onSpot = col === spot.col && row === spot.row;
+      if (!this.tutorialPlaced()) {
+        if (!this.tutorialAccept || !onSpot) return false;
+        this.selectTower("archer");
+        return this.tryPlace(col, row);
+      }
+      if (!onSpot) return false;
+      const existing = this.towers.findIndex((tower) => tower.col === col && tower.row === row);
+      if (existing < 0) return false;
+      this.selected = null;
+      this.selectedTowerIndex = existing;
+      this.bastionSelected = false;
+      this.tool = "build";
+      this.emitHud();
+      return true;
+    }
+
     if (this.tool === "shovel" || this.carrying) {
       return this.handleShovelClick(col, row);
     }
@@ -653,6 +678,11 @@ export class Game {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (!this.selected || this.tool !== "build") return false;
     if (!this.kindAllowed(this.selected)) return false;
+    if (this.tutorialSpot) {
+      const spot = this.tutorialSpot;
+      if (!this.tutorialAccept || this.selected !== "archer") return false;
+      if (col !== spot.col || row !== spot.row) return false;
+    }
     if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return false;
 
     const key = pathKey(col, row);
@@ -864,6 +894,7 @@ export class Game {
   startWave(): void {
     if (this.phase === "won" || this.phase === "lost") return;
     if (this.waveInProgress) return;
+    if (this.tutorialBlockWave) return;
     if (this.custom) {
       if (this.wave >= this.custom.waves.length) return;
     } else if (this.difficulty !== "endless" && this.wave >= this.campaign.waves) return;
@@ -931,8 +962,47 @@ export class Game {
     this.spawnTimer = 0;
     this.waveInProgress = false;
     this.selected = this.firstRosterKind();
+    this.tutorialSpot = null;
+    this.tutorialAccept = false;
+    this.tutorialBlockWave = false;
     this.resetGate();
     this.emitHud();
+  }
+
+  /**
+   * First-road lesson. The spot draws an Archer range over that grass.
+   * While accept is set, only that tile can take the Archer.
+   */
+  setTutorial(
+    spot: { col: number; row: number } | null,
+    options?: { accept?: boolean; blockWave?: boolean },
+  ): void {
+    this.tutorialSpot = spot;
+    this.tutorialAccept = !!spot && !!options?.accept && !this.tutorialPlaced();
+    this.tutorialBlockWave = !!spot && !!options?.blockWave;
+    if (!spot) return;
+    if (!this.tutorialPlaced()) {
+      this.selectTower("archer");
+      return;
+    }
+    const index = this.towers.findIndex(
+      (tower) => tower.col === spot.col && tower.row === spot.row,
+    );
+    if (index < 0) return;
+    this.selected = null;
+    this.selectedTowerIndex = index;
+    this.bastionSelected = false;
+    this.tool = "build";
+    this.emitHud();
+  }
+
+  /** An Archer is standing on the lesson tile. */
+  tutorialPlaced(): boolean {
+    const spot = this.tutorialSpot;
+    if (!spot) return false;
+    return this.towers.some(
+      (tower) => tower.kind === "archer" && tower.col === spot.col && tower.row === spot.row,
+    );
   }
 
   beginRun(difficulty: Difficulty, levelId = "road", warrant = 0): void {
@@ -2338,6 +2408,7 @@ export class Game {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(ctx);
     this.drawPath(ctx);
+    this.drawTutorialGround(ctx);
     paintBoardLight(ctx, this.width, this.height);
     this.drawHover(ctx);
     this.drawTowers(ctx);
@@ -2353,6 +2424,44 @@ export class Game {
       ctx.fillRect(0, 0, this.width, this.height);
     }
     this.drawBaseMarkers(ctx);
+    this.drawTutorialRing(ctx);
+  }
+
+  /** Gold on the road cells an Archer at the lesson tile would cover. */
+  private drawTutorialGround(ctx: CanvasRenderingContext2D): void {
+    const spot = this.tutorialSpot;
+    if (!spot) return;
+    const cx = spot.col * CELL + CELL / 2;
+    const cy = spot.row * CELL + CELL / 2;
+    const radius = TOWER_DEFS.archer.range * CELL;
+    for (const key of this.pathSet) {
+      const [col, row] = key.split(",").map(Number);
+      const px = col * CELL + CELL / 2;
+      const py = row * CELL + CELL / 2;
+      if (Math.hypot(px - cx, py - cy) > radius) continue;
+      ctx.fillStyle = "rgba(232, 197, 71, 0.34)";
+      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+    }
+    if (this.tutorialPlaced()) return;
+    const pulse = 0.28 + 0.22 * Math.sin(this.pulse * 4);
+    ctx.fillStyle = `rgba(94, 207, 138, ${pulse})`;
+    ctx.fillRect(spot.col * CELL + 5, spot.row * CELL + 5, CELL - 10, CELL - 10);
+    ctx.strokeStyle = "#e8efe6";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(spot.col * CELL + 3, spot.row * CELL + 3, CELL - 6, CELL - 6);
+  }
+
+  /** The Archer circle, drawn over the bend for the whole lesson. */
+  private drawTutorialRing(ctx: CanvasRenderingContext2D): void {
+    const spot = this.tutorialSpot;
+    if (!spot) return;
+    const cx = spot.col * CELL + CELL / 2;
+    const cy = spot.row * CELL + CELL / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, TOWER_DEFS.archer.range * CELL, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(232, 197, 71, 0.95)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
   }
 
   private drawGrassDecor(
