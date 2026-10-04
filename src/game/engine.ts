@@ -65,6 +65,7 @@ import {
   waveEnemyCount,
 } from "./config";
 import { campaignById, type CampaignLevel } from "./campaign";
+import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   Difficulty,
@@ -2022,6 +2023,7 @@ export class Game {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(ctx);
     this.drawPath(ctx);
+    paintBoardLight(ctx, this.width, this.height);
     this.drawHover(ctx);
     this.drawTowers(ctx);
     this.drawCarryingGhost(ctx);
@@ -2047,77 +2049,127 @@ export class Game {
   ): void {
     const pattern = this.campaign.pattern;
     if (pattern === "blossom") {
-      const sway = Math.sin(this.pulse * 1.3 + col * 0.8) * 1.4;
-      ctx.fillStyle = "rgba(244, 176, 190, 0.55)";
+      const sway = Math.sin(this.pulse * 1.3 + col * 0.8) * 1.6;
+      ctx.fillStyle = "rgba(92, 140, 72, 0.7)";
+      ctx.fillRect(x + 15, y + 22, 2, 12);
+      ctx.fillStyle = "rgba(244, 176, 190, 0.85)";
       ctx.beginPath();
-      ctx.arc(x + 14 + sway, y + 16, 2.4, 0, Math.PI * 2);
-      ctx.arc(x + 18 + sway, y + 14, 2.2, 0, Math.PI * 2);
-      ctx.arc(x + 16 + sway, y + 19, 2.2, 0, Math.PI * 2);
+      ctx.arc(x + 12 + sway, y + 16, 3.2, 0, Math.PI * 2);
+      ctx.arc(x + 18 + sway, y + 13, 2.8, 0, Math.PI * 2);
+      ctx.arc(x + 16 + sway, y + 19, 2.6, 0, Math.PI * 2);
+      ctx.arc(x + 34, y + 30, 2.4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(120, 168, 96, 0.45)";
-      ctx.fillRect(x + 32, y + 28, 2, 7);
+      ctx.fillStyle = "rgba(255, 230, 160, 0.8)";
+      ctx.beginPath();
+      ctx.arc(x + 16 + sway, y + 16, 1.3, 0, Math.PI * 2);
+      ctx.fill();
       return;
     }
     if (pattern === "slate") {
-      ctx.strokeStyle = "rgba(196, 204, 198, 0.28)";
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 8, y + 10, 18, 11);
+      ctx.fillStyle = "rgba(168, 176, 170, 0.22)";
+      ctx.beginPath();
+      ctx.moveTo(x + 8, y + 14);
+      ctx.lineTo(x + 26, y + 10);
+      ctx.lineTo(x + 30, y + 22);
+      ctx.lineTo(x + 10, y + 24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "rgba(90, 98, 96, 0.45)";
       ctx.beginPath();
       ctx.moveTo(x + 28, y + 28);
       ctx.lineTo(x + 42, y + 32);
-      ctx.lineTo(x + 34, y + 40);
+      ctx.lineTo(x + 34, y + 42);
       ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(220, 226, 220, 0.25)";
+      ctx.lineWidth = 1;
       ctx.stroke();
       return;
     }
     if (pattern === "dunes") {
-      ctx.fillStyle = "rgba(232, 196, 120, 0.2)";
+      ctx.fillStyle = "rgba(232, 196, 120, 0.28)";
       ctx.beginPath();
-      ctx.ellipse(x + 20, y + 30, 14, 4.5, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(x + 18, y + 32, 16, 5.5, 0.15, 0, Math.PI * 2);
+      ctx.ellipse(x + 34, y + 18, 10, 3.5, -0.2, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(92, 58, 28, 0.55)";
-      ctx.fillRect(x + 34, y + 12, 2, 7);
+      ctx.strokeStyle = "rgba(92, 58, 28, 0.45)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x + 8, y + 30);
+      ctx.quadraticCurveTo(x + 20, y + 24, x + 36, y + 31);
+      ctx.stroke();
       return;
     }
     if (pattern === "embers") {
       const twinkle = 0.35 + 0.65 * Math.abs(Math.sin(this.pulse * 2 + col * 1.7 + row));
-      ctx.fillStyle = `rgba(242, 206, 130, ${0.2 + twinkle * 0.55})`;
-      ctx.fillRect(x + 12, y + 16, 2, 2);
-      ctx.fillRect(x + 30, y + 30, 2, 2);
-      ctx.fillStyle = `rgba(186, 156, 232, ${0.15 + (1 - twinkle) * 0.4})`;
-      ctx.fillRect(x + 22, y + 10, 2, 2);
+      ctx.fillStyle = `rgba(242, 206, 130, ${0.25 + twinkle * 0.7})`;
+      ctx.beginPath();
+      ctx.arc(x + 14, y + 16, 2.2, 0, Math.PI * 2);
+      ctx.arc(x + 32, y + 30, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(186, 156, 232, ${0.2 + (1 - twinkle) * 0.55})`;
+      ctx.beginPath();
+      ctx.arc(x + 24, y + 12, 1.7, 0, Math.PI * 2);
+      ctx.fill();
       return;
     }
     if (pattern === "stripes") {
-      ctx.strokeStyle = "rgba(232, 197, 71, 0.1)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = "rgba(232, 197, 71, 0.16)";
+      ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(x + 10, y + CELL - 10);
-      ctx.lineTo(x + CELL - 10, y + 10);
-      ctx.moveTo(x + 10, y + 18);
-      ctx.lineTo(x + 22, y + 8);
+      ctx.moveTo(x + 6, y + CELL - 8);
+      ctx.lineTo(x + CELL - 8, y + 8);
+      ctx.moveTo(x + 6, y + 20);
+      ctx.lineTo(x + 24, y + 6);
       ctx.stroke();
       return;
     }
     if (pattern === "marsh") {
-      ctx.fillStyle = "rgba(120, 180, 150, 0.16)";
+      ctx.strokeStyle = "rgba(150, 210, 170, 0.45)";
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.ellipse(x + 16, y + 22, 7, 3, 0.2, 0, Math.PI * 2);
-      ctx.ellipse(x + 32, y + 14, 5, 2, -0.3, 0, Math.PI * 2);
+      ctx.moveTo(x + 12, y + 34);
+      ctx.quadraticCurveTo(x + 14, y + 16, x + 10, y + 10);
+      ctx.moveTo(x + 20, y + 36);
+      ctx.quadraticCurveTo(x + 22, y + 18, x + 26, y + 8);
+      ctx.moveTo(x + 34, y + 32);
+      ctx.quadraticCurveTo(x + 32, y + 18, x + 38, y + 14);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(90, 170, 180, 0.22)";
+      ctx.beginPath();
+      ctx.ellipse(x + 16, y + 28, 8, 3, 0.2, 0, Math.PI * 2);
       ctx.fill();
       return;
     }
     if (pattern === "cobble") {
-      ctx.fillStyle = "rgba(190, 198, 186, 0.12)";
-      ctx.fillRect(x + 8, y + 8, 12, 9);
-      ctx.fillRect(x + 26, y + 16, 12, 9);
-      ctx.fillRect(x + 14, y + 30, 12, 9);
+      ctx.fillStyle = "rgba(210, 214, 206, 0.2)";
+      const stones: [number, number, number, number][] = [
+        [7, 8, 14, 10],
+        [24, 16, 15, 10],
+        [12, 30, 16, 9],
+      ];
+      for (const [sx, sy, sw, sh] of stones) {
+        ctx.beginPath();
+        ctx.roundRect(x + sx, y + sy, sw, sh, 2);
+        ctx.fill();
+      }
       return;
     }
-    ctx.fillStyle = "rgba(94, 207, 138, 0.06)";
-    ctx.fillRect(x + 8, y + 10, 3, 8);
-    ctx.fillRect(x + 22, y + 28, 2, 6);
-    ctx.fillRect(x + 34, y + 14, 3, 7);
+    ctx.strokeStyle = "rgba(120, 210, 150, 0.28)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    const blades = [
+      [10, 34, -4],
+      [16, 36, 2],
+      [28, 32, -2],
+      [36, 30, 5],
+    ] as const;
+    for (const [bx, by, lean] of blades) {
+      const sway = Math.sin(this.pulse * 1.6 + col + row + bx) * 1.2;
+      ctx.moveTo(x + bx, y + by);
+      ctx.lineTo(x + bx + lean + sway, y + by - 12);
+    }
+    ctx.stroke();
   }
 
   private drawTerrain(ctx: CanvasRenderingContext2D): void {
@@ -2137,28 +2189,35 @@ export class Game {
         ctx.fillStyle = shade;
         ctx.fillRect(x, y, CELL, CELL);
         if (wet && !crater) {
-          ctx.fillStyle = "#2a7584";
+          const shimmer = 0.35 + 0.2 * Math.sin(this.pulse * 2.2 + c * 0.7 + r);
+          ctx.fillStyle = "#1c4c58";
           ctx.beginPath();
-          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 1, 18, 13, 0, 0, Math.PI * 2);
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 2, 20, 14, 0, 0, Math.PI * 2);
           ctx.fill();
-          ctx.fillStyle = "rgba(186, 228, 236, 0.45)";
+          ctx.fillStyle = "#2f8ea0";
           ctx.beginPath();
-          ctx.ellipse(x + CELL / 2 - 5, y + CELL / 2 - 3, 6, 3, -0.5, 0, Math.PI * 2);
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 1, 16, 11, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(210, 244, 250, ${shimmer})`;
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2 - 5, y + CELL / 2 - 3, 7, 3.2, -0.5, 0, Math.PI * 2);
           ctx.fill();
           continue;
         }
         if (crater) {
-          ctx.fillStyle = "#241610";
+          ctx.fillStyle = "#3a2418";
           ctx.beginPath();
-          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 2, 16, 11, 0, 0, Math.PI * 2);
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 1, 18, 13, 0, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = "#5a3a28";
+          ctx.fillStyle = "#140e0c";
+          ctx.beginPath();
+          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 3, 11, 7, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "#6a4030";
           ctx.lineWidth = 2;
           ctx.stroke();
-          ctx.fillStyle = "#0c0908";
-          ctx.beginPath();
-          ctx.ellipse(x + CELL / 2, y + CELL / 2 + 3, 8, 5, 0, 0, Math.PI * 2);
-          ctx.fill();
+        } else {
+          speckleTile(ctx, x, y, CELL, c, r, "rgba(255,255,255,0.9)");
         }
       }
     }
@@ -2177,37 +2236,7 @@ export class Game {
   }
 
   private drawPath(ctx: CanvasRenderingContext2D): void {
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    const road = this.campaign.road;
-    ctx.strokeStyle = road.edge;
-    ctx.lineWidth = CELL * 0.72;
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-
-    ctx.strokeStyle = road.fill;
-    ctx.lineWidth = CELL * 0.52;
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-
-    ctx.strokeStyle = road.dash;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 10]);
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    paintWideRoad(ctx, this.waypoints, this.campaign.road, CELL);
   }
 
   private drawBaseMarkers(ctx: CanvasRenderingContext2D): void {
@@ -2217,15 +2246,15 @@ export class Game {
 
     ctx.fillStyle = `rgba(94, 207, 138, ${0.25 + pulse * 0.2})`;
     ctx.beginPath();
-    ctx.arc(start.x, start.y, 16, 0, Math.PI * 2);
+    ctx.arc(start.x, start.y, 18, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#5ecf8a";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.stroke();
 
     ctx.fillStyle = `rgba(232, 93, 74, ${0.25 + pulse * 0.2})`;
     ctx.beginPath();
-    ctx.arc(end.x, end.y, 16, 0, Math.PI * 2);
+    ctx.arc(end.x, end.y, 18, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = "#e85d4a";
     ctx.stroke();
@@ -2402,12 +2431,25 @@ export class Game {
       }
 
       const size = 16 + (t.damageLevel + t.speedLevel) * 1.5 + (t.special ? 2 : 0);
-      ctx.fillStyle = "#152219";
+      blobShadow(ctx, cx, cy + size * 0.55, size * 0.95, size * 0.36);
+      ctx.fillStyle = "#0c1410";
+      ctx.beginPath();
+      ctx.ellipse(cx, cy + 3, size * 0.92, size * 0.78, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const body = ctx.createRadialGradient(cx - 4, cy - 5, 2, cx, cy, size);
+      body.addColorStop(0, "#24382c");
+      body.addColorStop(1, "#101812");
+      ctx.fillStyle = body;
       ctx.beginPath();
       ctx.arc(cx, cy, size, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = selected ? "#e8c547" : def.color;
       ctx.lineWidth = selected ? 3 : 2.5;
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 3, size * 0.55, Math.PI * 1.15, Math.PI * 1.75);
       ctx.stroke();
 
       if (t.special) {
@@ -2772,6 +2814,7 @@ export class Game {
     for (const e of this.enemies) {
       const slowed = e.slowTimer > 0;
       const boss = isBossKind(e.kind);
+      blobShadow(ctx, e.x, e.y + e.radius * 0.72, e.radius * 1.15, e.radius * 0.38);
 
       if (e.kind === "finalBoss") {
         ctx.fillStyle = "rgba(90, 20, 48, 0.35)";
@@ -2893,9 +2936,24 @@ export class Game {
         ctx.stroke();
       }
 
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      ctx.lineWidth = 1.5;
       ctx.stroke();
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.ellipse(
+        e.x - e.radius * 0.28,
+        e.y - e.radius * 0.32,
+        Math.max(2, e.radius * 0.28),
+        Math.max(1.4, e.radius * 0.16),
+        -0.6,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.restore();
 
       if (e.kind === "finalBoss") {
         ctx.fillStyle = "#e8c547";
@@ -3010,6 +3068,13 @@ export class Game {
 
   private drawProjectiles(ctx: CanvasRenderingContext2D): void {
     for (const p of this.projectiles) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.heavy ? 10 : p.fire ? 8 : 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
       if (p.heavy) {
         ctx.save();
         ctx.translate(p.x, p.y);

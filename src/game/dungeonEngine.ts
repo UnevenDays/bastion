@@ -16,6 +16,7 @@ import {
   type DungeonBuildKind,
 } from "./dungeonConfig";
 import type { Difficulty, Particle, Vec2 } from "./types";
+import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
 
 export type DungeonPhase = "ready" | "playing" | "won" | "lost";
 
@@ -669,6 +670,7 @@ export class DungeonGame {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(ctx);
     this.drawPath(ctx);
+    paintBoardLight(ctx, this.width, this.height);
     this.drawHover(ctx);
     this.drawUnits(ctx);
     this.drawAdventurers(ctx);
@@ -682,51 +684,37 @@ export class DungeonGame {
         const x = c * DCELL;
         const y = r * DCELL;
         const onPath = this.pathSet.has(pathKey(c, r));
-        if (onPath) {
-          ctx.fillStyle = (c + r) % 2 === 0 ? "#3a3228" : "#332c24";
-        } else {
-          ctx.fillStyle = (c + r) % 2 === 0 ? "#1a221c" : "#151c18";
-        }
+        ctx.fillStyle = onPath
+          ? (c + r) % 2 === 0
+            ? "#3a3228"
+            : "#332c24"
+          : (c + r) % 2 === 0
+            ? "#1c2620"
+            : "#161e1a";
         ctx.fillRect(x, y, DCELL, DCELL);
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, DCELL - 1, DCELL - 1);
         if (!onPath) {
-          ctx.fillStyle = "rgba(80, 100, 70, 0.05)";
-          ctx.fillRect(x + 10, y + 12, 3, 8);
+          speckleTile(ctx, x, y, DCELL, c, r, "rgba(180, 190, 170, 0.8)");
+          ctx.strokeStyle = "rgba(70, 90, 64, 0.35)";
+          ctx.beginPath();
+          ctx.moveTo(x + 8, y + 30);
+          ctx.lineTo(x + 14, y + 14);
+          ctx.moveTo(x + 30, y + 36);
+          ctx.lineTo(x + 34, y + 22);
+          ctx.stroke();
         }
       }
     }
   }
 
   private drawPath(ctx: CanvasRenderingContext2D): void {
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.strokeStyle = "#5c4a35";
-    ctx.lineWidth = DCELL * 0.78;
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-
-    ctx.strokeStyle = "#423628";
-    ctx.lineWidth = DCELL * 0.55;
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(232, 197, 71, 0.18)";
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 8]);
-    ctx.beginPath();
-    this.waypoints.forEach((w, i) => {
-      if (i === 0) ctx.moveTo(w.x, w.y);
-      else ctx.lineTo(w.x, w.y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
+    paintWideRoad(ctx, this.waypoints, {
+      edge: "#6a5340",
+      fill: "#3e3226",
+      dash: "rgba(232, 197, 71, 0.35)",
+    }, DCELL);
   }
 
   private drawGates(ctx: CanvasRenderingContext2D): void {
@@ -796,8 +784,9 @@ export class DungeonGame {
       const cy = u.row * DCELL + DCELL / 2;
       const selected = this.selectedUnitIndex === i;
 
+      blobShadow(ctx, cx, cy + 14, 16, 6);
       if (def.role === "trap") {
-        ctx.fillStyle = "rgba(0,0,0,0.25)";
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
         ctx.fillRect(cx - 16, cy - 16, 32, 32);
         ctx.strokeStyle = selected ? "#e8c547" : def.color;
         ctx.lineWidth = selected ? 2.5 : 1.5;
@@ -917,7 +906,7 @@ export class DungeonGame {
     for (const a of this.adventurers) {
       const fighting = a.fightingUnitId !== null;
       const r = a.radius;
-      // All adventurers are triangles, colored to match trap/monster types
+      blobShadow(ctx, a.x, a.y + r * 0.7, r * 1.1, r * 0.35);
       ctx.fillStyle = a.color;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y - r);

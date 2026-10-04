@@ -18,6 +18,7 @@ import {
   type ZombieKind,
 } from "./lawnConfig";
 import type { Difficulty, Particle, Vec2 } from "./types";
+import { blobShadow, paintBoardLight, speckleTile } from "./paint";
 
 export type LawnPhase = "ready" | "playing" | "won" | "lost";
 
@@ -496,6 +497,7 @@ export class LawnGame {
   draw(ctx: CanvasRenderingContext2D): void {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawLawn(ctx);
+    paintBoardLight(ctx, this.width, this.height);
     this.drawPeace(ctx);
     this.drawPlants(ctx);
     this.drawZombies(ctx);
@@ -507,8 +509,20 @@ export class LawnGame {
   private drawLawn(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = "#142016";
     ctx.fillRect(0, 0, this.width, this.height);
-    ctx.fillStyle = "#3d3428";
+    const wood = ctx.createLinearGradient(0, LOFFY, LOFFX, LOFFY);
+    wood.addColorStop(0, "#2a2218");
+    wood.addColorStop(0.5, "#5a4632");
+    wood.addColorStop(1, "#2a2218");
+    ctx.fillStyle = wood;
     ctx.fillRect(0, LOFFY, LOFFX, LROWS * LCELL);
+    ctx.strokeStyle = "rgba(20, 12, 8, 0.45)";
+    ctx.lineWidth = 2;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo((LOFFX / 4) * i, LOFFY);
+      ctx.lineTo((LOFFX / 4) * i, LOFFY + LROWS * LCELL);
+      ctx.stroke();
+    }
     ctx.fillStyle = "#e8efe6";
     ctx.font = "700 11px 'Chakra Petch', sans-serif";
     ctx.textAlign = "center";
@@ -517,11 +531,25 @@ export class LawnGame {
 
     for (let row = 0; row < LROWS; row++) {
       for (let col = 0; col < LCOLS; col++) {
-        ctx.fillStyle = (col + row) % 2 === 0 ? "#2a6b34" : "#245c2d";
-        ctx.fillRect(LOFFX + col * LCELL, LOFFY + row * LCELL, LCELL, LCELL);
+        const x = LOFFX + col * LCELL;
+        const y = LOFFY + row * LCELL;
+        ctx.fillStyle = (col + row) % 2 === 0 ? "#2f7a3c" : "#256832";
+        ctx.fillRect(x, y, LCELL, LCELL);
+        speckleTile(ctx, x, y, LCELL, col, row, "rgba(210, 240, 170, 0.85)");
+        ctx.strokeStyle = "rgba(20, 50, 24, 0.35)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x + 10, y + 48);
+        ctx.lineTo(x + 16, y + 22);
+        ctx.moveTo(x + 36, y + 56);
+        ctx.lineTo(x + 40, y + 28);
+        ctx.moveTo(x + 54, y + 44);
+        ctx.lineTo(x + 60, y + 18);
+        ctx.stroke();
       }
     }
-    ctx.strokeStyle = "rgba(0,0,0,0.25)";
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 3;
     ctx.strokeRect(LOFFX, LOFFY, LCOLS * LCELL, LROWS * LCELL);
   }
 
@@ -541,6 +569,7 @@ export class LawnGame {
       const c = this.cellCenter(plant.col, plant.row);
       const def = PLANTS[plant.kind];
       const selected = this.selectedPlant === index;
+      blobShadow(ctx, c.x, c.y + 16, 18, 7);
       ctx.fillStyle = "#152219";
       ctx.beginPath();
       ctx.arc(c.x, c.y, 20, 0, Math.PI * 2);
@@ -588,6 +617,7 @@ export class LawnGame {
 
   private drawZombies(ctx: CanvasRenderingContext2D): void {
     for (const z of this.zombies) {
+      blobShadow(ctx, z.x, z.y + z.radius * 0.7, z.radius * 1.1, z.radius * 0.36);
       ctx.fillStyle = z.color;
       ctx.beginPath();
       ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
