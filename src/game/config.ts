@@ -800,8 +800,25 @@ function legacyPattern(wave: number, index: number): PatternKind {
   return "normal";
 }
 
+/**
+ * Waves 1–5 keep the old per-wave health curve.
+ * From wave 6 the pack's health is multiplied again.
+ * Wave 6 is 1.25×, each later wave adds 0.20×, and from wave 13 each wave adds another 0.12×.
+ * Wave 9 is 1.85×, wave 12 is 2.45×, wave 18 is 4.37×, wave 26 is 6.93×.
+ * Bosses, the final boss, and Challengers do not use this.
+ */
+export const PRESSURE_START = 6;
+
+export function pressureMultiplier(wave: number): number {
+  if (wave < PRESSURE_START) return 1;
+  const steps = wave - PRESSURE_START;
+  const mid = 1.25 + steps * 0.2;
+  const late = wave < 13 ? 0 : (wave - 12) * 0.12;
+  return Math.round((mid + late) * 100) / 100;
+}
+
 function fodderDef(kind: PatternKind, wave: number): EnemyDef {
-  const scale = 1 + (wave - 1) * 0.22;
+  const scale = (1 + (wave - 1) * 0.22) * pressureMultiplier(wave);
   if (kind === "sapper") {
     return {
       kind,
@@ -946,6 +963,25 @@ export function enemyForWave(
       ? patternEnemy(roster, index)
       : legacyPattern(wave, index);
   return applyHard(fodderDef(kind, wave), wave, difficulty);
+}
+
+/**
+ * One weaker enemy left where a pressured pack enemy died.
+ * It does not leave another enemy, and it has none of the parent's tricks.
+ */
+export function weakerEnemy(
+  parent: { maxHp: number; speed: number; radius: number },
+  drought: boolean,
+): EnemyDef {
+  return {
+    kind: "normal",
+    hp: Math.max(8, Math.round(parent.maxHp * 0.42)),
+    speed: Math.max(36, Math.round(parent.speed * 0.75)),
+    reward: drought ? 0 : 1,
+    radius: Math.max(7, parent.radius - 3),
+    color: "#e7b0a2",
+    leakDamage: 1,
+  };
 }
 
 /** Children spawned when a splitter dies — normal speed, no further splits. */

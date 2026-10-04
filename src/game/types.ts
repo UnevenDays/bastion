@@ -167,6 +167,11 @@ export interface Enemy {
   burnDps: number;
   /** This burn was set by a tower aimed at Strongest. */
   burnFromStrongest: boolean;
+  /**
+   * From wave 6, killing this enemy leaves one weaker enemy.
+   * That weaker enemy, bosses, and splitters leave this false.
+   */
+  leavesWeaker: boolean;
   /** Tower a sapper has stopped on. Null while it is still walking. */
   sapperCol: number | null;
   sapperRow: number | null;

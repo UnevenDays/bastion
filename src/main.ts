@@ -367,6 +367,7 @@ const LOAD_TIPS = [
   "Killing a Thief returns 20% of the gold it stole.",
   "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
   "A Desert Husk cracks at half health, then it sprints.",
+  "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -664,10 +665,11 @@ function syncBastionHud(hud: HudSnapshot): void {
     hud.phase === "lost";
   const mutatorTag =
     hud.mutator === "armor" ? " · Armor" : hud.mutator === "marked" ? " · Marked" : "";
+  const pressureTag = hud.pressure > 1 ? ` · ×${hud.pressure.toFixed(2)}` : "";
   waveBtn.textContent = hud.waveInProgress
-    ? `Wave ${hud.wave}${mutatorTag}…`
+    ? `Wave ${hud.wave}${pressureTag}${mutatorTag}…`
     : hud.difficulty === "endless" || hud.wave < hud.totalWaves
-      ? `Start Wave ${hud.wave + 1}${mutatorTag}`
+      ? `Start Wave ${hud.wave + 1}${pressureTag}${mutatorTag}`
       : "Complete";
 
   applyTowerRoster();

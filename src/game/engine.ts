@@ -52,7 +52,9 @@ import {
   sellValue,
   specialCost,
   spawnInterval,
+  pressureMultiplier,
   splitlingFrom,
+  weakerEnemy,
   startingGold,
   startingLives,
   stormGuaranteesHit,
@@ -154,6 +156,8 @@ export interface HudSnapshot {
   hasWater: boolean;
   /** Endless rule for this wave, or the next one while you are between waves. */
   mutator: EndlessMutator;
+  /** Pack health multiplier for this wave, or the next one between waves. 1 through wave 5. */
+  pressure: number;
   /** Warrant chosen for this road. Empty on an editor level. */
   warrantName: string;
 }
@@ -340,6 +344,9 @@ export class Game {
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
           : "none",
       warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
+      pressure: this.custom
+        ? 1
+        : pressureMultiplier(this.waveInProgress ? this.wave : this.wave + 1),
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -911,6 +918,7 @@ export class Game {
     progress: number,
     x: number,
     y: number,
+    leavesWeaker = false,
   ): Enemy {
     return {
       id: this.nextEnemyId++,
@@ -940,6 +948,7 @@ export class Game {
       sapperLeft: 0,
       sapperDone: false,
       cracked: false,
+      leavesWeaker,
     };
   }
 
@@ -994,7 +1003,15 @@ export class Game {
           this.activeWarrant()?.enemies,
         );
     const start = this.waypoints[0];
-    this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y));
+    const leavesWeaker =
+      !this.custom &&
+      pressureMultiplier(this.wave) > 1 &&
+      def.kind !== "boss" &&
+      def.kind !== "finalBoss" &&
+      def.kind !== "challenger" &&
+      def.kind !== "splitter" &&
+      def.kind !== "splitling";
+    this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y, leavesWeaker));
     this.spawnQueue -= 1;
     const interval = spawnInterval(this.wave, this.difficulty);
     this.spawnTimer =
@@ -1940,6 +1957,18 @@ export class Game {
         spawned,
         bossDef(this.wave, this.difficulty),
         [-0.12, 0.12],
+      );
+    }
+
+    if (e.leavesWeaker) {
+      this.spawnOffspring(
+        e,
+        spawned,
+        weakerEnemy(
+          e,
+          this.difficulty === "endless" && endlessDrought(this.wave),
+        ),
+        [0.05],
       );
     }
   }
