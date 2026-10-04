@@ -32,6 +32,32 @@ export const BANK_PAYOUT_RATE = 0.25;
 /** Chunk size for the Bank button. */
 export const BANK_DEPOSIT_CHUNK = 25;
 
+/** Lives the gate mends on its own when a wave ends. */
+export const GATE_AUTO_REPAIR = 1;
+/** Lives restored by one paid Repair, and the gold for each of them. */
+export const GATE_REPAIR_AMOUNT = 2;
+export const GATE_REPAIR_EACH = 12;
+/** Extra gate lives from one Reinforce, and how many times it can be bought. */
+export const GATE_REINFORCE_LIVES = 4;
+export const GATE_REINFORCE_MAX = 3;
+/** Volley lets the warden shoot. A little under an Archer's 12 damage and 1.4 shots a second. */
+export const GATE_VOLLEY_COST = 90;
+export const GATE_DAMAGE = 11;
+export const GATE_RATE = 1.25;
+export const GATE_RANGE = 2.4;
+export const GATE_SHOT_SPEED = 400;
+
+export function gateReinforceCost(rank: number): number {
+  return 40 + rank * 30;
+}
+
+/** Gold to restore up to two lives. Zero when the gate is already full. */
+export function gateRepairCost(lives: number, maxLives: number): number {
+  const missing = Math.max(0, maxLives - lives);
+  const amount = Math.min(GATE_REPAIR_AMOUNT, missing);
+  return amount * GATE_REPAIR_EACH;
+}
+
 /** Normal mode: wounded enemies restore full health after this many seconds without damage. */
 export const REGEN_DELAY = 3;
 

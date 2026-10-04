@@ -65,7 +65,7 @@ app.innerHTML = `
     </div>
     <div class="stats" id="stats">
       <div class="stat"><span class="stat-label" id="gold-label">Gold</span><span class="stat-value gold" id="gold">0</span></div>
-      <div class="stat"><span class="stat-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
+      <div class="stat"><span class="stat-label" id="lives-label">Lives</span><span class="stat-value lives" id="lives">0</span></div>
       <div class="stat"><span class="stat-label">Wave</span><span class="stat-value wave" id="wave">0</span></div>
       <div class="stat" id="shovel-stat-wrap"><span class="stat-label">Shovel</span><span class="stat-value shovel" id="shovel-stat">Ready</span></div>
     </div>
@@ -255,6 +255,7 @@ const brandTitle = document.querySelector<HTMLElement>("#brand-title")!;
 const statsEl = document.querySelector<HTMLElement>("#stats")!;
 const goldLabel = document.querySelector<HTMLElement>("#gold-label")!;
 const goldEl = document.querySelector<HTMLElement>("#gold")!;
+const livesLabel = document.querySelector<HTMLElement>("#lives-label")!;
 const livesEl = document.querySelector<HTMLElement>("#lives")!;
 const waveEl = document.querySelector<HTMLElement>("#wave")!;
 const shovelStatEl = document.querySelector<HTMLElement>("#shovel-stat")!;
@@ -372,6 +373,7 @@ const LOAD_TIPS = [
   "A Desert Husk cracks at half health, then it sprints.",
   "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
   "The field holds 3 banners. Only one of them can be a Grand Banner.",
+  "The bastion holds the exit. Leaks crack the gate, and it mends between waves.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -616,6 +618,7 @@ function applyChrome(mode: GameMode): void {
 function syncBastionHud(hud: HudSnapshot): void {
   if (activeMode !== "bastion") return;
   goldEl.textContent = String(hud.gold);
+  livesLabel.textContent = "Gate";
   livesEl.textContent = String(hud.lives);
   waveEl.textContent =
     hud.difficulty === "endless" ? String(hud.wave) : `${hud.wave} / ${hud.totalWaves}`;
@@ -718,6 +721,8 @@ function syncBastionHud(hud: HudSnapshot): void {
     const t = hud.selectedTower;
     upgradeBar.classList.remove("hidden");
     upgradeDurationBtn.classList.add("hidden");
+    upgradeSpeedBtn.classList.remove("hidden");
+    sellBtn.classList.remove("hidden");
     upgradeTitle.textContent = t.special
       ? `${t.name} · ${t.specialName}`
       : `${t.name} selected`;
@@ -918,6 +923,41 @@ function syncBastionHud(hud: HudSnapshot): void {
     upgradeSpecialBtn.title = t.specialDescription;
     sellBtn.textContent = `Sell (${t.sellRefund}g)`;
     sellBtn.disabled = !started || !hud.shovelReady;
+  } else if (hud.gateSelected && !hud.carrying) {
+    upgradeBar.classList.remove("hidden");
+    upgradeDurationBtn.classList.remove("hidden");
+    upgradeSpeedBtn.classList.add("hidden");
+    sellBtn.classList.add("hidden");
+    mintDepositBtn.classList.add("hidden");
+    mintDepositAllBtn.classList.add("hidden");
+    syncTargeting(null);
+    upgradeTitle.textContent = hud.gateVolley ? "Bastion · Volley" : "Bastion";
+    const volleyLine = hud.gateVolley ? " · bow ready" : "";
+    upgradeStats.textContent = `Gate ${hud.gateLives}/${hud.gateMax}${volleyLine}`;
+    upgradeDamageBtn.textContent =
+      hud.waveInProgress
+        ? "Repair"
+        : hud.gateRepairCost === null
+          ? "Gate mended"
+          : `Repair (${hud.gateRepairCost}g)`;
+    upgradeDurationBtn.textContent =
+      hud.gateReinforceCost === null ? "Reinforce Max" : `Reinforce (${hud.gateReinforceCost}g)`;
+    upgradeSpecialBtn.textContent = hud.gateVolley
+      ? "Volley ✓"
+      : `Volley (${hud.gateVolleyCost}g)`;
+    upgradeDamageBtn.disabled = !started || hud.gateRepairCost === null || hud.gold < hud.gateRepairCost;
+    upgradeDurationBtn.disabled =
+      !started ||
+      hud.waveInProgress ||
+      hud.gateReinforceCost === null ||
+      hud.gold < (hud.gateReinforceCost ?? 0);
+    upgradeSpeedBtn.disabled = true;
+    upgradeSpecialBtn.disabled =
+      !started || hud.gateVolley || hud.gateVolleyCost === null || hud.gold < hud.gateVolleyCost;
+    upgradeSpecialBtn.title = "The warden shoots. 11 damage, a little under an Archer.";
+    hintEl.textContent = hud.waveInProgress
+      ? "Leaks crack the gate. Repair and Reinforce wait until the wave ends. Volley is a bow, a little softer than an Archer."
+      : "Between waves the gate mends 1 life. Repair spends 12 gold a life, up to 2. Reinforce adds 4 lives. Volley lets the warden shoot.";
   } else if (!hud.carrying) {
     upgradeBar.classList.add("hidden");
     mintDepositBtn.classList.add("hidden");
@@ -971,6 +1011,7 @@ function syncDungeonHud(hud: DungeonHud): void {
   speedRow.classList.add("hidden");
   syncTargeting(null);
   goldEl.textContent = String(hud.gold);
+  livesLabel.textContent = "Lives";
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
@@ -1053,6 +1094,7 @@ function syncLawnHud(hud: LawnHud): void {
   speedRow.classList.add("hidden");
   syncTargeting(null);
   goldEl.textContent = String(hud.gold);
+  livesLabel.textContent = "Lives";
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
   goldLabel.textContent = "Sun";
@@ -1345,16 +1387,19 @@ dcancelBtn.addEventListener("click", () => dungeon.clearSelection());
 lcancelBtn.addEventListener("click", () => lawn.clearSelection());
 
 upgradeDamageBtn.addEventListener("click", () => {
-  if (started && activeMode === "bastion") bastion.upgradeSelected("damage");
+  if (!started || activeMode !== "bastion") return;
+  if (!bastion.repairGate()) bastion.upgradeSelected("damage");
 });
 upgradeDurationBtn.addEventListener("click", () => {
-  if (started && activeMode === "bastion") bastion.upgradeSelected("duration");
+  if (!started || activeMode !== "bastion") return;
+  if (!bastion.reinforceGate()) bastion.upgradeSelected("duration");
 });
 upgradeSpeedBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.upgradeSelected("speed");
 });
 upgradeSpecialBtn.addEventListener("click", () => {
-  if (started && activeMode === "bastion") bastion.buySpecial();
+  if (!started || activeMode !== "bastion") return;
+  if (!bastion.buyGateVolley()) bastion.buySpecial();
 });
 targetRow.addEventListener("click", (event) => {
   const btn = (event.target as HTMLElement).closest<HTMLButtonElement>(

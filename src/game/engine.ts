@@ -14,6 +14,17 @@ import {
   DRONE_DAMAGE_RATIO,
   DRONE_SPEED,
   FLY_SPEED,
+  GATE_AUTO_REPAIR,
+  GATE_DAMAGE,
+  GATE_RANGE,
+  GATE_RATE,
+  GATE_REINFORCE_LIVES,
+  GATE_REINFORCE_MAX,
+  GATE_REPAIR_AMOUNT,
+  GATE_SHOT_SPEED,
+  GATE_VOLLEY_COST,
+  gateReinforceCost,
+  gateRepairCost,
   PATH,
   REGEN_DELAY,
   ROWS,
@@ -181,6 +192,17 @@ export interface HudSnapshot {
   warrantName: string;
   /** Banners on the field, plus one the shovel is holding. */
   banners: number;
+  /** The gate at the exit is the selected character. */
+  gateSelected: boolean;
+  gateLives: number;
+  gateMax: number;
+  /** Paid repair price between waves. Null while a wave is running or the gate is full. */
+  gateRepairCost: number | null;
+  /** Next Reinforce price. Null only when the gate is fully reinforced. */
+  gateReinforceCost: number | null;
+  gateVolley: boolean;
+  /** Volley price. Null once the warden already shoots. */
+  gateVolleyCost: number | null;
 }
 
 function pathKey(col: number, row: number): string {
@@ -237,6 +259,13 @@ export class Game {
   difficulty: Difficulty = "normal";
   gold = startingGold("normal");
   lives = startingLives("normal");
+  /** Gate integrity cap. Reinforce raises it. Supply drops can still sit above it. */
+  private maxLives = startingLives("normal");
+  private gateRank = 0;
+  private gateVolley = false;
+  private gateCooldown = 0;
+  private gateFlash = 0;
+  bastionSelected = false;
   wave = 0;
   phase: GamePhase = "ready";
   selected: TowerKind | null = "archer";
@@ -384,6 +413,14 @@ export class Game {
           : "none",
       warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
       banners: this.bannerTotal(),
+      gateSelected: this.bastionSelected,
+      gateLives: this.lives,
+      gateMax: this.maxLives,
+      gateRepairCost: this.repairPrice(),
+      gateReinforceCost:
+        this.gateRank >= GATE_REINFORCE_MAX ? null : gateReinforceCost(this.gateRank),
+      gateVolley: this.gateVolley,
+      gateVolleyCost: this.gateVolley ? null : GATE_VOLLEY_COST,
       pressure: this.custom
         ? 1
         : pressureMultiplier(this.waveInProgress ? this.wave : this.wave + 1),
@@ -431,6 +468,7 @@ export class Game {
     if (kind !== null && !this.kindAllowed(kind)) return;
     this.tool = "build";
     this.selected = kind;
+    this.bastionSelected = false;
     if (kind !== null) this.selectedTowerIndex = null;
     this.emitHud();
   }
@@ -442,6 +480,7 @@ export class Game {
     this.tool = "shovel";
     this.selected = null;
     this.selectedTowerIndex = null;
+    this.bastionSelected = false;
     this.emitHud();
   }
 
@@ -449,6 +488,7 @@ export class Game {
     if (this.carrying) return;
     this.selected = null;
     this.selectedTowerIndex = null;
+    this.bastionSelected = false;
     this.tool = "build";
     this.emitHud();
   }
@@ -472,6 +512,15 @@ export class Game {
 
     if (this.tool === "shovel" || this.carrying) {
       return this.handleShovelClick(col, row);
+    }
+
+    if (this.isGateCell(col, row)) {
+      this.selected = null;
+      this.selectedTowerIndex = null;
+      this.bastionSelected = true;
+      this.tool = "build";
+      this.emitHud();
+      return true;
     }
 
     const existing = this.towers.findIndex((t) => t.col === col && t.row === row);
@@ -882,6 +931,7 @@ export class Game {
     this.spawnTimer = 0;
     this.waveInProgress = false;
     this.selected = this.firstRosterKind();
+    this.resetGate();
     this.emitHud();
   }
 
@@ -919,6 +969,7 @@ export class Game {
     this.restart("normal");
     this.gold = next.gold;
     this.lives = next.lives;
+    this.maxLives = next.lives;
     this.emitHud();
   }
 
@@ -957,6 +1008,135 @@ export class Game {
     };
   }
 
+  private resetGate(): void {
+    this.maxLives = this.lives;
+    this.gateRank = 0;
+    this.gateVolley = false;
+    this.gateCooldown = 0;
+    this.gateFlash = 0;
+    this.bastionSelected = false;
+  }
+
+  private isGateCell(col: number, row: number): boolean {
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (!end) return false;
+    return Math.floor(end.x / CELL) === col && Math.floor(end.y / CELL) === row;
+  }
+
+  private repairPrice(): number | null {
+    if (this.waveInProgress || this.phase !== "ready") return null;
+    const cost = gateRepairCost(this.lives, this.maxLives);
+    return cost > 0 ? cost : null;
+  }
+
+  private reinforcePrice(): number | null {
+    if (this.waveInProgress || this.phase !== "ready") return null;
+    if (this.gateRank >= GATE_REINFORCE_MAX) return null;
+    return gateReinforceCost(this.gateRank);
+  }
+
+  /** Between waves, spend gold to mend up to two lives. */
+  repairGate(): boolean {
+    if (!this.bastionSelected) return false;
+    const cost = this.repairPrice();
+    if (cost === null || this.gold < cost) return false;
+    const missing = this.maxLives - this.lives;
+    const amount = Math.min(GATE_REPAIR_AMOUNT, missing);
+    this.gold -= cost;
+    this.lives += amount;
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (end) this.burst(end.x, end.y - 18, "#8fbf7a", 10);
+    this.emitHud();
+    return true;
+  }
+
+  /** Between waves, spend gold to thicken the gate. */
+  reinforceGate(): boolean {
+    if (!this.bastionSelected) return false;
+    const cost = this.reinforcePrice();
+    if (cost === null || this.gold < cost) return false;
+    this.gold -= cost;
+    this.gateRank += 1;
+    this.maxLives += GATE_REINFORCE_LIVES;
+    this.lives += GATE_REINFORCE_LIVES;
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (end) this.burst(end.x, end.y - 18, "#e8c547", 12);
+    this.emitHud();
+    return true;
+  }
+
+  /** The warden keeps a bow and shoots a little softer than an Archer. */
+  buyGateVolley(): boolean {
+    if (!this.bastionSelected || this.gateVolley) return false;
+    if (this.phase === "won" || this.phase === "lost") return false;
+    if (this.gold < GATE_VOLLEY_COST) return false;
+    this.gold -= GATE_VOLLEY_COST;
+    this.gateVolley = true;
+    this.gateCooldown = 0;
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (end) this.burst(end.x, end.y - 10, "#d7c4a3", 10);
+    this.emitHud();
+    return true;
+  }
+
+  private updateGate(dt: number): void {
+    if (this.gateFlash > 0) this.gateFlash = Math.max(0, this.gateFlash - dt);
+    if (!this.gateVolley || !this.waveInProgress) return;
+    this.gateCooldown = Math.max(0, this.gateCooldown - dt);
+    if (this.gateCooldown > 0) return;
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (!end) return;
+    const buff = this.gateBuff();
+    const best = this.pickTarget(end, "first", GATE_RANGE * CELL, new Set(), false);
+    if (!best) return;
+    const angle = Math.atan2(best.y - end.y, best.x - end.x);
+    this.projectiles.push({
+      x: end.x,
+      y: end.y - 8,
+      vx: Math.cos(angle) * GATE_SHOT_SPEED,
+      vy: Math.sin(angle) * GATE_SHOT_SPEED,
+      damage: GATE_DAMAGE * (1 + buff.damage),
+      splash: 0,
+      slow: 0,
+      slowDuration: 0,
+      color: "#d7c4a3",
+      targetId: best.id,
+      life: 1.2,
+      fire: false,
+      strongest: false,
+    });
+    this.gateCooldown = 1 / (GATE_RATE * (1 + buff.rate));
+  }
+
+  /** Banner bonus at the gate. Grand Banner counts. A local banner must reach the exit. */
+  private gateBuff(): { damage: number; rate: number } {
+    const end = this.waypoints[this.waypoints.length - 1];
+    if (!end) return { damage: 0, rate: 0 };
+    let damage = 0;
+    let rate = 0;
+    for (const banner of this.towers) {
+      if (banner.kind !== "banner" || banner.silenced > 0) continue;
+      const bonus = bannerBonus(banner);
+      if (banner.special) {
+        damage += bonus.damage;
+        rate += bonus.rate;
+        continue;
+      }
+      const origin = {
+        x: banner.col * CELL + CELL / 2,
+        y: banner.row * CELL + CELL / 2,
+      };
+      if (dist(end, origin) <= combatStats(banner).range * CELL) {
+        damage += bonus.damage;
+        rate += bonus.rate;
+      }
+    }
+    return {
+      damage: Math.min(BANNER_CAP, damage),
+      rate: Math.min(BANNER_CAP, rate),
+    };
+  }
+
   update(dt: number): void {
     if (this.phase === "won" || this.phase === "lost") {
       this.updateParticles(dt);
@@ -968,6 +1148,7 @@ export class Game {
     this.updateEnemies(dt);
     this.updateSpawners(dt);
     this.updateTowers(dt);
+    this.updateGate(dt);
     this.updateClouds(dt);
     this.updateProjectiles(dt);
     this.updateParticles(dt);
@@ -1140,6 +1321,7 @@ export class Game {
 
       if (e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
         this.lives -= e.leakDamage;
+        this.gateFlash = 0.45;
         this.burst(
           e.x,
           e.y,
@@ -2088,6 +2270,12 @@ export class Game {
 
     this.waveInProgress = false;
     this.clouds = [];
+    const mended = Math.min(this.maxLives, this.lives + GATE_AUTO_REPAIR);
+    if (mended > this.lives) {
+      this.lives = mended;
+      const end = this.waypoints[this.waypoints.length - 1];
+      if (end) this.burst(end.x, end.y - 18, "#8fbf7a", 8);
+    }
     this.gold += 25 + this.wave * 5;
     this.shovelReady = true; // one shovel action available again
     for (const tower of this.towers) {
@@ -2357,6 +2545,8 @@ export class Game {
   private drawBaseMarkers(ctx: CanvasRenderingContext2D): void {
     const start = this.waypoints[0];
     const end = this.waypoints[this.waypoints.length - 1];
+    const prev = this.waypoints[this.waypoints.length - 2];
+    if (!start || !end) return;
     const pulse = 0.5 + 0.5 * Math.sin(this.pulse * 3);
 
     ctx.fillStyle = `rgba(94, 207, 138, ${0.25 + pulse * 0.2})`;
@@ -2367,19 +2557,123 @@ export class Game {
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    ctx.fillStyle = `rgba(232, 93, 74, ${0.25 + pulse * 0.2})`;
-    ctx.beginPath();
-    ctx.arc(end.x, end.y, 18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#e85d4a";
-    ctx.stroke();
-
     ctx.fillStyle = "#e8efe6";
     ctx.font = "600 11px 'Chakra Petch', sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("IN", start.x, start.y);
-    ctx.fillText("OUT", end.x, end.y);
+    this.drawBastion(ctx, end, prev);
+  }
+
+  /** The warden and the gate at the exit. Cracks follow missing lives. */
+  private drawBastion(
+    ctx: CanvasRenderingContext2D,
+    end: Vec2 | undefined,
+    prev: Vec2 | undefined,
+  ): void {
+    if (!end) return;
+    const ratio = this.maxLives <= 0 ? 0 : Math.min(1, this.lives / this.maxLives);
+    const hurt = 1 - ratio;
+    let dx = 1;
+    let dy = 0;
+    if (prev) {
+      dx = end.x - prev.x;
+      dy = end.y - prev.y;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len;
+      dy /= len;
+    }
+
+    if (this.bastionSelected && this.gateVolley) {
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, GATE_RANGE * CELL, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(232, 197, 71, 0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(end.x, end.y);
+    ctx.rotate(Math.atan2(dy, dx));
+
+    ctx.fillStyle = hurt > 0.65 ? "#6a5a48" : "#8d7a62";
+    ctx.fillRect(-8, -22, 12, 8);
+    ctx.fillRect(-8, 14, 12, 8);
+    ctx.fillStyle = "#cbb892";
+    ctx.fillRect(-9, -24, 14, 3);
+    ctx.fillRect(-9, 21, 14, 3);
+
+    const planks = [
+      { x: -6, h: 28 },
+      { x: -1, h: hurt > 0.55 ? 16 : 28 },
+      { x: 4, h: 28 },
+    ];
+    planks.forEach((plank, i) => {
+      if (hurt > 0.72 && i === 2) return;
+      if (hurt > 0.35 && i === 0) return;
+      ctx.fillStyle = i % 2 === 0 ? "#6b4428" : "#7c5132";
+      ctx.fillRect(plank.x, -plank.h / 2, 4, plank.h);
+    });
+
+    if (hurt > 0.15) {
+      ctx.strokeStyle = `rgba(40, 24, 16, ${0.35 + hurt * 0.55})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-4, -12);
+      ctx.lineTo(4, -2);
+      ctx.lineTo(-2, 10);
+      if (hurt > 0.5) {
+        ctx.moveTo(2, -14);
+        ctx.lineTo(-3, 4);
+      }
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.translate(-14, hurt * 4);
+    ctx.rotate(hurt * 0.2);
+    ctx.fillStyle = "#2c4a38";
+    ctx.beginPath();
+    ctx.moveTo(0, -6);
+    ctx.lineTo(6, 9);
+    ctx.lineTo(-6, 9);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#e6d3b0";
+    ctx.beginPath();
+    ctx.arc(0, -10, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1c2e24";
+    ctx.fillRect(-4.4, -13.2, 8.8, 3.2);
+    ctx.fillStyle = "#e8c547";
+    ctx.fillRect(-1.2, -16, 2.4, 3);
+    if (this.gateVolley) {
+      ctx.strokeStyle = "#d7c4a3";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(7, -2, 5, -1, 1);
+      ctx.stroke();
+      ctx.fillStyle = "#d7c4a3";
+      ctx.fillRect(6, -3, 7, 1.4);
+    }
+    ctx.restore();
+
+    const bar = 30;
+    ctx.fillStyle = "#152219";
+    ctx.fillRect(-bar / 2, -30, bar, 3);
+    ctx.fillStyle = ratio > 0.5 ? "#5ecf8a" : ratio > 0.25 ? "#e8c547" : "#e85d4a";
+    ctx.fillRect(-bar / 2, -30, bar * ratio, 3);
+
+    if (this.bastionSelected) {
+      ctx.strokeStyle = "#e8c547";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(-20, -28, 36, 52);
+    }
+    if (this.gateFlash > 0) {
+      ctx.fillStyle = `rgba(232, 93, 74, ${Math.min(0.55, this.gateFlash)})`;
+      ctx.fillRect(-16, -22, 28, 44);
+    }
+    ctx.restore();
   }
 
   private drawHover(ctx: CanvasRenderingContext2D): void {
