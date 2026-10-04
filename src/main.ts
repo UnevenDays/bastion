@@ -1,5 +1,5 @@
 import "./style.css";
-import { BANNER_CAP, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
+import { BANNER_CAP, BANNER_LIMIT, BANK_DEPOSIT_CHUNK, TOWER_DEFS } from "./game/config";
 import { DUNGEON_BUILDS, type DungeonBuildKind } from "./game/dungeonConfig";
 import { DungeonGame, type DungeonHud } from "./game/dungeonEngine";
 import { mountEditor } from "./editorPanel";
@@ -371,6 +371,7 @@ const LOAD_TIPS = [
   "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
   "A Desert Husk cracks at half health, then it sprints.",
   "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
+  "The field holds 3 banners. Only one of them can be a Grand Banner.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -683,7 +684,12 @@ function syncBastionHud(hud: HudSnapshot): void {
       hud.carrying ||
       hud.phase === "won" ||
       hud.phase === "lost" ||
-      hud.gold < TOWER_DEFS[kind].cost;
+      hud.gold < TOWER_DEFS[kind].cost ||
+      (kind === "banner" && hud.banners >= BANNER_LIMIT);
+    btn.title =
+      kind === "banner" && hud.banners >= BANNER_LIMIT
+        ? "Three banners is the limit"
+        : "";
     btn.classList.toggle(
       "selected",
       hud.selected === kind && hud.tool === "build",
@@ -748,8 +754,10 @@ function syncBastionHud(hud: HudSnapshot): void {
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Buff Max" : `+ Speed Buff (${t.speedCost}g)`;
       hintEl.textContent = t.special
-        ? `Grand Banner raises damage and attack speed of every tower. Banners stack, up to +${Math.round(BANNER_CAP * 100)}% each.`
-        : "Banner does not shoot. Towers inside its range hit harder and faster.";
+        ? `Grand Banner raises damage and attack speed of every tower. Only one Grand Banner can stand. Banners stack, up to +${Math.round(BANNER_CAP * 100)}% each.`
+        : t.grandTaken
+          ? `Only one Grand Banner can stand. This banner still buffs towers in range. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}.`
+          : `Banner does not shoot. Towers inside its range hit harder and faster. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}. Only one can be a Grand Banner.`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);
@@ -887,8 +895,9 @@ function syncBastionHud(hud: HudSnapshot): void {
       !started || t.durationCost === null || !t.canAffordDuration;
     upgradeSpeedBtn.disabled =
       !started || t.speedCost === null || !t.canAffordSpeed;
-    upgradeSpecialBtn.textContent =
-      t.kind === "sniper"
+    upgradeSpecialBtn.textContent = t.grandTaken
+      ? "Grand Banner taken"
+      : t.kind === "sniper"
         ? t.supplyReady
           ? `Supply Drop (${t.supplyCost}g)`
           : `Used this wave · next ${t.supplyCost}g`
@@ -921,6 +930,11 @@ function syncBastionHud(hud: HudSnapshot): void {
       hintEl.textContent =
         "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run." +
         (hud.hasWater ? " Water puddles cannot hold a tower." : "");
+    } else if (hud.selected === "banner") {
+      hintEl.textContent =
+        hud.banners >= BANNER_LIMIT
+          ? "Three banners is the limit. Sell one before placing another. Only one can be a Grand Banner."
+          : `The field holds ${hud.banners} of ${BANNER_LIMIT} banners. Only one can be a Grand Banner. Click grass to build.`;
     } else if (hud.selected) {
       const onBench = menuView !== "editor" && loadout.includes(hud.selected);
       hintEl.textContent = `${TOWER_DEFS[hud.selected].name} ${onBench ? "is on your bench" : "selected"}. Click grass to build.${hud.hasWater ? " Water puddles cannot hold a tower." : ""}`;

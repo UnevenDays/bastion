@@ -48,6 +48,8 @@ export const WASP_DAMAGE_STEP = 0.3;
 export const BANNER_BUFF = 0.2;
 /** Combined banner bonus cannot exceed this, so several banners stay bounded. */
 export const BANNER_CAP = 0.6;
+/** Banners that can stand at once, including one the shovel is holding. */
+export const BANNER_LIMIT = 3;
 
 /** Wave-1 grunt health, before any wave scaling. */
 export const BASIC_GRUNT_HP = 40;
@@ -237,7 +239,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0,
     color: "#d4a24a",
     projectileSpeed: 0,
-    description: "Buffs damage and attack speed of towers in range",
+    description: "Buffs nearby towers. Up to 3, one Grand Banner",
     support: true,
   },
   storm: {
@@ -343,7 +345,7 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   banner: {
     name: "Grand Banner",
-    description: "The same buff reaches every tower on the map",
+    description: "The same buff reaches every tower. Only one Grand Banner can stand",
     costMultiplier: 1.35,
   },
   storm: {

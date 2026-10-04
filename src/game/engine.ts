@@ -1,5 +1,6 @@
 import {
   BANNER_CAP,
+  BANNER_LIMIT,
   BANK_DEPOSIT_CHUNK,
   CELL,
   CLOUD_CAP,
@@ -144,6 +145,8 @@ export interface SelectedTowerInfo {
   slowDuration: number;
   /** Seconds between Glacier pulses. 0 for other towers. */
   pulse: number;
+  /** Another banner is already a Grand Banner, so this one cannot buy it. */
+  grandTaken: boolean;
 }
 
 export interface HudSnapshot {
@@ -173,6 +176,8 @@ export interface HudSnapshot {
   pressure: number;
   /** Warrant chosen for this road. Empty on an editor level. */
   warrantName: string;
+  /** Banners on the field, plus one the shovel is holding. */
+  banners: number;
 }
 
 function pathKey(col: number, row: number): string {
@@ -292,6 +297,7 @@ export class Game {
       t.kind === "frost" && t.special && t.durationLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.durationLevel)
         : null;
+    const grandTaken = t.kind === "banner" && !t.special && this.grandBannerStanding(t);
     const dropCost = def.sniper ? supplyDropCost(t.supplyUses) : 0;
     const spCost = def.sniper
       ? t.supplyUsed
@@ -318,7 +324,8 @@ export class Game {
       specialName: special.name,
       specialDescription: special.description,
       specialCost: spCost,
-      canAffordSpecial: spCost !== null && this.gold >= spCost,
+      canAffordSpecial: spCost !== null && this.gold >= spCost && !grandTaken,
+      grandTaken,
       sellRefund: sellValue(t.invested, t.banked),
       economy: !!def.economy,
       goldPerTick: income?.amount ?? 0,
@@ -368,6 +375,7 @@ export class Game {
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
           : "none",
       warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
+      banners: this.bannerTotal(),
       pressure: this.custom
         ? 1
         : pressureMultiplier(this.waveInProgress ? this.wave : this.wave + 1),
@@ -596,6 +604,7 @@ export class Game {
     if (this.craters.has(key) || this.water.has(key)) return false;
 
     const def = TOWER_DEFS[this.selected];
+    if (this.selected === "banner" && this.bannerTotal() >= BANNER_LIMIT) return false;
     if (this.gold < def.cost) return false;
 
     this.gold -= def.cost;
@@ -691,6 +700,7 @@ export class Game {
     if (!t) return false;
     if (t.kind === "sniper") return this.callSupplyDrop(t);
     if (t.special) return false;
+    if (t.kind === "banner" && this.grandBannerStanding(t)) return false;
 
     const cost = specialCost(t.kind);
     if (this.gold < cost) return false;
@@ -1131,6 +1141,23 @@ export class Game {
     }
     this.enemies = survivors;
     if (spawned.length) this.enemies.push(...spawned);
+  }
+
+  /** Banners standing, plus one the shovel is holding. */
+  private bannerTotal(): number {
+    let count = 0;
+    for (const t of this.towers) if (t.kind === "banner") count += 1;
+    if (this.carrying?.kind === "banner") count += 1;
+    return count;
+  }
+
+  /** True when some other banner is already a Grand Banner. */
+  private grandBannerStanding(except?: Tower): boolean {
+    for (const t of this.towers) {
+      if (t.kind === "banner" && t.special && t !== except) return true;
+    }
+    const held = this.carrying;
+    return !!held && held.kind === "banner" && held.special && held !== except;
   }
 
   /** Damage and attack-speed bonus banners apply to a fighting tower. */
@@ -2524,7 +2551,7 @@ export class Game {
       const asleep = def.chomp && t.cooldown > 0.15;
       ctx.save();
       if (asleep) ctx.globalAlpha = 0.55;
-      ctx.fillStyle = def.color;
+      ctx.fillStyle = t.kind === "banner" && t.special ? "#ffe08a" : def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint", asleep);
       ctx.restore();
       if (t.silenced > 0) {
