@@ -1558,6 +1558,95 @@ body {
   margin-bottom: 20px;
 }
 
+/* Loss only. Victory and the start menu stay on the dark panel. */
+#end-overlay.lost {
+  background: rgba(12, 8, 6, 0.62);
+}
+
+#end-overlay.lost .overlay-card {
+  background: #fff6e8;
+  border: 2px solid #e85d4a;
+  box-shadow:
+    0 0 0 6px rgba(255, 214, 160, 0.55),
+    0 18px 48px rgba(0, 0, 0, 0.45);
+  color: #1a1408;
+}
+
+#end-overlay.lost .overlay-card h2 {
+  color: #9a2e22;
+}
+
+#end-overlay.lost .overlay-card p {
+  color: #2a241c;
+}
+
+#end-overlay.lost .death-recap {
+  background: #fffdf8;
+  border-color: #e8b4a4;
+}
+
+#end-overlay.lost .overlay-card .death-recap p {
+  color: #1a1408;
+}
+
+#end-overlay.lost .overlay-card .death-recap p:last-child {
+  color: #8a4b12;
+}
+
+#end-overlay.lost .mode-btn {
+  background: #fff;
+  color: #2a241c;
+  border-color: #c4b49a;
+}
+
+#end-overlay.lost .mode-btn:hover {
+  color: #1a1408;
+  border-color: #c47a2a;
+  background: #fff8ee;
+}
+
+#end-overlay.lost .mode-btn.selected,
+#end-overlay.lost .mode-btn[data-mode="hard"].selected,
+#end-overlay.lost .mode-btn[data-mode="endless"].selected {
+  background: #fff4d4;
+  color: #1a1408;
+  border-color: #c47a2a;
+  box-shadow: 0 0 0 1px rgba(196, 122, 42, 0.35);
+}
+
+#end-overlay.lost .btn-ghost {
+  color: #5c4030;
+  border-color: #c4a090;
+  background: #fffdf8;
+}
+
+#end-overlay.lost .btn-ghost:hover:not(:disabled) {
+  color: #1a1408;
+  border-color: #9a2e22;
+  background: #fff;
+}
+
+#end-overlay.lost .score-title,
+#end-overlay.lost .score-name,
+#end-overlay.lost .score-board li,
+#end-overlay.lost .score-board li.empty {
+  color: #1a1408;
+}
+
+#end-overlay.lost .score-board li {
+  border-bottom-color: rgba(154, 46, 34, 0.22);
+}
+
+#end-overlay.lost .score-board li.empty {
+  color: #5c4030;
+}
+
+#end-overlay.lost .score-name input {
+  color: #1a1408;
+  background: #fff;
+  border-color: #c4b49a;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

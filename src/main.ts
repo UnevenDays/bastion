@@ -826,6 +826,7 @@ function showHome(): void {
     bastion.setTutorial(null);
   }
   started = false;
+  endOverlay.classList.remove("lost");
   endOverlay.classList.add("hidden");
   deathRecapEl.classList.add("hidden");
   modeBadge.classList.add("hidden");
@@ -1605,6 +1606,7 @@ function showEndIfNeeded(
   event: "" | "hallow" = "",
   lives = 0,
 ): void {
+  endOverlay.classList.toggle("lost", phase === "lost");
   const endlessLoss = phase === "lost" && mode === "bastion" && difficulty === "endless" && !custom;
   endlessScore.classList.toggle("hidden", !endlessLoss);
   endModePicker.classList.toggle("hidden", custom);
@@ -2044,6 +2046,7 @@ function startChosen(): void {
   eventAwarded = false;
   startOverlay.classList.remove("editor-open");
   startOverlay.classList.add("hidden");
+  endOverlay.classList.remove("lost");
   endOverlay.classList.add("hidden");
   deathRecapEl.classList.add("hidden");
   applyChrome(chosenMode);
