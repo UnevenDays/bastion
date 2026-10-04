@@ -24,6 +24,12 @@ export interface CampaignLevel {
   blurb: string;
   path: CampaignCell[];
   water: CampaignCell[];
+  /** Trunks on the grass. A shot through a trunk stops. */
+  trees: CampaignCell[];
+  /** Rocks fall on towers during a wave. */
+  rocks: boolean;
+  /** Auto aim uses a shorter range. */
+  fog: boolean;
   grass: [string, string];
   pattern: TilePattern;
   /** Edge, fill, and center dash of the road. */
@@ -81,6 +87,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     blurb: "The original road. Twelve waves.",
     path: PATH.map((p) => ({ col: p.col, row: p.row })),
     water: [],
+    trees: [],
+    rocks: false,
+    fog: false,
     grass: ["#1e3a28", "#1a3324"],
     pattern: "tufts",
     road: DIRT,
@@ -105,6 +114,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 15, row: 1 },
     ]),
     water: [],
+    trees: [],
+    rocks: false,
+    fog: false,
     grass: ["#3a3424", "#322c20"],
     pattern: "stripes",
     road: DIRT,
@@ -151,6 +163,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 12, row: 3 },
       { col: 13, row: 3 },
     ],
+    trees: [],
+    rocks: false,
+    fog: false,
     grass: ["#163830", "#12322c"],
     pattern: "marsh",
     road: DIRT,
@@ -177,6 +192,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 6, row: 6 },
     ]),
     water: [],
+    trees: [],
+    rocks: false,
+    fog: false,
     grass: ["#2a3038", "#242a32"],
     pattern: "cobble",
     road: DIRT,
@@ -191,7 +209,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "orchard",
     name: "Orchard",
     waves: 20,
-    blurb: "Twenty waves. Blossom on the grass, and a pale road.",
+    blurb: "Twenty waves. Trees block shots that pass through their trunks.",
     path: march([
       { col: 0, row: 2 },
       { col: 12, row: 2 },
@@ -203,6 +221,26 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 13, row: 4 },
     ]),
     water: [],
+    trees: [
+      { col: 2, row: 1 },
+      { col: 5, row: 1 },
+      { col: 8, row: 1 },
+      { col: 11, row: 1 },
+      { col: 3, row: 3 },
+      { col: 6, row: 3 },
+      { col: 9, row: 3 },
+      { col: 4, row: 4 },
+      { col: 7, row: 4 },
+      { col: 10, row: 4 },
+      { col: 3, row: 5 },
+      { col: 8, row: 5 },
+      { col: 6, row: 7 },
+      { col: 10, row: 7 },
+      { col: 14, row: 5 },
+      { col: 14, row: 7 },
+    ],
+    rocks: false,
+    fog: false,
     grass: ["#243528", "#1c2c22"],
     pattern: "blossom",
     road: {
@@ -221,7 +259,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "quarry",
     name: "Quarry",
     waves: 22,
-    blurb: "Twenty-two waves. Cut stone under a gray field.",
+    blurb: "Twenty-two waves. Rocks fall during a wave and shut a tower off for 2.5 seconds.",
     path: march([
       { col: 0, row: 8 },
       { col: 12, row: 8 },
@@ -233,6 +271,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 8, row: 3 },
     ]),
     water: [],
+    trees: [],
+    rocks: true,
+    fog: false,
     grass: ["#2a3134", "#23292c"],
     pattern: "slate",
     road: {
@@ -251,7 +292,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "night",
     name: "Night Watch",
     waves: 24,
-    blurb: "Twenty-four waves. A dark field, and tiles that glimmer.",
+    blurb: "Twenty-four waves. Fog shortens Auto range to 65%. Other aim keeps full range.",
     path: march([
       { col: 0, row: 1 },
       { col: 15, row: 1 },
@@ -263,6 +304,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 6, row: 6 },
     ]),
     water: [],
+    trees: [],
+    rocks: false,
+    fog: true,
     grass: ["#1b1d30", "#141626"],
     pattern: "embers",
     road: {
@@ -293,6 +337,9 @@ export const CAMPAIGN: CampaignLevel[] = [
       { col: 6, row: 6 },
     ]),
     water: [],
+    trees: [],
+    rocks: false,
+    fog: false,
     grass: ["#6b4e2e", "#5c4126"],
     pattern: "dunes",
     road: {

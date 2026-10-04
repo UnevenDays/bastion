@@ -113,7 +113,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Desert sends the Desert Husk. Marsh has water you cannot build on.</p>
+            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, and Night Watch fog each fight the line.</p>
             <p class="roster-note" id="roster-note"></p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <p class="warrant-label">Warrant</p>
@@ -1153,8 +1153,7 @@ function syncBastionHud(hud: HudSnapshot): void {
 
     if (t.silenced > 0) {
       upgradeStats.textContent += " · shut off";
-      hintEl.textContent =
-        "A sapper stopped on this tower. It stays shut off for a few seconds, then it works again.";
+      hintEl.textContent = "This tower is shut off for a few seconds, then it works again.";
     }
 
     upgradeDamageBtn.disabled =
@@ -1224,25 +1223,25 @@ function syncBastionHud(hud: HudSnapshot): void {
     } else if (hud.selected === "chomp") {
       hintEl.textContent =
         "Chomp swallows an enemy, then sleeps for 25 seconds. One upgrade widens the bite. The other shortens the nap. Double Bite swallows two." +
-        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
+        terrainNote(hud);
     } else if (hud.selected === "sniper") {
       hintEl.textContent =
         "Sniper has no range limit. Shots are slow and heavy. Supply Drop gives 1 life and 35 gold once each wave, and each call costs more." +
-        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
+        terrainNote(hud);
     } else if (hud.selected === "nuke") {
       hintEl.textContent =
         "Nuke detonates where you place it. Every enemy is left with a sliver of health. Your towers in the 3×3 are destroyed. That crater cannot be built on for the rest of the run." +
-        (hud.hasWater ? " Water puddles cannot hold a tower." : "");
+        terrainNote(hud);
     } else if (hud.selected === "banner") {
       hintEl.textContent =
         hud.banners >= BANNER_LIMIT
-          ? "Three banners is the limit. Sell one before placing another. Only one can be a Grand Banner."
-          : `The field holds ${hud.banners} of ${BANNER_LIMIT} banners. Only one can be a Grand Banner. Click grass to build.`;
+          ? `Three banners is the limit. Sell one before placing another. Only one can be a Grand Banner.${terrainNote(hud)}`
+          : `The field holds ${hud.banners} of ${BANNER_LIMIT} banners. Only one can be a Grand Banner. Click grass to build.${terrainNote(hud)}`;
     } else if (hud.selected) {
       const onBench = menuView !== "editor" && loadout.includes(hud.selected);
-      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} ${onBench ? "is on your bench" : "selected"}. Click grass to build.${hud.hasWater ? " Water puddles cannot hold a tower." : ""}`;
+      hintEl.textContent = `${TOWER_DEFS[hud.selected].name} ${onBench ? "is on your bench" : "selected"}. Click grass to build.${terrainNote(hud)}`;
     } else {
-      hintEl.textContent = "Select a tower, or click a placed tower to upgrade.";
+      hintEl.textContent = `Select a tower, or click a placed tower to upgrade.${terrainNote(hud)}`;
     }
   }
 
@@ -1618,12 +1617,29 @@ function patternList(kinds: readonly PatternKind[]): string {
   return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
+function terrainTags(level: (typeof CAMPAIGN)[number]): string {
+  const tags: string[] = [];
+  if (level.water.length > 0) tags.push("water");
+  if (level.trees.length > 0) tags.push("trees");
+  if (level.rocks) tags.push("rocks");
+  if (level.fog) tags.push("fog");
+  return tags.length ? ` · ${tags.join(", ")}` : "";
+}
+
+function terrainNote(hud: { hasWater: boolean; hasTrees: boolean; hasRocks: boolean; hasFog: boolean }): string {
+  const notes: string[] = [];
+  if (hud.hasWater) notes.push("Water puddles cannot hold a tower.");
+  if (hud.hasTrees) notes.push("Trees block shots that pass through their trunks.");
+  if (hud.hasRocks) notes.push("Rocks fall during a wave and shut a tower off.");
+  if (hud.hasFog) notes.push("Fog shortens Auto range. Other aim keeps full range.");
+  return notes.length ? ` ${notes.join(" ")}` : "";
+}
+
 function paintLevels(): void {
   levelPicker.innerHTML = CAMPAIGN.map((level) => {
-    const water = level.water.length > 0 ? " · water" : "";
     return `<button class="level-btn${level.id === chosenLevel ? " selected" : ""}" type="button" data-level="${level.id}">
       <span class="level-name">${level.name}</span>
-      <span class="level-meta">${level.waves} waves${water}</span>
+      <span class="level-meta">${level.waves} waves${terrainTags(level)}</span>
     </button>`;
   }).join("");
   paintWarrants();
@@ -1644,7 +1660,7 @@ function paintWarrants(): void {
   const huskNote = warrant.enemies.includes("husk")
     ? " A Desert Husk cracks at half health and sprints."
     : "";
-  warrantBlurb.textContent = `${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  warrantBlurb.textContent = `${level.blurb} ${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
   if (!started) {
     bastion.beginRun(chosenDifficulty, level.id, picked);
   }

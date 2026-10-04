@@ -23,6 +23,12 @@ import {
   GATE_REPAIR_AMOUNT,
   GATE_SHOT_SPEED,
   GATE_VOLLEY_COST,
+  FOG_AUTO_RANGE,
+  QUARRY_ROCK_EVERY,
+  QUARRY_ROCK_FIRST,
+  QUARRY_ROCK_STUN,
+  QUARRY_ROCK_WARN,
+  TREE_TRUNK,
   gateReinforceCost,
   gateRepairCost,
   PATH,
@@ -201,6 +207,12 @@ export interface HudSnapshot {
   levelName: string;
   /** This road has water that cannot hold a tower. */
   hasWater: boolean;
+  /** Orchard trunks block shots. */
+  hasTrees: boolean;
+  /** Quarry rocks fall during a wave. */
+  hasRocks: boolean;
+  /** Night Watch fog shortens Auto range. */
+  hasFog: boolean;
   /** Endless rule for this wave, or the next one while you are between waves. */
   mutator: EndlessMutator;
   /** Pack health multiplier for this wave, or the next one between waves. 1 through wave 5. */
@@ -230,6 +242,29 @@ function dist(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
   const dy = a.y - b.y;
   return Math.hypot(dx, dy);
+}
+
+function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const len2 = abx * abx + aby * aby;
+  if (len2 < 1) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * abx + (py - ay) * aby) / len2));
+  return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
+}
+
+/** True when the open line from `from` to `to` passes through an Orchard trunk. */
+export function shotBlockedByTrees(
+  from: Vec2,
+  to: Vec2,
+  trees: readonly { col: number; row: number }[],
+): boolean {
+  for (const tree of trees) {
+    const cx = tree.col * CELL + CELL / 2;
+    const cy = tree.row * CELL + CELL / 2;
+    if (distToSegment(cx, cy, from.x, from.y, to.x, to.y) <= TREE_TRUNK) return true;
+  }
+  return false;
 }
 
 function isBossKind(kind: Enemy["kind"]): boolean {
@@ -270,6 +305,10 @@ export class Game {
   private campaign: CampaignLevel = campaignById("road");
   private warrantIndex = 0;
   private water = new Set<string>();
+  private treeSet = new Set<string>();
+  private treeCells: { col: number; row: number }[] = [];
+  private fallingRocks: { col: number; row: number; eta: number }[] = [];
+  private rockTimer = QUARRY_ROCK_FIRST;
   private grassA = "#1e3a28";
   private grassB = "#1a3324";
 
@@ -381,7 +420,7 @@ export class Game {
       canAffordSpeed: sCost !== null && this.gold >= sCost,
       damage: Math.round(stats.damage),
       fireRate: Math.round(stats.fireRate * 100) / 100,
-      range: Math.round(stats.range * 10) / 10,
+      range: Math.round(this.aimRange(t, stats.range) * 10) / 10,
       splash: Math.round(stats.splash * 100) / 100,
       special: t.special,
       specialName: special.name,
@@ -434,6 +473,9 @@ export class Game {
       custom: this.custom !== null,
       levelName: this.custom ? "" : this.campaign.name,
       hasWater: !this.custom && this.campaign.water.length > 0,
+      hasTrees: !this.custom && this.treeCells.length > 0,
+      hasRocks: !this.custom && this.campaign.rocks,
+      hasFog: !this.custom && this.campaign.fog,
       mutator:
         this.difficulty === "endless" && !this.custom
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
@@ -608,7 +650,7 @@ export class Game {
   private placeCarried(col: number, row: number): boolean {
     if (!this.carrying) return false;
     const key = pathKey(col, row);
-    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.craters.has(key) || this.water.has(key)) return false;
+    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.craters.has(key) || this.blockedGround(key)) return false;
 
     const tower = this.carrying;
     tower.col = col;
@@ -711,7 +753,7 @@ export class Game {
     const key = pathKey(col, row);
     if (this.pathSet.has(key)) return false;
     if (this.towerOccupied.has(key)) return false;
-    if (this.craters.has(key) || this.water.has(key)) return false;
+    if (this.craters.has(key) || this.blockedGround(key)) return false;
 
     const def = TOWER_DEFS[this.selected];
     if (this.selected === "banner" && this.bannerTotal() >= BANNER_LIMIT) return false;
@@ -936,6 +978,7 @@ export class Game {
     this.spawnTimer = 0.2;
     this.armStorms();
     this.payInvestmentBanks();
+    if (!this.custom && this.campaign.rocks) this.rockTimer = QUARRY_ROCK_FIRST;
     this.emitHud();
   }
 
@@ -993,6 +1036,8 @@ export class Game {
     this.selected = this.firstRosterKind();
     this.goldSpent = 0;
     this.leaked.clear();
+    this.fallingRocks = [];
+    this.rockTimer = QUARRY_ROCK_FIRST;
     this.tutorialSpot = null;
     this.tutorialAccept = false;
     this.tutorialBlockWave = false;
@@ -1112,6 +1157,8 @@ export class Game {
     this.campaign = level;
     this.usePath(level.path);
     this.water = new Set(level.water.map((p) => pathKey(p.col, p.row)));
+    this.treeCells = level.trees.map((p) => ({ col: p.col, row: p.row }));
+    this.treeSet = new Set(this.treeCells.map((p) => pathKey(p.col, p.row)));
     this.grassA = level.grass[0];
     this.grassB = level.grass[1];
   }
@@ -1225,7 +1272,7 @@ export class Game {
     const end = this.waypoints[this.waypoints.length - 1];
     if (!end) return;
     const buff = this.gateBuff();
-    const best = this.pickTarget(end, "first", GATE_RANGE * CELL, new Set(), false);
+    const best = this.pickTarget(end, "first", GATE_RANGE * CELL, new Set(), false, true);
     if (!best) return;
     const angle = Math.atan2(best.y - end.y, best.x - end.x);
     this.projectiles.push({
@@ -1264,7 +1311,10 @@ export class Game {
         x: banner.col * CELL + CELL / 2,
         y: banner.row * CELL + CELL / 2,
       };
-      if (dist(end, origin) <= combatStats(banner).range * CELL) {
+      if (
+        dist(end, origin) <= combatStats(banner).range * CELL &&
+        !this.treeBlocks(origin, end)
+      ) {
         damage += bonus.damage;
         rate += bonus.rate;
       }
@@ -1285,6 +1335,7 @@ export class Game {
     this.spawnEnemies(dt);
     this.updateEnemies(dt);
     this.updateSpawners(dt);
+    this.updateRocks(dt);
     this.updateTowers(dt);
     this.updateGate(dt);
     this.updateClouds(dt);
@@ -1525,7 +1576,7 @@ export class Game {
         x: banner.col * CELL + CELL / 2,
         y: banner.row * CELL + CELL / 2,
       };
-      if (dist(pad, origin) <= reach) {
+      if (dist(pad, origin) <= reach && !this.treeBlocks(origin, pad)) {
         damage += bonus.damage;
         rate += bonus.rate;
       }
@@ -1606,7 +1657,8 @@ export class Game {
       }
 
       const stats = this.effectiveStats(t);
-      const rangePx = def.sniper ? Number.POSITIVE_INFINITY : stats.range * CELL;
+      const rangePx = def.sniper ? Number.POSITIVE_INFINITY : this.aimRange(t, stats.range) * CELL;
+      const origin = { x: tx, y: ty };
 
       if (stats.auraFreeze) {
         t.cooldown = Math.max(0, t.cooldown - dt);
@@ -1615,7 +1667,7 @@ export class Game {
         const allowed = this.towerIsStrongest(t);
         if (!this.markedWave() || allowed) {
           for (const e of this.enemies) {
-            if (dist({ x: tx, y: ty }, e) > rangePx) continue;
+            if (dist(origin, e) > rangePx || this.treeBlocks(origin, e)) continue;
             e.speed = e.baseSpeed * stats.slow;
             e.slowTimer = Math.max(e.slowTimer, stats.slowDuration);
             e.burnTimer = 0;
@@ -1631,7 +1683,7 @@ export class Game {
       if (stats.auraDamage > 0) {
         const allowed = this.towerIsStrongest(t);
         for (const e of this.enemies) {
-          if (dist({ x: tx, y: ty }, e) > rangePx) continue;
+          if (dist(origin, e) > rangePx || this.treeBlocks(origin, e)) continue;
           if (this.markedWave() && !allowed) continue;
           this.damageEnemy(e, stats.auraDamage * dt, allowed);
           if (t.kind === "pyro" && e.hp > 0 && e.slowTimer <= 0) {
@@ -1647,11 +1699,12 @@ export class Game {
       if (!stats.firesProjectiles) continue;
 
       const best = this.pickTarget(
-        { x: tx, y: ty },
+        origin,
         t.targeting,
         rangePx,
         new Set(),
         t.inverted,
+        !def.sniper,
       );
       if (!best) continue;
 
@@ -1704,7 +1757,7 @@ export class Game {
     const stats = this.effectiveStats(t);
     const tx = t.col * CELL + CELL / 2;
     const ty = t.row * CELL + CELL / 2;
-    const rangePx = stats.range * CELL;
+    const rangePx = this.aimRange(t, stats.range) * CELL;
     const avoid = new Set<number>();
     const eaten: Enemy[] = [];
     for (let i = 0; i < chompBiteCount(t.special); i++) {
@@ -1714,6 +1767,7 @@ export class Game {
         rangePx,
         avoid,
         t.inverted,
+        true,
       );
       if (!best || avoid.has(best.id)) break;
       avoid.add(best.id);
@@ -1741,10 +1795,11 @@ export class Game {
     const count = maceCount(t.special);
     const span = (Math.PI * 2) / count;
     const rangePx = stats.range * CELL;
+    const origin = { x: tx, y: ty };
 
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
-      if (dist({ x: tx, y: ty }, e) > rangePx + e.radius * 0.2) continue;
+      if (dist(origin, e) > rangePx + e.radius * 0.2 || this.treeBlocks(origin, e)) continue;
       const enemyAngle = Math.atan2(e.y - ty, e.x - tx);
       for (let i = 0; i < count; i++) {
         if (!maceSweepHits(prev + i * span, t.orbit + i * span, enemyAngle)) continue;
@@ -1961,6 +2016,86 @@ export class Game {
     return e.pathIndex + e.progress;
   }
 
+  /** Water and Orchard trees refuse a tower. */
+  private blockedGround(key: string): boolean {
+    return this.water.has(key) || this.treeSet.has(key);
+  }
+
+  /** Night Watch fog shortens Auto aim. Other aim, and towers with no aim, keep full range. */
+  private aimRange(t: Tower, range: number): number {
+    if (range <= 0 || this.custom || !this.campaign.fog) return range;
+    if (t.targeting !== "auto") return range;
+    const def = TOWER_DEFS[t.kind];
+    if (def.support || def.mace || def.flying || def.storm || def.sniper || def.economy || def.nuke) {
+      return range;
+    }
+    return range * FOG_AUTO_RANGE;
+  }
+
+  /** A new tower starts on Auto, so the placement ring uses the fog range. */
+  private previewRange(kind: TowerKind, range: number): number {
+    if (range <= 0 || this.custom || !this.campaign.fog) return range;
+    const def = TOWER_DEFS[kind];
+    if (def.support || def.mace || def.flying || def.storm || def.sniper || def.economy || def.nuke) {
+      return range;
+    }
+    return range * FOG_AUTO_RANGE;
+  }
+
+  private treeBlocks(from: Vec2, to: Vec2): boolean {
+    if (this.custom || this.treeCells.length === 0) return false;
+    return shotBlockedByTrees(from, to, this.treeCells);
+  }
+
+  /** Quarry: a shadow, then a rock that shuts one tower off. */
+  private updateRocks(dt: number): void {
+    if (this.custom || !this.campaign.rocks) return;
+    const pending: { col: number; row: number; eta: number }[] = [];
+    for (const rock of this.fallingRocks) {
+      rock.eta -= dt;
+      if (rock.eta > 0) {
+        pending.push(rock);
+        continue;
+      }
+      const hit = this.towers.find((t) => t.col === rock.col && t.row === rock.row);
+      if (hit) {
+        hit.silenced = Math.max(hit.silenced, QUARRY_ROCK_STUN);
+        this.emitHud();
+      }
+      const x = rock.col * CELL + CELL / 2;
+      const y = rock.row * CELL + CELL / 2;
+      this.burst(x, y, "#8a847c", 12);
+      this.burst(x, y - 6, "#c2bbb2", 6);
+    }
+    this.fallingRocks = pending;
+    if (!this.waveInProgress) return;
+    this.rockTimer -= dt;
+    if (this.rockTimer > 0) return;
+    this.rockTimer = QUARRY_ROCK_EVERY;
+    this.dropRock();
+  }
+
+  private dropRock(): void {
+    const open = this.towers.filter((t) => !TOWER_DEFS[t.kind].nuke && t.silenced <= 0);
+    const pool = open.length ? open : this.towers.filter((t) => !TOWER_DEFS[t.kind].nuke);
+    if (pool.length) {
+      const tower = pool[Math.floor(Math.random() * pool.length)]!;
+      this.fallingRocks.push({ col: tower.col, row: tower.row, eta: QUARRY_ROCK_WARN });
+      return;
+    }
+    const grass: { col: number; row: number }[] = [];
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const key = pathKey(col, row);
+        if (this.pathSet.has(key) || this.blockedGround(key) || this.craters.has(key)) continue;
+        grass.push({ col, row });
+      }
+    }
+    if (!grass.length) return;
+    const cell = grass[Math.floor(Math.random() * grass.length)]!;
+    this.fallingRocks.push({ col: cell.col, row: cell.row, eta: QUARRY_ROCK_WARN });
+  }
+
   /**
    * Pick a living enemy inside range. An empty avoid set is ignored.
    * If every candidate is avoided, fall back to the full list so a
@@ -1972,9 +2107,10 @@ export class Game {
     rangePx: number,
     avoid: Set<number>,
     inverted = false,
+    sight = false,
   ): Enemy | null {
     const inRange = this.enemies.filter(
-      (e) => e.hp > 0 && dist(origin, e) <= rangePx,
+      (e) => e.hp > 0 && dist(origin, e) <= rangePx && (!sight || !this.treeBlocks(origin, e)),
     );
     if (!inRange.length) return null;
     const open = inRange.filter((e) => !avoid.has(e.id));
@@ -2466,10 +2602,13 @@ export class Game {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(ctx);
     this.drawPath(ctx);
+    this.drawFog(ctx);
     this.drawTutorialGround(ctx);
     paintBoardLight(ctx, this.width, this.height);
     this.drawHover(ctx);
     this.drawTowers(ctx);
+    this.drawTrees(ctx);
+    this.drawRocks(ctx);
     this.drawCarryingGhost(ctx);
     this.drawEnemies(ctx);
     this.drawClouds(ctx);
@@ -2721,6 +2860,76 @@ export class Game {
     paintWideRoad(ctx, this.waypoints, this.campaign.road, CELL);
   }
 
+  private drawTrees(ctx: CanvasRenderingContext2D): void {
+    for (const cell of this.treeCells) {
+      const x = cell.col * CELL + CELL / 2;
+      const y = cell.row * CELL + CELL / 2;
+      const sway = Math.sin(this.pulse * 1.2 + cell.col * 0.7) * 1.4;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.28)";
+      ctx.beginPath();
+      ctx.ellipse(x + 1, y + 12, 14, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#5a3a28";
+      ctx.fillRect(x - 3 + sway * 0.15, y - 2, 6, 16);
+      ctx.fillStyle = "#2c6b3c";
+      ctx.beginPath();
+      ctx.arc(x + sway, y - 8, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#3e8a4e";
+      ctx.beginPath();
+      ctx.arc(x - 6 + sway, y - 12, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f0b4c4";
+      for (const [dx, dy] of [
+        [-8, -14],
+        [2, -16],
+        [8, -8],
+        [-2, -6],
+        [10, -14],
+      ] as const) {
+        ctx.beginPath();
+        ctx.arc(x + dx + sway, y + dy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  private drawRocks(ctx: CanvasRenderingContext2D): void {
+    for (const rock of this.fallingRocks) {
+      const x = rock.col * CELL + CELL / 2;
+      const y = rock.row * CELL + CELL / 2;
+      const t = 1 - Math.max(0, rock.eta) / QUARRY_ROCK_WARN;
+      ctx.fillStyle = `rgba(70, 64, 58, ${0.28 + t * 0.4})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 10, 7 + t * 9, 3.5 + t * 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      const fallY = y - (1 - t) * 78;
+      ctx.fillStyle = "#6e6860";
+      ctx.beginPath();
+      ctx.arc(x, fallY, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#b7b0a6";
+      ctx.beginPath();
+      ctx.arc(x - 2, fallY - 2, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  private drawFog(ctx: CanvasRenderingContext2D): void {
+    if (this.custom || !this.campaign.fog) return;
+    for (let i = 0; i < 7; i++) {
+      const x = ((i * 149 + this.pulse * 22) % (this.width + 120)) - 60;
+      const y = 36 + ((i * 97) % (this.height - 48)) + Math.sin(this.pulse * 0.6 + i) * 14;
+      const mist = ctx.createRadialGradient(x, y, 8, x, y, 110);
+      mist.addColorStop(0, "rgba(214, 222, 242, 0.38)");
+      mist.addColorStop(1, "rgba(214, 222, 242, 0)");
+      ctx.fillStyle = mist;
+      ctx.beginPath();
+      ctx.arc(x, y, 110, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   private drawBaseMarkers(ctx: CanvasRenderingContext2D): void {
     const start = this.waypoints[0];
     const end = this.waypoints[this.waypoints.length - 1];
@@ -2870,7 +3079,7 @@ export class Game {
         !this.pathSet.has(key) &&
         !this.towerOccupied.has(key) &&
         !this.craters.has(key) &&
-        !this.water.has(key);
+        !this.blockedGround(key);
       const hasTower = this.towerOccupied.has(key);
       ctx.fillStyle = this.carrying
         ? validPlace
@@ -2883,7 +3092,7 @@ export class Game {
       if (this.carrying && validPlace) {
         const stats = combatStats(this.carrying);
         ctx.beginPath();
-        ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
+        ctx.arc(cx, cy, this.aimRange(this.carrying, stats.range) * CELL, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(232, 197, 71, 0.45)";
         ctx.lineWidth = 1.5;
         ctx.stroke();
@@ -2900,7 +3109,7 @@ export class Game {
       !this.pathSet.has(key) &&
       !occupied &&
       !crater &&
-      !this.water.has(key) &&
+      !this.blockedGround(key) &&
       this.gold >= def.cost;
 
     if (occupied) {
@@ -2909,7 +3118,7 @@ export class Game {
       return;
     }
 
-    if (crater || this.water.has(key)) {
+    if (crater || this.blockedGround(key)) {
       ctx.fillStyle = "rgba(232, 93, 74, 0.35)";
       ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
       return;
@@ -2937,7 +3146,7 @@ export class Game {
 
     if (!def.economy && def.range > 0) {
       ctx.beginPath();
-      ctx.arc(cx, cy, def.range * CELL, 0, Math.PI * 2);
+      ctx.arc(cx, cy, this.previewRange(this.selected, def.range) * CELL, 0, Math.PI * 2);
       ctx.strokeStyle = valid
         ? "rgba(232, 197, 71, 0.45)"
         : "rgba(232, 93, 74, 0.4)";
@@ -2955,7 +3164,7 @@ export class Game {
     if (!this.carrying || !this.hover) return;
     const { col, row } = this.hover;
     const key = pathKey(col, row);
-    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.water.has(key) || this.craters.has(key)) return;
+    if (this.pathSet.has(key) || this.towerOccupied.has(key) || this.blockedGround(key) || this.craters.has(key)) return;
     const cx = col * CELL + CELL / 2;
     const cy = row * CELL + CELL / 2;
     ctx.globalAlpha = 0.55;
@@ -2998,7 +3207,7 @@ export class Game {
         (selected || t.special || t.cooldown < 0.15)
       ) {
         ctx.beginPath();
-        ctx.arc(cx, cy, stats.range * CELL, 0, Math.PI * 2);
+        ctx.arc(cx, cy, this.aimRange(t, stats.range) * CELL, 0, Math.PI * 2);
         if (t.special && t.kind === "frost") {
           ctx.fillStyle = "rgba(90, 158, 184, 0.08)";
           ctx.fill();

@@ -58,6 +58,18 @@ export function gateRepairCost(lives: number, maxLives: number): number {
   return amount * GATE_REPAIR_EACH;
 }
 
+/** Night Watch. Auto aim reaches this fraction of its range. */
+export const FOG_AUTO_RANGE = 0.65;
+/** Orchard. A trunk blocks a shot inside this many pixels of its center. */
+export const TREE_TRUNK = 15;
+/** Quarry. Seconds into a wave before the first rock, then the gap between rocks. */
+export const QUARRY_ROCK_FIRST = 5;
+export const QUARRY_ROCK_EVERY = 7;
+/** Quarry. The shadow hangs for this long, then the rock lands. */
+export const QUARRY_ROCK_WARN = 0.85;
+/** Quarry. Seconds a landed rock shuts that tower off. */
+export const QUARRY_ROCK_STUN = 2.5;
+
 /** Normal mode: wounded enemies restore full health after this many seconds without damage. */
 export const REGEN_DELAY = 3;
 
