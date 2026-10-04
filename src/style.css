@@ -97,10 +97,22 @@ body {
   display: none;
 }
 
-.mode-badge.regen {
+.mode-badge.classic {
+  color: #1a1408;
+  background: linear-gradient(180deg, #f4e7c3 0%, #c9a86a 100%);
+  border-color: #fff1d0;
+}
+
+.mode-badge.dungeon {
+  color: #f6ecff;
+  background: linear-gradient(180deg, #6a4588 0%, #3a2454 100%);
+  border-color: #c9a6e8;
+}
+
+.mode-badge.lawn {
   color: #102016;
-  background: linear-gradient(180deg, #5ecf8a 0%, #2f8a56 100%);
-  border-color: #8ee0b0;
+  background: linear-gradient(180deg, #d2ee8a 0%, #6aaa3a 100%);
+  border-color: #e7f6b8;
 }
 
 .mode-badge.endless {

@@ -627,7 +627,17 @@ function syncBastionHud(hud: HudSnapshot): void {
     btn.classList.toggle("selected", Number(btn.dataset.speed) === gameSpeed);
   }
 
-  modeBadge.classList.remove("hidden", "regen", "endless", "custom", "armor", "marked");
+  modeBadge.classList.remove(
+    "hidden",
+    "regen",
+    "classic",
+    "dungeon",
+    "lawn",
+    "endless",
+    "custom",
+    "armor",
+    "marked",
+  );
   if (hud.custom) {
     modeBadge.classList.add("custom");
     modeBadge.textContent = "Custom";
@@ -639,8 +649,8 @@ function syncBastionHud(hud: HudSnapshot): void {
     modeBadge.classList.add(hud.mutator === "none" ? "endless" : hud.mutator);
     modeBadge.textContent = mutator;
   } else {
-    modeBadge.classList.add("regen");
-    modeBadge.textContent = "Regen";
+    modeBadge.classList.add("classic");
+    modeBadge.textContent = "Classic";
   }
 
   warrantBadge.textContent = hud.warrantName;
@@ -906,10 +916,24 @@ function syncDungeonHud(hud: DungeonHud): void {
   livesEl.textContent = String(hud.lives);
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
 
-  modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
-  modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
+  modeBadge.classList.remove(
+    "hidden",
+    "regen",
+    "classic",
+    "dungeon",
+    "lawn",
+    "endless",
+    "custom",
+    "armor",
+    "marked",
+  );
   warrantBadge.classList.add("hidden");
-  if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
+  if (hud.difficulty === "hard") {
+    modeBadge.textContent = "Hard";
+  } else {
+    modeBadge.classList.add("dungeon");
+    modeBadge.textContent = "Dungeon Crawler";
+  }
 
   dwaveBtn.disabled =
     !started ||
@@ -975,10 +999,24 @@ function syncLawnHud(hud: LawnHud): void {
   waveEl.textContent = `${hud.wave} / ${hud.totalWaves}`;
   goldLabel.textContent = "Sun";
 
-  modeBadge.classList.remove("regen", "endless", "custom", "armor", "marked");
-  modeBadge.classList.toggle("hidden", hud.difficulty !== "hard");
+  modeBadge.classList.remove(
+    "hidden",
+    "regen",
+    "classic",
+    "dungeon",
+    "lawn",
+    "endless",
+    "custom",
+    "armor",
+    "marked",
+  );
   warrantBadge.classList.add("hidden");
-  if (hud.difficulty === "hard") modeBadge.textContent = "Hard";
+  if (hud.difficulty === "hard") {
+    modeBadge.textContent = "Hard";
+  } else {
+    modeBadge.classList.add("lawn");
+    modeBadge.textContent = "Sun Lawn";
+  }
 
   const peace = hud.peaceLeft > 0;
   lwaveBtn.disabled =
