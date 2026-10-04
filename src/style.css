@@ -1276,7 +1276,8 @@ body {
 }
 
 #mint-deposit.hidden,
-#mint-deposit-all.hidden {
+#mint-deposit-all.hidden,
+#upgrade-duration.hidden {
   display: none;
 }
 
