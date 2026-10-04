@@ -1287,6 +1287,31 @@ body {
   display: none;
 }
 
+.death-recap {
+  text-align: left;
+  margin: -8px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  background: rgba(8, 14, 10, 0.45);
+}
+
+.death-recap.hidden {
+  display: none;
+}
+
+.overlay-card .death-recap p {
+  margin: 0 0 6px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.overlay-card .death-recap p:last-child {
+  margin-bottom: 0;
+  color: var(--gold);
+}
+
 .score-title {
   font-family: var(--font-display);
   color: var(--gold);

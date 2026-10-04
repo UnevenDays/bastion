@@ -10,7 +10,7 @@ import { LawnGame, type LawnHud } from "./game/lawnEngine";
 import { CAMPAIGN } from "./game/campaign";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
-import type { Difficulty, GameMode, PatternKind, TargetMode, TowerKind } from "./game/types";
+import type { DeathRecap, Difficulty, GameMode, PatternKind, TargetMode, TowerKind } from "./game/types";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.classList.add("at-gate");
@@ -150,6 +150,11 @@ app.innerHTML = `
         <div class="overlay-card">
           <h2 id="end-title">Victory</h2>
           <p id="end-msg">The bastion holds.</p>
+          <div id="death-recap" class="death-recap hidden">
+            <p id="death-leaked"></p>
+            <p id="death-spent"></p>
+            <p id="death-tip"></p>
+          </div>
           <div id="endless-score" class="score-board hidden">
             <label class="score-name">Name <input id="score-name" maxlength="16" value="Warden" /></label>
             <button class="btn btn-primary" type="button" id="score-save">Save score</button>
@@ -314,6 +319,10 @@ const startOverlay = document.querySelector<HTMLElement>("#start-overlay")!;
 const endOverlay = document.querySelector<HTMLElement>("#end-overlay")!;
 const endTitle = document.querySelector<HTMLElement>("#end-title")!;
 const endMsg = document.querySelector<HTMLElement>("#end-msg")!;
+const deathRecapEl = document.querySelector<HTMLElement>("#death-recap")!;
+const deathLeakedEl = document.querySelector<HTMLElement>("#death-leaked")!;
+const deathSpentEl = document.querySelector<HTMLElement>("#death-spent")!;
+const deathTipEl = document.querySelector<HTMLElement>("#death-tip")!;
 const startBtn = document.querySelector<HTMLButtonElement>("#start-btn")!;
 const restartBtn = document.querySelector<HTMLButtonElement>("#restart-btn")!;
 const menuBtn = document.querySelector<HTMLButtonElement>("#menu-btn")!;
@@ -716,6 +725,7 @@ function showHome(): void {
   }
   started = false;
   endOverlay.classList.add("hidden");
+  deathRecapEl.classList.add("hidden");
   modeBadge.classList.add("hidden");
   showStage("home");
   applyChrome(activeMode);
@@ -1432,6 +1442,7 @@ function showEndIfNeeded(
     refreshBoards();
   }
   if (phase === "won") {
+    deathRecapEl.classList.add("hidden");
     endTitle.textContent =
       mode === "lawn"
         ? difficulty === "hard"
@@ -1479,9 +1490,110 @@ function showEndIfNeeded(
               : difficulty === "hard"
                 ? `Hard mode crushed the line on wave ${wave}.`
                 : `The line fell on wave ${wave}. Rebuild and try again.`;
+    paintDeathRecap(mode, difficulty, custom);
     syncDifficultyButtons(difficulty);
     endOverlay.classList.remove("hidden");
   }
+}
+
+function paintDeathRecap(mode: GameMode, difficulty: Difficulty, custom: boolean): void {
+  const recap =
+    mode === "lawn" ? lawn.deathRecap() : mode === "dungeon" ? dungeon.deathRecap() : bastion.deathRecap();
+  deathLeakedEl.textContent = `Leaked: ${formatLeaks(mode, recap.leaks)}`;
+  deathSpentEl.textContent = `Spent: ${recap.spent} ${recap.currency}`;
+  deathTipEl.textContent = `Tip: ${deathTip(mode, difficulty, custom, recap)}`;
+  deathRecapEl.classList.remove("hidden");
+}
+
+function formatLeaks(mode: GameMode, leaks: DeathRecap["leaks"]): string {
+  if (leaks.length === 0) return "None";
+  return leaks.map((leak) => leakLabel(mode, leak.kind, leak.count)).join(", ");
+}
+
+function leakLabel(mode: GameMode, kind: string, count: number): string {
+  const names = leakNames(mode, kind);
+  return `${count} ${count === 1 ? names[0] : names[1]}`;
+}
+
+function leakNames(mode: GameMode, kind: string): [string, string] {
+  if (mode === "lawn") {
+    if (kind === "shambler") return ["Shambler", "Shamblers"];
+    if (kind === "cone") return ["Conehead", "Coneheads"];
+    if (kind === "runner") return ["Runner", "Runners"];
+    return ["Brute", "Brutes"];
+  }
+  if (mode === "dungeon") {
+    if (kind === "spikeRaider") return ["Spike Raider", "Spike Raiders"];
+    if (kind === "snareScout") return ["Snare Scout", "Snare Scouts"];
+    if (kind === "goblinHunter") return ["Goblin Hunter", "Goblin Hunters"];
+    return ["Ogre Slayer", "Ogre Slayers"];
+  }
+  if (kind === "normal") return ["Grunt", "Grunts"];
+  if (kind === "fast") return ["Runner", "Runners"];
+  if (kind === "tank") return ["Tank", "Tanks"];
+  if (kind === "splitter") return ["Splitter", "Splitters"];
+  if (kind === "splitling") return ["Splitling", "Splitlings"];
+  if (kind === "spawner") return ["Spawner", "Spawners"];
+  if (kind === "thief") return ["Thief", "Thieves"];
+  if (kind === "sapper") return ["Sapper", "Sappers"];
+  if (kind === "husk") return ["Desert Husk", "Desert Husks"];
+  if (kind === "boss") return ["Boss", "Bosses"];
+  if (kind === "finalBoss") return ["Final Boss", "Final Bosses"];
+  if (kind === "challenger") return ["Challenger", "Challengers"];
+  return ["Enemy", "Enemies"];
+}
+
+function leakCount(leaks: DeathRecap["leaks"], kind: string): number {
+  return leaks.find((leak) => leak.kind === kind)?.count ?? 0;
+}
+
+function runnersDominate(leaks: DeathRecap["leaks"]): boolean {
+  const runners = leakCount(leaks, "fast");
+  if (runners <= 0) return false;
+  return leaks.every((leak) => leak.kind === "fast" || leak.count < runners);
+}
+
+function deathTip(mode: GameMode, difficulty: Difficulty, custom: boolean, recap: DeathRecap): string {
+  const leaks = recap.leaks;
+  if (mode === "lawn") {
+    if (recap.spent === 0) return "The lawn pays 25 sun before the first wave. Plant with it.";
+    const runners = leakCount(leaks, "runner");
+    const brutes = leakCount(leaks, "brute");
+    if (runners > 0 && runners >= brutes) return "A Chiller holds runners in the lane.";
+    if (brutes > 0) return "Open a brute with a Boomnut, then hold it on a Bulwark.";
+    return "Put a Spitter behind a Bulwark.";
+  }
+  if (mode === "dungeon") {
+    if (recap.spent === 0) return "Place a trap on the road before you start the wave.";
+    if (leakCount(leaks, "snareScout") > 0) return "A snare holds them on the spikes.";
+    if (leakCount(leaks, "ogreSlayer") > 0) return "Meet an Ogre Slayer with an Ogre.";
+    return "Lay snares and spikes on the same stretch.";
+  }
+  if (recap.spent === 0) {
+    return custom
+      ? "Place a tower on the grass before you start the wave."
+      : "Place an Archer on the grass at the first bend before you start the wave.";
+  }
+  if (
+    leakCount(leaks, "boss") > 0 ||
+    leakCount(leaks, "finalBoss") > 0 ||
+    leakCount(leaks, "challenger") > 0 ||
+    leakCount(leaks, "husk") > 0
+  ) {
+    return "That leak costs several lives. Slow it before it reaches the gate.";
+  }
+  if (runnersDominate(leaks)) return "Runners leaked the most. Frost, or a corner, gives the line more shots.";
+  if (leakCount(leaks, "tank") > 0) {
+    return difficulty === "hard"
+      ? "Splash a tank before it reaches the gate."
+      : "A tank heals to full after 3 quiet seconds. Keep a shot on it.";
+  }
+  if (leakCount(leaks, "thief") > 0) return "A thief that reaches the gate keeps the gold it stole.";
+  if (leakCount(leaks, "sapper") > 0) return "Kill a sapper before it steps off the road. The shutdown lasts 4 seconds.";
+  if (leakCount(leaks, "splitter") > 0 || leakCount(leaks, "splitling") > 0) {
+    return "Splash a splitter so the children die in the same blast.";
+  }
+  return "The Almanac names the tower that answers this pack.";
 }
 
 bastion.onHudChange = syncBastionHud;
@@ -1704,6 +1816,7 @@ function startChosen(): void {
   startOverlay.classList.remove("editor-open");
   startOverlay.classList.add("hidden");
   endOverlay.classList.add("hidden");
+  deathRecapEl.classList.add("hidden");
   applyChrome(chosenMode);
   showStage("play");
   if (chosenMode === "bastion" && activeLevel && menuView === "editor") {

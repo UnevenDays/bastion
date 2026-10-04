@@ -17,8 +17,10 @@ import {
   type PlantKind,
   type ZombieKind,
 } from "./lawnConfig";
-import type { Difficulty, Particle, Vec2 } from "./types";
+import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
 import { blobShadow, paintBoardLight, speckleTile } from "./paint";
+
+const LEAK_ORDER: readonly ZombieKind[] = ["shambler", "cone", "runner", "brute"];
 
 export type LawnPhase = "ready" | "playing" | "won" | "lost";
 
@@ -87,6 +89,10 @@ export class LawnGame {
 
   difficulty: Difficulty = "normal";
   sun = lawnStartingSun("normal");
+  /** Sun paid for plants. Digging does not refund it. */
+  private sunSpent = 0;
+  /** Zombies that reached the house this run. */
+  private leaked = new Map<ZombieKind, number>();
   lives = LAWN_LIVES;
   wave = 0;
   phase: LawnPhase = "ready";
@@ -163,7 +169,19 @@ export class LawnGame {
     this.skyTimer = SUN_INTERVAL;
     this.peaceLeft = LAWN_PEACE;
     this.nextId = 1;
+    this.sunSpent = 0;
+    this.leaked.clear();
     this.emitHud();
+  }
+
+  /** Who reached the house, and sun that stayed spent. */
+  deathRecap(): DeathRecap {
+    const leaks: DeathRecap["leaks"] = [];
+    for (const kind of LEAK_ORDER) {
+      const count = this.leaked.get(kind) ?? 0;
+      if (count > 0) leaks.push({ kind, count });
+    }
+    return { leaks, spent: this.sunSpent, currency: "sun" };
   }
 
   selectPlant(kind: PlantKind): void {
@@ -238,6 +256,7 @@ export class LawnGame {
     if (this.sun < def.cost) return false;
     if (this.plants.some((p) => p.col === col && p.row === row)) return false;
     this.sun -= def.cost;
+    this.sunSpent += def.cost;
     this.plants.push({
       col,
       row,
@@ -366,6 +385,7 @@ export class LawnGame {
         z.x -= z.speed * dt;
       }
       if (z.x < LOFFX - 8) {
+        this.leaked.set(z.kind, (this.leaked.get(z.kind) ?? 0) + 1);
         this.lives -= 1;
         this.burst(LOFFX, z.y, "#e85d4a", 10);
         if (this.lives <= 0) {

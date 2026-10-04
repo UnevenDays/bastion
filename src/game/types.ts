@@ -5,6 +5,13 @@ export type Difficulty = "normal" | "hard" | "endless";
 /** Classic roadside towers vs on-road traps & monsters. */
 export type GameMode = "bastion" | "dungeon" | "lawn";
 
+/** What a lost run shows: who leaked, and gold or sun that stayed spent. */
+export interface DeathRecap {
+  leaks: { kind: string; count: number }[];
+  spent: number;
+  currency: "gold" | "sun";
+}
+
 export type TowerKind =
   | "archer"
   | "cannon"

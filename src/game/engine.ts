@@ -85,8 +85,10 @@ import { campaignById, type CampaignLevel } from "./campaign";
 import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
+  DeathRecap,
   Difficulty,
   Enemy,
+  EnemyKind,
   Flyer,
   Particle,
   Projectile,
@@ -95,6 +97,21 @@ import type {
   TowerKind,
   Vec2,
 } from "./types";
+
+const LEAK_ORDER: readonly EnemyKind[] = [
+  "normal",
+  "fast",
+  "tank",
+  "splitter",
+  "splitling",
+  "spawner",
+  "thief",
+  "sapper",
+  "husk",
+  "boss",
+  "finalBoss",
+  "challenger",
+];
 
 export type GamePhase = "ready" | "playing" | "won" | "lost";
 export type UpgradeStat = "damage" | "speed" | "duration";
@@ -258,6 +275,10 @@ export class Game {
 
   difficulty: Difficulty = "normal";
   gold = startingGold("normal");
+  /** Gold paid for towers, upgrades, the gate, and deposits, minus refunds. */
+  private goldSpent = 0;
+  /** Enemies that reached the gate this run. */
+  private leaked = new Map<EnemyKind, number>();
   lives = startingLives("normal");
   /** Gate integrity cap. Reinforce raises it. Supply drops can still sit above it. */
   private maxLives = startingLives("normal");
@@ -613,6 +634,7 @@ export class Game {
       }
       const refund = sellValue(this.carrying.invested, this.carrying.banked);
       this.gold += refund;
+      this.subSpend(refund);
       this.burst(this.width / 2, this.height / 2, "#e8c547", 10);
       this.carrying = null;
       this.shovelReady = false;
@@ -628,6 +650,7 @@ export class Game {
 
     const refund = sellValue(t.invested, t.banked);
     this.gold += refund;
+    this.subSpend(refund);
     this.towerOccupied.delete(pathKey(t.col, t.row));
     this.burst(t.col * CELL + CELL / 2, t.row * CELL + CELL / 2, "#e8c547", 10);
     this.towers.splice(this.selectedTowerIndex, 1);
@@ -695,6 +718,7 @@ export class Game {
     if (this.gold < def.cost) return false;
 
     this.gold -= def.cost;
+    this.addSpend(def.cost);
     if (def.nuke) {
       this.detonateNuke(col, row);
       this.selectedTowerIndex = null;
@@ -772,6 +796,7 @@ export class Game {
     if (this.gold < cost) return false;
 
     this.gold -= cost;
+    this.addSpend(cost);
     t.invested += cost;
     if (stat === "damage") t.damageLevel += 1;
     else if (stat === "speed") t.speedLevel += 1;
@@ -797,6 +822,7 @@ export class Game {
     if (this.gold < cost) return false;
 
     this.gold -= cost;
+    this.addSpend(cost);
     t.invested += cost;
     t.special = true;
     if (t.kind === "frost") {
@@ -806,6 +832,7 @@ export class Game {
       }
       if (refund > 0) {
         this.gold += refund;
+        this.subSpend(refund);
         t.invested = Math.max(0, t.invested - refund);
         t.damageLevel = 0;
       }
@@ -833,6 +860,7 @@ export class Game {
     const cost = supplyDropCost(t.supplyUses);
     if (this.gold < cost) return false;
     this.gold -= cost;
+    this.addSpend(cost);
     this.gold += SNIPER_SUPPLY_GOLD;
     this.lives += SNIPER_SUPPLY_LIVES;
     t.supplyUses += 1;
@@ -880,6 +908,7 @@ export class Game {
     if (amount <= 0) return false;
 
     this.gold -= amount;
+    this.addSpend(amount);
     t.banked += amount;
     this.burst(
       t.col * CELL + CELL / 2,
@@ -962,6 +991,8 @@ export class Game {
     this.spawnTimer = 0;
     this.waveInProgress = false;
     this.selected = this.firstRosterKind();
+    this.goldSpent = 0;
+    this.leaked.clear();
     this.tutorialSpot = null;
     this.tutorialAccept = false;
     this.tutorialBlockWave = false;
@@ -1041,6 +1072,28 @@ export class Game {
     this.lives = next.lives;
     this.maxLives = next.lives;
     this.emitHud();
+  }
+
+  /** Who reached the gate, and gold that stayed spent. */
+  deathRecap(): DeathRecap {
+    const leaks: DeathRecap["leaks"] = [];
+    for (const kind of LEAK_ORDER) {
+      const count = this.leaked.get(kind) ?? 0;
+      if (count > 0) leaks.push({ kind, count });
+    }
+    return { leaks, spent: this.goldSpent, currency: "gold" };
+  }
+
+  private addSpend(amount: number): void {
+    this.goldSpent += amount;
+  }
+
+  private subSpend(amount: number): void {
+    this.goldSpent = Math.max(0, this.goldSpent - amount);
+  }
+
+  private recordLeak(kind: EnemyKind): void {
+    this.leaked.set(kind, (this.leaked.get(kind) ?? 0) + 1);
   }
 
   /** Towers standing on the field. A detonated Nuke is already gone. */
@@ -1125,6 +1178,7 @@ export class Game {
     const missing = this.maxLives - this.lives;
     const amount = Math.min(GATE_REPAIR_AMOUNT, missing);
     this.gold -= cost;
+    this.addSpend(cost);
     this.lives += amount;
     const end = this.waypoints[this.waypoints.length - 1];
     if (end) this.burst(end.x, end.y - 18, "#8fbf7a", 10);
@@ -1138,6 +1192,7 @@ export class Game {
     const cost = this.reinforcePrice();
     if (cost === null || this.gold < cost) return false;
     this.gold -= cost;
+    this.addSpend(cost);
     this.gateRank += 1;
     this.maxLives += GATE_REINFORCE_LIVES;
     this.lives += GATE_REINFORCE_LIVES;
@@ -1153,6 +1208,7 @@ export class Game {
     if (this.phase === "won" || this.phase === "lost") return false;
     if (this.gold < GATE_VOLLEY_COST) return false;
     this.gold -= GATE_VOLLEY_COST;
+    this.addSpend(GATE_VOLLEY_COST);
     this.gateVolley = true;
     this.gateCooldown = 0;
     const end = this.waypoints[this.waypoints.length - 1];
@@ -1402,6 +1458,7 @@ export class Game {
       }
 
       if (e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
+        this.recordLeak(e.kind);
         this.lives -= e.leakDamage;
         this.gateFlash = 0.45;
         this.burst(
@@ -2348,6 +2405,7 @@ export class Game {
 
   private checkWaveEnd(): void {
     if (!this.waveInProgress) return;
+    if (this.phase === "lost") return;
     if (this.spawnQueue > 0 || this.enemies.length > 0) return;
 
     this.waveInProgress = false;

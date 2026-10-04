@@ -15,7 +15,14 @@ import {
   type AdventurerKind,
   type DungeonBuildKind,
 } from "./dungeonConfig";
-import type { Difficulty, Particle, Vec2 } from "./types";
+import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
+
+const LEAK_ORDER: readonly AdventurerKind[] = [
+  "spikeRaider",
+  "snareScout",
+  "goblinHunter",
+  "ogreSlayer",
+];
 import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
 
 export type DungeonPhase = "ready" | "playing" | "won" | "lost";
@@ -103,6 +110,10 @@ export class DungeonGame {
 
   difficulty: Difficulty = "normal";
   gold = dungeonStartingGold("normal");
+  /** Gold paid for traps, monsters, and upgrades, minus sell refunds. */
+  private goldSpent = 0;
+  /** Adventurers that reached the exit this run. */
+  private leaked = new Map<AdventurerKind, number>();
   lives = dungeonStartingLives("normal");
   wave = 0;
   phase: DungeonPhase = "ready";
@@ -196,7 +207,27 @@ export class DungeonGame {
     this.spawnQueue = 0;
     this.spawnTimer = 0;
     this.waveInProgress = false;
+    this.goldSpent = 0;
+    this.leaked.clear();
     this.emitHud();
+  }
+
+  /** Who escaped, and gold that stayed spent. */
+  deathRecap(): DeathRecap {
+    const leaks: DeathRecap["leaks"] = [];
+    for (const kind of LEAK_ORDER) {
+      const count = this.leaked.get(kind) ?? 0;
+      if (count > 0) leaks.push({ kind, count });
+    }
+    return { leaks, spent: this.goldSpent, currency: "gold" };
+  }
+
+  private addSpend(amount: number): void {
+    this.goldSpent += amount;
+  }
+
+  private subSpend(amount: number): void {
+    this.goldSpent = Math.max(0, this.goldSpent - amount);
   }
 
   selectBuild(kind: DungeonBuildKind | null): void {
@@ -252,6 +283,7 @@ export class DungeonGame {
 
     const pathIndex = this.pathIndexAt.get(key) ?? 0;
     this.gold -= def.cost;
+    this.addSpend(def.cost);
     const unit: RoadUnit = {
       col,
       row,
@@ -280,6 +312,7 @@ export class DungeonGame {
     const cost = dungeonUpgradeCost(def.cost, u.damageLevel);
     if (this.gold < cost) return false;
     this.gold -= cost;
+    this.addSpend(cost);
     u.invested += cost;
     u.damageLevel += 1;
     if (def.role === "monster") {
@@ -301,7 +334,9 @@ export class DungeonGame {
     if (!this.shovelReady || this.selectedUnitIndex === null) return false;
     const u = this.units[this.selectedUnitIndex];
     if (!u) return false;
-    this.gold += dungeonSellValue(u.invested);
+    const refund = dungeonSellValue(u.invested);
+    this.gold += refund;
+    this.subSpend(refund);
     this.occupied.delete(pathKey(u.col, u.row));
     this.burst(
       u.col * DCELL + DCELL / 2,
@@ -494,6 +529,7 @@ export class DungeonGame {
       }
 
       if (a.pathIndex >= this.waypoints.length - 1) {
+        this.leaked.set(a.kind, (this.leaked.get(a.kind) ?? 0) + 1);
         this.lives -= a.leakDamage;
         this.burst(a.x, a.y, "#e85d4a", 10);
         if (this.lives <= 0) {
@@ -629,6 +665,7 @@ export class DungeonGame {
 
   private checkWaveEnd(): void {
     if (!this.waveInProgress) return;
+    if (this.phase === "lost") return;
     if (this.spawnQueue > 0 || this.adventurers.length > 0) return;
     this.waveInProgress = false;
     this.gold += 30 + this.wave * 6;
