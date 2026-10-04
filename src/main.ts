@@ -16,6 +16,7 @@ import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
 import { CAMPAIGN, portalNote } from "./game/campaign";
+import { draftAdvice } from "./game/preview";
 import { TICKET_CAP, grantTickets, hallowPayout, loadTickets } from "./game/hallow";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
 import type { CustomLevel } from "./game/level";
@@ -70,6 +71,15 @@ app.innerHTML = `
   <section class="gate hidden" id="draft-screen">
     <p class="gate-kicker">Classic</p>
     <h1 class="gate-title">Choose your towers</h1>
+    <p class="draft-advice" id="draft-advice"></p>
+    <div class="draft-picks">
+      <label class="draft-level">Road
+        <select id="draft-level" aria-label="Road">
+          ${CAMPAIGN.map((level) => `<option value="${level.id}">${level.name}</option>`).join("")}
+        </select>
+      </label>
+      <div class="draft-warrant" id="draft-warrant" role="group" aria-label="Warrant"></div>
+    </div>
     <p class="home-lead" id="draft-lead">The tower limit is 8. Select which towers you want to bring.</p>
     <p class="draft-count" id="draft-count">0 / 8</p>
     <div class="draft-grid" id="draft-grid"></div>
@@ -130,6 +140,8 @@ app.innerHTML = `
           <div id="panel-classic" class="menu-panel">
             <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, and Night Watch fog each fight the line.</p>
             <p class="roster-note" id="roster-note"></p>
+            <p class="warrant-advice" id="warrant-advice"></p>
+            <button class="btn btn-ghost change-towers" type="button" id="change-towers">Change towers</button>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <p class="warrant-label">Warrant</p>
             <div class="warrant-picker" id="warrant-picker" role="group" aria-label="Warrant"></div>
@@ -257,6 +269,7 @@ app.innerHTML = `
           <span class="meta">Move or sell · 1× per wave</span>
         </button>
       </div>
+      <p class="wave-preview hidden" id="wave-preview"></p>
       <div class="dock-rail">
         <button class="dock-toggle" type="button" aria-expanded="false" id="dock-bastion" title="Show the towers">
           <span class="dock-name" id="dock-bastion-name">Towers</span>
@@ -495,6 +508,12 @@ const bootProgress = document.querySelector<HTMLElement>("#boot-progress")!;
 const draftGrid = document.querySelector<HTMLElement>("#draft-grid")!;
 const draftCount = document.querySelector<HTMLElement>("#draft-count")!;
 const draftLead = document.querySelector<HTMLElement>("#draft-lead")!;
+const draftAdviceEl = document.querySelector<HTMLElement>("#draft-advice")!;
+const draftLevel = document.querySelector<HTMLSelectElement>("#draft-level")!;
+const draftWarrant = document.querySelector<HTMLElement>("#draft-warrant")!;
+const warrantAdviceEl = document.querySelector<HTMLElement>("#warrant-advice")!;
+const changeTowersBtn = document.querySelector<HTMLButtonElement>("#change-towers")!;
+const wavePreviewEl = document.querySelector<HTMLElement>("#wave-preview")!;
 const draftContinue = document.querySelector<HTMLButtonElement>("#draft-continue")!;
 const rosterNote = document.querySelector<HTMLElement>("#roster-note")!;
 const almanacEl = document.querySelector<HTMLElement>("#almanac")!;
@@ -550,6 +569,8 @@ const LOAD_TIPS = [
   "The almanac lists your bench, the enemies on the road, and which towers work together.",
   "The tutorial puts one Archer on the first bend and shows the range over both roads.",
   "Hallow Gate pays event tickets for the lives still on the gate.",
+  "The line above Start Wave names who leads the next pack.",
+  "The draft names what to bring for the warrant you picked.",
 ];
 
 let loadout: TowerKind[] = [];
@@ -653,12 +674,28 @@ function runLoad(then: () => void): void {
   requestAnimationFrame(step);
 }
 
+function paintDraftAdvice(): void {
+  const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
+  const picked = warrantByLevel.get(level.id) ?? 0;
+  const warrant = level.warrants[picked] ?? level.warrants[0]!;
+  const line = `${warrant.name} — ${draftAdvice(warrant)}`;
+  draftAdviceEl.textContent = line;
+  warrantAdviceEl.textContent = line;
+  draftLevel.value = level.id;
+  draftWarrant.innerHTML = level.warrants
+    .map((item, index) => {
+      return `<button class="draft-warrant-btn${index === picked ? " selected" : ""}" type="button" data-draft-warrant="${index}">${item.name}</button>`;
+    })
+    .join("");
+}
+
 function paintDraft(): void {
   draftCount.textContent = `${loadout.length} / ${TOWER_LIMIT}`;
   draftLead.textContent =
     loadout.length >= TOWER_LIMIT
       ? "The tower limit is 8. Deselect one if you want a different tower."
       : "The tower limit is 8. Select which towers you want to bring.";
+  paintDraftAdvice();
   draftContinue.disabled = loadout.length === 0;
   draftGrid.innerHTML = (Object.keys(TOWER_DEFS) as TowerKind[])
     .map((kind) => {
@@ -1057,6 +1094,8 @@ function syncBastionHud(hud: HudSnapshot): void {
   warrantBadge.textContent = hud.warrantName;
   warrantBadge.title = hud.warrantGimmick;
   warrantBadge.classList.toggle("hidden", !started || hud.custom || !hud.warrantName);
+  wavePreviewEl.textContent = hud.preview;
+  wavePreviewEl.classList.toggle("hidden", !started || !hud.preview);
 
   const lesson = tutorialIndex !== null ? TUTORIAL_STEPS[tutorialIndex] : null;
   waveBtn.disabled =
@@ -1870,6 +1909,7 @@ function paintWarrants(): void {
     ? " A Desert Husk cracks at half health and sprints."
     : "";
   warrantBlurb.textContent = `${level.blurb}${portalNote(level)} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  paintDraftAdvice();
   if (!started) {
     bastion.beginRun(chosenDifficulty, level.id, picked);
   }
@@ -1885,6 +1925,26 @@ levelPicker.addEventListener("click", (event) => {
   if (!btn?.dataset.level) return;
   chosenLevel = btn.dataset.level;
   paintLevels();
+});
+
+draftLevel.addEventListener("change", () => {
+  if (!draftLevel.value) return;
+  chosenLevel = draftLevel.value;
+  paintLevels();
+});
+
+draftWarrant.addEventListener("click", (event) => {
+  const btn = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-draft-warrant]");
+  if (!btn?.dataset.draftWarrant) return;
+  const index = Number(btn.dataset.draftWarrant);
+  if (!Number.isInteger(index)) return;
+  warrantByLevel.set(chosenLevel, index);
+  paintWarrants();
+});
+
+changeTowersBtn.addEventListener("click", () => {
+  paintDraft();
+  showStage("draft");
 });
 
 warrantPicker.addEventListener("click", (event) => {

@@ -287,6 +287,24 @@ body {
   font-size: 0.82rem;
 }
 
+.overlay-card .warrant-advice {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff6e8;
+  color: #1a1408;
+  border: 1px solid #e8c547;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.change-towers {
+  display: inline-flex;
+  width: auto;
+  margin: 0 0 14px;
+}
+
 .mode-badge.warrant {
   color: #1a1408;
   background: linear-gradient(180deg, #e8c547 0%, #b8862a 100%);
@@ -598,6 +616,22 @@ body {
   padding: 8px;
   border-color: var(--panel-edge);
   box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.5);
+}
+
+.wave-preview {
+  margin: 0 0 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff6e8;
+  color: #1a1408;
+  border: 1px solid #e8c547;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.wave-preview.hidden {
+  display: none;
 }
 
 .dock-rail {
@@ -1062,6 +1096,77 @@ body {
   margin-top: 3px;
   color: var(--text-muted);
   font-size: 0.82rem;
+}
+
+.draft-advice {
+  width: min(720px, 100%);
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff6e8;
+  color: #1a1408;
+  border: 1px solid #e8c547;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.draft-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  align-items: end;
+  width: min(720px, 100%);
+}
+
+.draft-level {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.draft-level select {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: #1a1408;
+  background: #fff6e8;
+  border: 1px solid #e8c547;
+  border-radius: 6px;
+  padding: 8px 10px;
+  min-width: 148px;
+}
+
+.draft-warrant {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.draft-warrant-btn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.82rem;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-edge);
+  background: #152219;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.draft-warrant-btn.selected {
+  background: #fff6e8;
+  color: #1a1408;
+  border-color: #e8c547;
 }
 
 .draft-count {

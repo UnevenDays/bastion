@@ -92,6 +92,7 @@ import {
   waveEnemyCount,
 } from "./config";
 import { campaignById, openSideSpurs, portalEnemyBonus, type CampaignLevel, type LevelWarrant } from "./campaign";
+import { campaignPreview, customPreview } from "./preview";
 import { HALLOW_LEVEL, HALLOW_MARKS } from "./hallow";
 import { blobShadow, paintBoardLight, paintCrew, paintHallow, paintHallowMoon, paintHallowYard, paintPortal, paintTag, paintWideRoad, paintYardMark, speckleTile, type CrewKind, type HallowFigure } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
@@ -237,6 +238,8 @@ export interface HudSnapshot {
   warrantName: string;
   /** That company's trick. Empty on an editor level. */
   warrantGimmick: string;
+  /** Who leads the wave on the button. Empty once the run is over. */
+  preview: string;
   /** Banners on the field, plus one the shovel is holding. */
   banners: number;
   /** The gate at the exit is the selected character. */
@@ -598,6 +601,7 @@ export class Game {
           : "none",
       warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
       warrantGimmick: this.custom ? "" : (this.activeWarrant()?.gimmick ?? ""),
+      preview: this.previewLine(),
       banners: this.bannerTotal(),
       gateSelected: this.bastionSelected,
       gateLives: this.lives,
@@ -1423,6 +1427,31 @@ export class Game {
   private portalIsOpen(openWave: number): boolean {
     if (this.wave <= 0) return openWave <= 1;
     return this.wave >= openWave;
+  }
+
+  /** Who leads the wave on the button, so the warrant is known before it walks. */
+  private previewLine(): string {
+    if (this.phase === "won" || this.phase === "lost") return "";
+    const wave = this.waveInProgress ? this.wave : this.wave + 1;
+    if (wave < 1) return "";
+    if (this.custom) {
+      const groups = this.custom.waves[wave - 1]?.enemies ?? [];
+      if (groups.length === 0) return "";
+      return customPreview(
+        wave,
+        groups.map((group) => group.kind),
+        this.eventId === "hallow",
+      );
+    }
+    if (this.difficulty !== "endless" && wave > this.campaign.waves) return "";
+    const roster = this.activeWarrant()?.enemies ?? ["normal"];
+    return campaignPreview(
+      wave,
+      roster,
+      this.difficulty,
+      this.campaign.waves,
+      this.portalOpensOn(wave),
+    );
   }
 
   /** The wave on the button: the one running, or the next one between waves. */
