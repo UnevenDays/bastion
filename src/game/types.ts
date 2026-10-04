@@ -172,6 +172,8 @@ export interface Enemy {
   stolen: number;
   /** Seconds toward the next theft. */
   stealTimer: number;
+  /** Seconds since this enemy appeared. A quick bandit kill reads this. */
+  age: number;
   /** Seconds of fire left. A slow puts this out. */
   burnTimer: number;
   /** Fire damage per second while burnTimer is running. */

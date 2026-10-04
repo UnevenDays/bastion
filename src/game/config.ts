@@ -98,6 +98,10 @@ export const THIEF_HP = 64;
 export const THIEF_STEAL = 1;
 /** Share of stolen gold paid back when a thief is killed. */
 export const THIEF_REFUND = 0.2;
+/** A bandit killed inside this many seconds drops an extra purse. */
+export const BANDIT_QUICK_SECONDS = 4;
+/** Extra gold in that purse. A bounty of 0, including drought, pays none. */
+export const BANDIT_QUICK_GOLD = 8;
 
 /** Sapper health before wave scaling. A step above the thief. */
 export const SAPPER_HP = 96;
@@ -512,6 +516,17 @@ export function cloudStrikeBack(enemyMaxHp: number): number {
 /** Gold returned when a thief dies. A leak pays nothing back. */
 export function thiefRefund(stolen: number): number {
   return Math.floor(Math.max(0, stolen) * THIEF_REFUND);
+}
+
+/** Extra gold when a bandit dies quickly. A zero bounty pays no purse. */
+export function banditQuickBonus(reward: number, age: number): number {
+  if (reward <= 0 || age > BANDIT_QUICK_SECONDS) return 0;
+  return BANDIT_QUICK_GOLD;
+}
+
+/** The coin over a bandit, while a quick kill still pays. */
+export function banditPurseOpen(age: number): boolean {
+  return age <= BANDIT_QUICK_SECONDS;
 }
 
 /** Pyro hit. A target that is not already burning takes the extra damage. */

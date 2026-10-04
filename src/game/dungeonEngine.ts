@@ -15,7 +15,15 @@ import {
   type AdventurerKind,
   type DungeonBuildKind,
 } from "./dungeonConfig";
-import { paintTag } from "./paint";
+import {
+  blobShadow,
+  paintBoardLight,
+  paintCrew,
+  paintTag,
+  paintWideRoad,
+  speckleTile,
+  type CrewKind,
+} from "./paint";
 import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
 
 const LEAK_ORDER: readonly AdventurerKind[] = [
@@ -24,8 +32,6 @@ const LEAK_ORDER: readonly AdventurerKind[] = [
   "goblinHunter",
   "ogreSlayer",
 ];
-import { blobShadow, paintBoardLight, paintWideRoad, speckleTile } from "./paint";
-
 export type DungeonPhase = "ready" | "playing" | "won" | "lost";
 
 export interface RoadUnit {
@@ -945,21 +951,28 @@ export class DungeonGame {
       const fighting = a.fightingUnitId !== null;
       const r = a.radius;
       blobShadow(ctx, a.x, a.y + r * 0.7, r * 1.1, r * 0.35);
-      ctx.fillStyle = a.color;
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y - r);
-      ctx.lineTo(a.x + r * 0.9, a.y + r * 0.75);
-      ctx.lineTo(a.x - r * 0.9, a.y + r * 0.75);
-      ctx.closePath();
-      ctx.fill();
+      const from = this.waypoints[a.pathIndex] ?? { x: a.x, y: a.y };
+      const to = this.waypoints[Math.min(a.pathIndex + 1, this.waypoints.length - 1)] ?? from;
+      const adventurerFigure: CrewKind =
+        a.kind === "snareScout"
+          ? "scout"
+          : a.kind === "goblinHunter"
+            ? "hunter"
+            : a.kind === "ogreSlayer"
+              ? "slayer"
+              : "raider";
+      paintCrew(ctx, a.x, a.y, r, a.color, adventurerFigure, {
+        faceLeft: to.x < from.x - 0.5,
+        walk: this.pulse * 8 + a.id,
+      });
 
-      ctx.strokeStyle = fighting
-        ? "#e85d4a"
-        : a.slowTimer > 0
-          ? "#7ec8e0"
-          : "rgba(0,0,0,0.35)";
-      ctx.lineWidth = fighting || a.slowTimer > 0 ? 2 : 1;
-      ctx.stroke();
+      if (fighting || a.slowTimer > 0) {
+        ctx.strokeStyle = fighting ? "#e85d4a" : "#7ec8e0";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(a.x, a.y, r + 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
 
       const barW = a.radius * 2.2;
       const bx = a.x - barW / 2;

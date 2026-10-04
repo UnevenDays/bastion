@@ -18,7 +18,7 @@ import {
   type ZombieKind,
 } from "./lawnConfig";
 import type { DeathRecap, Difficulty, Particle, Vec2 } from "./types";
-import { blobShadow, paintBoardLight, paintTag, speckleTile } from "./paint";
+import { blobShadow, paintBoardLight, paintCrew, paintTag, speckleTile, type CrewKind } from "./paint";
 
 const LEAK_ORDER: readonly ZombieKind[] = ["shambler", "cone", "runner", "brute"];
 
@@ -111,6 +111,7 @@ export class LawnGame {
   peaceLeft = 0;
   private nextId = 1;
   private hover: { col: number; row: number } | null = null;
+  private pulse = 0;
 
   onHudChange: ((hud: LawnHud) => void) | null = null;
 
@@ -297,6 +298,7 @@ export class LawnGame {
   }
 
   update(dt: number): void {
+    this.pulse += dt;
     if (this.phase === "won" || this.phase === "lost") {
       this.updateParticles(dt);
       return;
@@ -639,21 +641,17 @@ export class LawnGame {
   private drawZombies(ctx: CanvasRenderingContext2D): void {
     for (const z of this.zombies) {
       blobShadow(ctx, z.x, z.y + z.radius * 0.7, z.radius * 1.1, z.radius * 0.36);
-      ctx.fillStyle = z.color;
-      ctx.beginPath();
-      ctx.arc(z.x, z.y, z.radius, 0, Math.PI * 2);
-      ctx.fill();
-      if (z.kind === "cone") {
-        ctx.beginPath();
-        ctx.moveTo(z.x - 8, z.y - z.radius + 4);
-        ctx.lineTo(z.x, z.y - z.radius - 10);
-        ctx.lineTo(z.x + 8, z.y - z.radius + 4);
-        ctx.closePath();
-        ctx.fill();
-      }
+      const zombieFigure: CrewKind =
+        z.kind === "cone" ? "cone" : z.kind === "runner" ? "runner" : z.kind === "brute" ? "brute" : "shambler";
+      paintCrew(ctx, z.x, z.y, z.radius, z.color, zombieFigure, {
+        faceLeft: true,
+        walk: this.pulse * 8 + z.id,
+      });
       if (z.slowTimer > 0) {
         ctx.strokeStyle = "#7ec8e0";
         ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(z.x, z.y, z.radius + 3, 0, Math.PI * 2);
         ctx.stroke();
       }
       const pct = Math.max(0, z.hp / z.maxHp);

@@ -27,7 +27,7 @@ export const EDITABLE_KINDS: { kind: EditableKind; label: string }[] = [
   { kind: "spawner", label: "Spawner" },
   { kind: "boss", label: "Boss" },
   { kind: "challenger", label: "Challenger" },
-  { kind: "thief", label: "Thief" },
+  { kind: "thief", label: "Bandit" },
   { kind: "sapper", label: "Sapper" },
   { kind: "husk", label: "Desert Husk" },
 ];

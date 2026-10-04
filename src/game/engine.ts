@@ -85,12 +85,14 @@ import {
   SNIPER_SUPPLY_LIVES,
   supplyDropCost,
   THIEF_STEAL,
+  banditPurseOpen,
+  banditQuickBonus,
   thiefRefund,
   upgradeCost,
   waveEnemyCount,
 } from "./config";
 import { campaignById, type CampaignLevel } from "./campaign";
-import { blobShadow, paintBoardLight, paintTag, paintWideRoad, speckleTile } from "./paint";
+import { blobShadow, paintBoardLight, paintCrew, paintTag, paintWideRoad, speckleTile, type CrewKind } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   DeathRecap,
@@ -283,10 +285,25 @@ function enemyTag(e: Enemy): { text: string; color: string } | null {
   if (e.kind === "tank") return { text: "Tank", color: "#f4efe4" };
   if (e.kind === "splitter") return { text: "Split", color: "#f4efe4" };
   if (e.kind === "splitling") return { text: "Bit", color: "#f4efe4" };
-  if (e.kind === "thief") return { text: "Thief", color: "#f4efe4" };
+  if (e.kind === "thief") return { text: "Bandit", color: "#f4efe4" };
   if (e.kind === "sapper") return { text: "Sapper", color: "#f4efe4" };
   if (e.kind === "husk") return { text: e.cracked ? "Sprint" : "Husk", color: "#f4efe4" };
   return null;
+}
+
+function crewFor(kind: Enemy["kind"]): CrewKind {
+  if (kind === "normal") return "grunt";
+  if (kind === "fast") return "fast";
+  if (kind === "tank") return "tank";
+  if (kind === "splitter") return "splitter";
+  if (kind === "splitling") return "bit";
+  if (kind === "thief") return "bandit";
+  if (kind === "sapper") return "sapper";
+  if (kind === "husk") return "husk";
+  if (kind === "spawner") return "spawner";
+  if (kind === "boss") return "boss";
+  if (kind === "finalBoss") return "final";
+  return "rival";
 }
 
 /** Three peaks and a jewel, drawn above a crowned enemy. `y` is the base of the crown. */
@@ -1435,6 +1452,7 @@ export class Game {
       sinceDamage: 0,
       stolen: 0,
       stealTimer: 0,
+      age: 0,
       burnTimer: 0,
       burnDps: 0,
       burnFromStrongest: false,
@@ -1519,6 +1537,7 @@ export class Game {
     const survivors: Enemy[] = [];
     const spawned: Enemy[] = [];
     for (const e of this.enemies) {
+      e.age += dt;
       if (e.slowTimer > 0) {
         e.slowTimer -= dt;
         e.burnTimer = 0;
@@ -2524,8 +2543,10 @@ export class Game {
   }
 
   private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
-    this.gold += e.reward;
+    const purse = e.kind === "thief" ? banditQuickBonus(e.reward, e.age) : 0;
+    this.gold += e.reward + purse;
     if (e.kind === "thief") this.gold += thiefRefund(e.stolen);
+    if (purse > 0) this.burst(e.x, e.y - e.radius - 6, "#fff1a8", 14);
     const burstColor =
       e.kind === "challenger"
         ? "#d4a24a"
@@ -3717,24 +3738,6 @@ export class Game {
         ctx.fill();
       }
 
-      if (e.kind === "splitter") {
-        ctx.strokeStyle = "rgba(201, 120, 192, 0.7)";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius + 3, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-
-      if (e.kind === "spawner") {
-        ctx.strokeStyle = "rgba(154, 170, 74, 0.85)";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
       if (e.burnTimer > 0) {
         ctx.fillStyle = "rgba(226, 88, 34, 0.35)";
         ctx.beginPath();
@@ -3742,47 +3745,14 @@ export class Game {
         ctx.fill();
       }
 
-      ctx.fillStyle = e.color;
-      ctx.beginPath();
-      if (boss) {
-        const r = e.radius;
-        ctx.moveTo(e.x, e.y - r);
-        ctx.lineTo(e.x + r * 0.85, e.y - r * 0.2);
-        ctx.lineTo(e.x + r * 0.7, e.y + r * 0.75);
-        ctx.lineTo(e.x - r * 0.7, e.y + r * 0.75);
-        ctx.lineTo(e.x - r * 0.85, e.y - r * 0.2);
-        ctx.closePath();
-      } else if (e.kind === "spawner") {
-        const r = e.radius;
-        ctx.moveTo(e.x - r, e.y - r * 0.6);
-        ctx.lineTo(e.x + r, e.y - r * 0.6);
-        ctx.lineTo(e.x + r * 0.7, e.y + r);
-        ctx.lineTo(e.x - r * 0.7, e.y + r);
-        ctx.closePath();
-      } else if (e.kind === "challenger") {
-        const r = e.radius;
-        for (let i = 0; i < 6; i++) {
-          const a = -Math.PI / 2 + (i * Math.PI) / 3;
-          const px = e.x + Math.cos(a) * r;
-          const py = e.y + Math.sin(a) * r;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-      } else if (e.kind === "sapper") {
-        const r = e.radius;
-        ctx.moveTo(e.x - r, e.y - r * 0.72);
-        ctx.lineTo(e.x + r, e.y - r * 0.72);
-        ctx.lineTo(e.x + r, e.y + r * 0.72);
-        ctx.lineTo(e.x - r, e.y + r * 0.72);
-        ctx.closePath();
-      } else if (e.kind === "husk") {
-        const r = e.radius;
-        ctx.ellipse(e.x, e.y, r * 1.2, r * 0.68, 0, 0, Math.PI * 2);
-      } else {
-        ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
-      }
-      ctx.fill();
+      const from = this.waypoints[e.pathIndex] ?? { x: e.x, y: e.y };
+      const to = this.waypoints[Math.min(e.pathIndex + 1, this.waypoints.length - 1)] ?? from;
+      paintCrew(ctx, e.x, e.y, e.radius, e.color, crewFor(e.kind), {
+        faceLeft: to.x < from.x - 0.5,
+        walk: this.pulse * 8 + e.id,
+        cracked: e.cracked,
+        purse: e.kind === "thief" && banditPurseOpen(e.age),
+      });
 
       if (
         this.difficulty === "endless" &&
@@ -3817,80 +3787,20 @@ export class Game {
       if (slowed) {
         ctx.strokeStyle = "#7ec8e0";
         ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 4, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      ctx.strokeStyle = e.elite ? "#e8c547" : "rgba(0,0,0,0.45)";
-      ctx.lineWidth = e.elite ? 2.5 : 1.5;
-      ctx.stroke();
-      ctx.save();
-      ctx.globalAlpha = 0.35;
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.ellipse(
-        e.x - e.radius * 0.28,
-        e.y - e.radius * 0.32,
-        Math.max(2, e.radius * 0.28),
-        Math.max(1.4, e.radius * 0.16),
-        -0.6,
-        0,
-        Math.PI * 2,
-      );
-      ctx.fill();
-      ctx.restore();
+      if (e.elite) {
+        ctx.strokeStyle = "#e8c547";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.radius + 2, 0, Math.PI * 2);
+        ctx.stroke();
+      }
 
-      if (e.kind === "finalBoss") {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "700 11px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("FINAL", e.x, e.y);
-      } else if (e.kind === "boss") {
-        ctx.fillStyle = "#e8c547";
-        ctx.font = "700 10px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("BOSS", e.x, e.y);
-      } else if (e.kind === "challenger") {
-        ctx.fillStyle = "#1a1408";
-        ctx.font = "700 8px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("RIVAL", e.x, e.y);
-      } else if (e.kind === "spawner") {
-        ctx.fillStyle = "#e8efe6";
-        ctx.font = "700 8px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("SPAWN", e.x, e.y);
-      } else if (e.kind === "thief") {
-        ctx.fillStyle = "#e8c547";
-        ctx.beginPath();
-        ctx.arc(e.x + 5, e.y - 1, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "#1a1408";
-        ctx.font = "700 8px 'Chakra Petch', sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText("$", e.x + 5, e.y - 1);
-      } else if (e.kind === "husk") {
-        ctx.strokeStyle = e.cracked ? "#6a3a18" : "rgba(90, 58, 24, 0.7)";
-        ctx.lineWidth = e.cracked ? 2.5 : 1.5;
-        ctx.beginPath();
-        ctx.moveTo(e.x - e.radius * 0.15, e.y - e.radius * 0.4);
-        ctx.lineTo(e.x + e.radius * 0.2, e.y + e.radius * 0.05);
-        ctx.lineTo(e.x - e.radius * 0.05, e.y + e.radius * 0.42);
-        ctx.stroke();
-      } else if (e.kind === "sapper") {
-        ctx.strokeStyle = "#2a140c";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(e.x - 5, e.y - 4);
-        ctx.lineTo(e.x + 5, e.y + 4);
-        ctx.moveTo(e.x + 5, e.y - 4);
-        ctx.lineTo(e.x - 5, e.y + 4);
-        ctx.stroke();
-        if (e.sapperCol !== null && e.sapperRow !== null) {
+      if (e.kind === "sapper" && e.sapperCol !== null && e.sapperRow !== null) {
           ctx.save();
           ctx.strokeStyle = "rgba(232, 93, 74, 0.9)";
           ctx.lineWidth = 2;
@@ -3900,7 +3810,6 @@ export class Game {
           ctx.lineTo(e.sapperCol * CELL + CELL / 2, e.sapperRow * CELL + CELL / 2);
           ctx.stroke();
           ctx.restore();
-        }
       }
 
       const barW = (boss ? e.radius * 2.8 : e.radius * 2.2) * (e.elite ? 1.35 : 1);
@@ -3925,6 +3834,17 @@ export class Game {
                   ? "#5ecf8a"
                   : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
+      if (boss || e.kind === "challenger" || e.kind === "spawner") {
+        const word =
+          e.kind === "finalBoss"
+            ? "FINAL"
+            : e.kind === "boss"
+              ? "BOSS"
+              : e.kind === "challenger"
+                ? "RIVAL"
+                : "SPAWN";
+        paintTag(ctx, word, e.x, by - 12, "#e8c547");
+      }
       if (e.elite) {
         const marked =
           this.difficulty === "endless" &&

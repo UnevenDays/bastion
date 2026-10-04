@@ -511,7 +511,7 @@ const LOAD_TIPS = [
   "A Mint prints gold only while a wave is running.",
   "The Nuke leaves a crater. Nothing can be built there for the rest of the run.",
   "A Chomp on a Marked wave bites only if it is set to Strongest.",
-  "Killing a Thief returns 20% of the gold it stole.",
+  "Kill a Bandit within 4 seconds and it drops 8 extra gold. A kill still returns 20% of what it stole.",
   "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
   "A Desert Husk cracks at half health, then it sprints.",
   "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
@@ -1616,7 +1616,7 @@ function leakNames(mode: GameMode, kind: string): [string, string] {
   if (kind === "splitter") return ["Splitter", "Splitters"];
   if (kind === "splitling") return ["Splitling", "Splitlings"];
   if (kind === "spawner") return ["Spawner", "Spawners"];
-  if (kind === "thief") return ["Thief", "Thieves"];
+  if (kind === "thief") return ["Bandit", "Bandits"];
   if (kind === "sapper") return ["Sapper", "Sappers"];
   if (kind === "husk") return ["Desert Husk", "Desert Husks"];
   if (kind === "boss") return ["Boss", "Bosses"];
@@ -1670,7 +1670,7 @@ function deathTip(mode: GameMode, difficulty: Difficulty, custom: boolean, recap
       ? "Splash a tank before it reaches the gate."
       : "A tank heals to full after 3 quiet seconds. Keep a shot on it.";
   }
-  if (leakCount(leaks, "thief") > 0) return "A thief that reaches the gate keeps the gold it stole.";
+  if (leakCount(leaks, "thief") > 0) return "A bandit that reaches the gate keeps the gold it stole.";
   if (leakCount(leaks, "sapper") > 0) return "Kill a sapper before it steps off the road. The shutdown lasts 4 seconds.";
   if (leakCount(leaks, "splitter") > 0 || leakCount(leaks, "splitling") > 0) {
     return "Splash a splitter so the children die in the same blast.";
@@ -1688,7 +1688,7 @@ function patternLabel(kind: PatternKind): string {
   if (kind === "tank") return "Tanks";
   if (kind === "splitter") return "Splitters";
   if (kind === "spawner") return "Spawners";
-  if (kind === "thief") return "Thieves";
+  if (kind === "thief") return "Bandits";
   if (kind === "husk") return "Desert Husks";
   return "Sappers";
 }

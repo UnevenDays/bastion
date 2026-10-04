@@ -75,6 +75,8 @@ The **Banner** does not shoot. Towers standing in its range gain damage and atta
 
 The **Wasp** costs 180 gold. It has no range circle. It flies to one enemy and stays until that enemy is destroyed, then picks another. Each damage rank adds 30% of the base shot. **Drone Wing** costs 264 gold and launches three smaller drones that hunt the same way at 25% of the wasp's shot damage. They spread out when several enemies are on the path.
 
+Each enemy is a figure you can tell apart: a spear, a shield, a mask, a shell, a nest.
+
 | Enemy      | Notes                                         |
 |------------|-----------------------------------------------|
 | Splitter   | Pink units that split into two on death       |
@@ -82,7 +84,7 @@ The **Wasp** costs 180 gold. It has no range circle. It flies to one enemy and s
 | Boss       | High health; waves 6 and 9                    |
 | Final Boss | Much more health; last enemy on wave 12       |
 | Challenger | Endless only. Last enemy on waves 30, 40, 50, and every 10 after. On death, two bosses spawn |
-| Thief      | From wave 2. More health than a grunt, and faster than a runner. Steals 1 gold each second. Killing it returns 20% of the gold it took. If it leaks, that gold is gone |
+| Bandit     | From wave 2. More health than a grunt, and faster than a runner. Steals 1 gold each second. Killing it returns 20% of the gold it took. Kill it within 4 seconds and it drops 8 extra gold. If it leaks, that gold is gone |
 | Sapper     | From wave 4, the first enemy of the wave. It stops beside one tower and shuts that tower off for 4 seconds, then walks on. A full Archer line loses that tower while the pack passes |
 
 ### Level editor

@@ -316,7 +316,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
     wash: "rgba(16, 14, 36, 0.2)",
     warrants: [
-      { id: "lantern-thieves", name: "Lantern Thieves", enemies: ["thief", "sapper", "fast"] },
+      { id: "lantern-thieves", name: "Lantern Bandits", enemies: ["thief", "sapper", "fast"] },
       { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"] },
       { id: "single-spark", name: "Single Spark", enemies: ["fast"] },
     ],
