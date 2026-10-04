@@ -293,8 +293,10 @@ export class Game {
       t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
     const dCost = t.damageLevel < MAX_UPGRADE ? priced(t.damageLevel) : null;
     const sCost = t.speedLevel < MAX_UPGRADE ? priced(t.speedLevel) : null;
+    const offersArea =
+      (t.kind === "frost" && t.special) || (t.kind === "banner" && !t.special);
     const durationCost =
-      t.kind === "frost" && t.special && t.durationLevel < MAX_UPGRADE
+      offersArea && t.durationLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.durationLevel)
         : null;
     const grandTaken = t.kind === "banner" && !t.special && this.grandBannerStanding(t);
@@ -672,7 +674,9 @@ export class Game {
     if (!t) return false;
 
     const def = TOWER_DEFS[t.kind];
-    if (stat === "duration" && !(t.kind === "frost" && t.special)) return false;
+    const offersArea =
+      (t.kind === "frost" && t.special) || (t.kind === "banner" && !t.special);
+    if (stat === "duration" && !offersArea) return false;
     const level =
       stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;

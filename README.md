@@ -45,7 +45,7 @@ Waves 1–5 use the old health curve. From wave 6 the pack's health is multiplie
 | Frost  | Shots slow enemies to 52% speed. Glacier Field costs 180 gold and pulses a chill at 40% speed. Area widens it, Chill lengthens it, and Shorter Cooldown brings the next pulse sooner |
 | Mint   | Midas Bank — deposit coins; each wave pays 25% and that gold leaves the bank |
 | Wasp   | Drone Wing (264g) — three mini drones at a quarter of the wasp's damage |
-| Banner | Grand Banner — map-wide buff. Three banners, and only one of them can be Grand |
+| Banner | Grand Banner — map-wide buff. Three banners, one Grand. Area widens a normal Banner by 0.6 cells a rank |
 | Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
 | Mace   | Two More Maces — two extra maces join the spin |
@@ -65,7 +65,7 @@ The **Pyro** costs 60 gold. Its range is shorter than the other shooters. A shot
 
 The **Storm** costs 45 gold. It has no range circle and no aim. It sticks lightning on random spots across the map. One in four strikes is guaranteed to hit a living enemy; the rest only hurt enemies standing in the splash. **Cloud Allies** costs 150 gold. While a wave is running, the tower summons a cloud at the path entrance every 15 seconds, up to five at once. Each cloud has **200 health** (five times a wave-1 grunt's 40) and hits for **40**, so that grunt falls in one strike. Enemies hit the cloud back. Damage upgrades raise the lightning and the cloud's hits. The 15 second timer does not change. Selling the Storm dismisses its clouds.
 
-The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). The field holds **3** banners. **Grand Banner** applies the same buff to every tower on the map, and only one Grand Banner can stand at a time. Its flag is the brighter gold. Several banners stack, up to +60% damage and +60% attack speed.
+The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). **Area** widens that circle by 0.6 cells a rank, from 2.6 to 4.4. The field holds **3** banners. **Grand Banner** applies the same buff to every tower on the map, and only one Grand Banner can stand at a time. Its flag is the brighter gold, and it covers the whole field, so Area is closed on that one. Several banners stack, up to +60% damage and +60% attack speed.
 
 The **Wasp** costs 180 gold. It has no range circle. It flies to one enemy and stays until that enemy is destroyed, then picks another. Each damage rank adds 30% of the base shot. **Drone Wing** costs 264 gold and launches three smaller drones that hunt the same way at 25% of the wasp's shot damage. They spread out when several enemies are on the path.
 

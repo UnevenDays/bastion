@@ -406,6 +406,11 @@ export function bannerBonus(t: Tower): { damage: number; rate: number } {
   };
 }
 
+/** Banner buff radius in cells. Each Area rank adds 0.6. */
+export function bannerRange(areaLevel: number): number {
+  return TOWER_DEFS.banner.range + areaLevel * 0.6;
+}
+
 /** Parking spot for the wasp (slot < 0) or one mini drone. */
 export function nestPoint(
   col: number,
@@ -609,7 +614,7 @@ export function combatStats(t: Tower): CombatStats {
     };
   }
 
-  let range = def.range;
+  let range = def.support ? bannerRange(t.durationLevel) : def.range;
   let damage =
     def.damage *
     (t.kind === "wasp" ? waspDamageMultiplier(t.damageLevel) : damageMultiplier(t.damageLevel));

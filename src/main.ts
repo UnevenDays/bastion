@@ -748,16 +748,22 @@ function syncBastionHud(hud: HudSnapshot): void {
       const spd = Math.round(t.buffRate * 100);
       upgradeStats.textContent = t.special
         ? `Buff +${dmg}% DMG · +${spd}% SPD · every tower`
-        : `Buff +${dmg}% DMG · +${spd}% SPD · RNG ${t.range}`;
+        : `Buff +${dmg}% DMG · +${spd}% SPD · Area ${t.range}`;
       upgradeDamageBtn.textContent =
         t.damageCost === null ? "Damage Buff Max" : `+ Damage Buff (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Buff Max" : `+ Speed Buff (${t.speedCost}g)`;
       hintEl.textContent = t.special
-        ? `Grand Banner raises damage and attack speed of every tower. Only one Grand Banner can stand. Banners stack, up to +${Math.round(BANNER_CAP * 100)}% each.`
+        ? `Grand Banner raises damage and attack speed of every tower. Only one Grand Banner can stand. Area ranks are for a normal Banner. Banners stack, up to +${Math.round(BANNER_CAP * 100)}% each.`
         : t.grandTaken
-          ? `Only one Grand Banner can stand. This banner still buffs towers in range. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}.`
-          : `Banner does not shoot. Towers inside its range hit harder and faster. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}. Only one can be a Grand Banner.`;
+          ? `Only one Grand Banner can stand. This banner still buffs towers in range. Area widens that circle. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}.`
+          : `Banner does not shoot. Towers inside its range hit harder and faster. Area widens that circle. Banners on the field: ${hud.banners} of ${BANNER_LIMIT}. Only one can be a Grand Banner.`;
+      upgradeDurationBtn.classList.remove("hidden");
+      upgradeDurationBtn.textContent = t.special
+        ? "Whole map"
+        : t.durationCost === null
+          ? "Area Max"
+          : `+ Area (${t.durationCost}g)`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(null);
