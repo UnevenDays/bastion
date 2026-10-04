@@ -207,65 +207,89 @@ app.innerHTML = `
     </div>
 
     <div class="toolbar" id="toolbar-bastion">
-      <p class="bench-line hidden" id="bench-line"></p>
-      ${(Object.keys(TOWER_DEFS) as TowerKind[])
-        .map((kind) => {
-          const d = TOWER_DEFS[kind];
-          return `
+      <div class="tower-tray">
+        <p class="bench-line hidden" id="bench-line"></p>
+        ${(Object.keys(TOWER_DEFS) as TowerKind[])
+          .map((kind) => {
+            const d = TOWER_DEFS[kind];
+            return `
             <button class="tower-btn" type="button" data-kind="${kind}" id="btn-${kind}">
               <span class="name"><span class="swatch ${kind}"></span>${d.name}</span>
               <span class="meta">${d.cost}g · ${d.description}</span>
             </button>
           `;
-        })
-        .join("")}
-      <button class="tower-btn shovel-btn" type="button" id="btn-shovel">
-        <span class="name">Shovel</span>
-        <span class="meta">Move or sell · 1× per wave</span>
-      </button>
-      <div class="actions">
-        <button class="btn btn-ghost" type="button" id="cancel-btn">Cancel</button>
-        <button class="btn btn-primary" type="button" id="wave-btn">Start Wave</button>
+          })
+          .join("")}
+        <button class="tower-btn shovel-btn" type="button" id="btn-shovel">
+          <span class="name">Shovel</span>
+          <span class="meta">Move or sell · 1× per wave</span>
+        </button>
+      </div>
+      <div class="dock-rail">
+        <button class="dock-toggle" type="button" aria-expanded="false" id="dock-bastion" title="Show the towers">
+          <span class="dock-name" id="dock-bastion-name">Towers</span>
+          <span class="dock-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="actions">
+          <button class="btn btn-ghost" type="button" id="cancel-btn">Cancel</button>
+          <button class="btn btn-primary" type="button" id="wave-btn">Start Wave</button>
+        </div>
       </div>
     </div>
 
     <div class="toolbar hidden" id="toolbar-dungeon">
-      ${(Object.keys(DUNGEON_BUILDS) as DungeonBuildKind[])
-        .map((kind) => {
-          const d = DUNGEON_BUILDS[kind];
-          return `
+      <div class="tower-tray">
+        ${(Object.keys(DUNGEON_BUILDS) as DungeonBuildKind[])
+          .map((kind) => {
+            const d = DUNGEON_BUILDS[kind];
+            return `
             <button class="tower-btn" type="button" data-dkind="${kind}" id="dbtn-${kind}">
               <span class="name"><span class="swatch ${kind}"></span>${d.name}</span>
               <span class="meta">${d.cost}g · ${d.description}</span>
             </button>
           `;
-        })
-        .join("")}
-      <div class="actions">
-        <button class="btn btn-ghost" type="button" id="dcancel-btn">Cancel</button>
-        <button class="btn btn-primary" type="button" id="dwave-btn">Start Wave</button>
+          })
+          .join("")}
+      </div>
+      <div class="dock-rail">
+        <button class="dock-toggle" type="button" aria-expanded="false" id="dock-dungeon" title="Show the defenses">
+          <span class="dock-name" id="dock-dungeon-name">Defenses</span>
+          <span class="dock-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="actions">
+          <button class="btn btn-ghost" type="button" id="dcancel-btn">Cancel</button>
+          <button class="btn btn-primary" type="button" id="dwave-btn">Start Wave</button>
+        </div>
       </div>
     </div>
 
     <div class="toolbar hidden" id="toolbar-lawn">
-      ${(Object.keys(PLANTS) as PlantKind[])
-        .map((kind) => {
-          const d = PLANTS[kind];
-          return `
+      <div class="tower-tray">
+        ${(Object.keys(PLANTS) as PlantKind[])
+          .map((kind) => {
+            const d = PLANTS[kind];
+            return `
             <button class="tower-btn" type="button" data-pkind="${kind}" id="pbtn-${kind}">
               <span class="name"><span class="swatch ${kind}"></span>${d.name}</span>
               <span class="meta">${d.cost} sun · ${d.description}</span>
             </button>
           `;
-        })
-        .join("")}
-      <button class="tower-btn shovel-btn" type="button" id="btn-dig">
-        <span class="name">Dig</span>
-        <span class="meta">Remove a plant · no refund</span>
-      </button>
-      <div class="actions">
-        <button class="btn btn-ghost" type="button" id="lcancel-btn">Cancel</button>
-        <button class="btn btn-primary" type="button" id="lwave-btn">Start Wave</button>
+          })
+          .join("")}
+        <button class="tower-btn shovel-btn" type="button" id="btn-dig">
+          <span class="name">Dig</span>
+          <span class="meta">Remove a plant · no refund</span>
+        </button>
+      </div>
+      <div class="dock-rail">
+        <button class="dock-toggle" type="button" aria-expanded="false" id="dock-lawn" title="Show the plants">
+          <span class="dock-name" id="dock-lawn-name">Plants</span>
+          <span class="dock-chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="actions">
+          <button class="btn btn-ghost" type="button" id="lcancel-btn">Cancel</button>
+          <button class="btn btn-primary" type="button" id="lwave-btn">Start Wave</button>
+        </div>
       </div>
     </div>
   </div>
@@ -372,6 +396,41 @@ const modePicker = document.querySelector<HTMLElement>(".mode-picker")!;
 const toolbarBastion = document.querySelector<HTMLElement>("#toolbar-bastion")!;
 const toolbarDungeon = document.querySelector<HTMLElement>("#toolbar-dungeon")!;
 const toolbarLawn = document.querySelector<HTMLElement>("#toolbar-lawn")!;
+const dockBastionName = document.querySelector<HTMLElement>("#dock-bastion-name")!;
+const dockDungeonName = document.querySelector<HTMLElement>("#dock-dungeon-name")!;
+const dockLawnName = document.querySelector<HTMLElement>("#dock-lawn-name")!;
+
+function bindDock(toolbar: HTMLElement): void {
+  const toggle = toolbar.querySelector<HTMLButtonElement>(".dock-toggle");
+  if (!toggle) return;
+  let coarse = false;
+  const setOpen = (open: boolean) => {
+    toolbar.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", String(open));
+  };
+  toolbar.addEventListener("pointerenter", (event) => {
+    if (event.pointerType !== "mouse") return;
+    setOpen(true);
+  });
+  toolbar.addEventListener("pointerleave", (event) => {
+    if (event.pointerType !== "mouse") return;
+    setOpen(false);
+  });
+  toggle.addEventListener("pointerup", (event) => {
+    coarse = event.pointerType !== "mouse";
+    if (!coarse) return;
+    setOpen(!toolbar.classList.contains("open"));
+  });
+  toolbar.addEventListener("click", (event) => {
+    if (!coarse) return;
+    if (!(event.target as HTMLElement).closest(".tower-btn")) return;
+    setOpen(false);
+  });
+}
+
+bindDock(toolbarBastion);
+bindDock(toolbarDungeon);
+bindDock(toolbarLawn);
 const lawnCard = document.querySelector<HTMLButtonElement>("#minigame-lawn")!;
 const dungeonCard = document.querySelector<HTMLButtonElement>("#minigame-dungeon")!;
 const levelPicker = document.querySelector<HTMLElement>("#level-picker")!;
@@ -959,6 +1018,11 @@ function syncBastionHud(hud: HudSnapshot): void {
     (!hud.shovelReady && !hud.carrying) ||
     lesson !== null;
   shovelBtn.classList.toggle("selected", hud.tool === "shovel" || hud.carrying);
+  dockBastionName.textContent = hud.carrying || hud.tool === "shovel"
+    ? "Shovel"
+    : hud.selected
+      ? TOWER_DEFS[hud.selected].name
+      : "Towers";
 
   if (hud.carrying) {
     carryBar.classList.remove("hidden");
@@ -1307,6 +1371,7 @@ function syncDungeonHud(hud: DungeonHud): void {
       hud.gold < DUNGEON_BUILDS[kind].cost;
     btn.classList.toggle("selected", hud.selected === kind);
   }
+  dockDungeonName.textContent = hud.selected ? DUNGEON_BUILDS[hud.selected].name : "Defenses";
 
   if (hud.selectedUnit) {
     const u = hud.selectedUnit;
@@ -1396,6 +1461,11 @@ function syncLawnHud(hud: LawnHud): void {
     btn.classList.toggle("selected", hud.selected === kind && !hud.digging);
   }
   digBtn.classList.toggle("selected", hud.digging);
+  dockLawnName.textContent = hud.digging
+    ? "Dig"
+    : hud.selected
+      ? PLANTS[hud.selected].name
+      : "Plants";
 
   if (hud.selectedPlant) {
     const plant = hud.selectedPlant;

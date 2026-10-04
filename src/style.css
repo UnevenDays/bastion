@@ -500,10 +500,91 @@ body {
 }
 
 .toolbar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  z-index: 6;
+}
+
+.tower-tray {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% - 1px);
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 8px;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  padding: 0 8px;
+  background: rgba(12, 20, 16, 0.96);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  transition:
+    max-height 0.18s ease,
+    opacity 0.15s ease,
+    padding 0.18s ease;
+}
+
+.toolbar.open .tower-tray,
+.toolbar:has(:focus-visible) .tower-tray {
+  max-height: min(320px, 52vh);
+  opacity: 1;
+  overflow: auto;
+  pointer-events: auto;
+  padding: 8px;
+  border-color: var(--panel-edge);
+  box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.5);
+}
+
+.dock-rail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 6px 8px;
+  background: rgba(26, 42, 31, 0.94);
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+}
+
+.dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.dock-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-chevron {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  transform: rotate(180deg);
+  transition: transform 0.18s ease, color 0.15s ease;
+}
+
+.toolbar.open .dock-chevron,
+.toolbar:has(:focus-visible) .dock-chevron {
+  color: var(--gold);
+  transform: rotate(0deg);
 }
 
 .toolbar.hidden {
@@ -1410,14 +1491,27 @@ body {
 @media (max-width: 640px) {
   html,
   body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #app {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 8px 10px 12px;
+  }
+
+  html:has(.overlay:not(.hidden)),
+  body:has(.overlay:not(.hidden)) {
     height: auto;
     overflow: auto;
   }
 
-  #app {
+  #app:has(.overlay:not(.hidden)) {
     height: auto;
     min-height: 100%;
-    padding: 8px 10px 12px;
+    overflow: visible;
   }
 
   .overlay {
@@ -1453,6 +1547,27 @@ body {
     margin-left: 0;
     width: 100%;
     flex-wrap: wrap;
+  }
+
+  .dock-rail {
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .dock-rail .dock-toggle {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .dock-rail .actions {
+    margin-left: auto;
+    width: auto;
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
+  }
+
+  .dock-rail .actions .btn {
+    flex: 0 0 auto;
   }
 
   .speed-row {
