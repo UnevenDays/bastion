@@ -506,6 +506,7 @@ const LOAD_TIPS = [
   "Night Watch glimmers, Quarry is cut stone, and Orchard carries blossom.",
   "A Desert Husk cracks at half health, then it sprints.",
   "From wave 6 the pack's health is multiplied, and a kill leaves a weaker enemy.",
+  "From wave 8, a gold crown marks an elite: more health, and more gold when it dies.",
   "The field holds 3 banners. Only one of them can be a Grand Banner.",
   "The bastion holds the exit. Leaks crack the gate, and it mends between waves.",
   "The almanac lists your bench, the enemies on the road, and which towers work together.",
@@ -985,10 +986,11 @@ function syncBastionHud(hud: HudSnapshot): void {
   const mutatorTag =
     hud.mutator === "armor" ? " · Armor" : hud.mutator === "marked" ? " · Marked" : "";
   const pressureTag = hud.pressure > 1 ? ` · ×${hud.pressure.toFixed(2)}` : "";
+  const eliteTag = hud.elites ? " · Crown" : "";
   waveBtn.textContent = hud.waveInProgress
-    ? `Wave ${hud.wave}${pressureTag}${mutatorTag}…`
+    ? `Wave ${hud.wave}${pressureTag}${mutatorTag}${eliteTag}…`
     : hud.difficulty === "endless" || hud.wave < hud.totalWaves
-      ? `Start Wave ${hud.wave + 1}${pressureTag}${mutatorTag}`
+      ? `Start Wave ${hud.wave + 1}${pressureTag}${mutatorTag}${eliteTag}`
       : "Complete";
 
   applyTowerRoster();

@@ -110,6 +110,8 @@ export interface EnemyDef {
   radius: number;
   color: string;
   leakDamage?: number;
+  /** A crowned pack enemy: more health, and more gold when it dies. */
+  elite?: boolean;
 }
 
 export interface Tower {
@@ -190,6 +192,8 @@ export interface Enemy {
   sapperDone: boolean;
   /** Desert Husk has broken its shell and is sprinting. */
   cracked: boolean;
+  /** Gold crown. More health than this kind, and more gold when it dies. */
+  elite: boolean;
 }
 
 export interface Projectile {

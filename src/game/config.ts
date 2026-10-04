@@ -115,6 +115,13 @@ export const HUSK_SPEED = 34;
 /** Speed after the shell cracks at half health. */
 export const HUSK_SPRINT = 108;
 
+/** First wave that crowns pack enemies. Boss waves before this stay plain. */
+export const ELITE_FROM_WAVE = 8;
+/** Health of a crowned enemy, compared with the same kind on that wave. */
+export const ELITE_HP = 2.5;
+/** Gold for killing a crowned enemy, compared with the same kind. */
+export const ELITE_REWARD = 3;
+
 /** How long a Pyro burn lasts. A slow clears it immediately. */
 export const PYRO_BURN_TIME = 2.4;
 /** Burn damage per second, as a fraction of the hit that set it. */
@@ -903,6 +910,68 @@ export function pressureMultiplier(wave: number): number {
   return Math.round((mid + late) * 100) / 100;
 }
 
+/**
+ * How often a later wave crowns a pack enemy.
+ * Wave 8 crowns every 5th, and wave 12 crowns every 3rd.
+ * The step stays odd so the crown moves through the warrant instead of sticking to one kind.
+ * 0 means the wave has no crowns.
+ */
+export function eliteStride(wave: number): number {
+  if (wave < ELITE_FROM_WAVE) return 0;
+  if (wave < 12) return 5;
+  return 3;
+}
+
+function eliteBlocked(
+  wave: number,
+  index: number,
+  difficulty: Difficulty,
+  lastWave: number,
+): boolean {
+  const count = waveEnemyCount(wave, difficulty);
+  if (index < 0 || index >= count) return true;
+  if (difficulty === "endless" && isChallengerWave(wave) && index === count - 1) return true;
+  if (difficulty !== "endless" && wave === lastWave && index === count - 1) return true;
+  if (isBossWave(wave) && index === count - 1) return true;
+  return false;
+}
+
+/** This spawn slot wears a crown. Bosses, the final boss, and Challengers never do. */
+export function isEliteSpawn(
+  wave: number,
+  index: number,
+  difficulty: Difficulty = "normal",
+  lastWave = TOTAL_WAVES,
+): boolean {
+  const stride = eliteStride(wave);
+  if (stride === 0) return false;
+  if (index % stride !== 1) return false;
+  return !eliteBlocked(wave, index, difficulty, lastWave);
+}
+
+/** True when this wave crowns at least one pack enemy. */
+export function waveSendsElites(
+  wave: number,
+  difficulty: Difficulty = "normal",
+  lastWave = TOTAL_WAVES,
+): boolean {
+  if (eliteStride(wave) === 0) return false;
+  const count = waveEnemyCount(wave, difficulty);
+  for (let index = 0; index < count; index++) {
+    if (isEliteSpawn(wave, index, difficulty, lastWave)) return true;
+  }
+  return false;
+}
+
+function applyElite(def: EnemyDef): EnemyDef {
+  return {
+    ...def,
+    hp: Math.round(def.hp * ELITE_HP),
+    reward: def.reward <= 0 ? 0 : Math.round(def.reward * ELITE_REWARD),
+    elite: true,
+  };
+}
+
 function fodderDef(kind: PatternKind, wave: number): EnemyDef {
   const scale = (1 + (wave - 1) * 0.22) * pressureMultiplier(wave);
   if (kind === "sapper") {
@@ -1048,7 +1117,8 @@ export function enemyForWave(
     roster && roster.length > 0
       ? patternEnemy(roster, index)
       : legacyPattern(wave, index);
-  return applyHard(fodderDef(kind, wave), wave, difficulty);
+  const def = applyHard(fodderDef(kind, wave), wave, difficulty);
+  return isEliteSpawn(wave, index, difficulty, lastWave) ? applyElite(def) : def;
 }
 
 /**

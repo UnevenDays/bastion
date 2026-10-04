@@ -73,6 +73,7 @@ import {
   specialCost,
   spawnInterval,
   pressureMultiplier,
+  waveSendsElites,
   splitlingFrom,
   weakerEnemy,
   startingGold,
@@ -217,6 +218,8 @@ export interface HudSnapshot {
   mutator: EndlessMutator;
   /** Pack health multiplier for this wave, or the next one between waves. 1 through wave 5. */
   pressure: number;
+  /** This wave, or the next one between waves, crowns some of the pack. */
+  elites: boolean;
   /** Warrant chosen for this road. Empty on an editor level. */
   warrantName: string;
   /** Banners on the field, plus one the shovel is holding. */
@@ -269,6 +272,34 @@ export function shotBlockedByTrees(
 
 function isBossKind(kind: Enemy["kind"]): boolean {
   return kind === "boss" || kind === "finalBoss";
+}
+
+/** Three peaks and a jewel, drawn above a crowned enemy. `y` is the base of the crown. */
+function drawCrown(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const w = 11;
+  const h = 9;
+  ctx.save();
+  ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+  ctx.shadowBlur = 2;
+  ctx.fillStyle = "#e8c547";
+  ctx.beginPath();
+  ctx.moveTo(x - w, y);
+  ctx.lineTo(x - w, y - h * 0.42);
+  ctx.lineTo(x - w * 0.45, y - h * 0.12);
+  ctx.lineTo(x, y - h);
+  ctx.lineTo(x + w * 0.45, y - h * 0.12);
+  ctx.lineTo(x + w, y - h * 0.42);
+  ctx.lineTo(x + w, y);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#6e5310";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#e85d4a";
+  ctx.beginPath();
+  ctx.arc(x, y - h * 0.28, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
 }
 
 interface CloudAlly {
@@ -493,6 +524,13 @@ export class Game {
       pressure: this.custom
         ? 1
         : pressureMultiplier(this.waveInProgress ? this.wave : this.wave + 1),
+      elites:
+        !this.custom &&
+        waveSendsElites(
+          this.waveInProgress ? this.wave : this.wave + 1,
+          this.difficulty,
+          this.custom ? 0 : this.campaign.waves,
+        ),
       phase: this.phase,
       difficulty: this.difficulty,
       selected: this.selected,
@@ -1381,6 +1419,7 @@ export class Game {
       sapperDone: false,
       cracked: false,
       leavesWeaker,
+      elite: def.elite === true,
     };
   }
 
@@ -2480,7 +2519,9 @@ export class Game {
         ? 28
         : isBossKind(e.kind)
           ? 22
-          : 12,
+          : e.elite
+            ? 18
+            : 12,
     );
 
     if (e.kind === "splitter") {
@@ -3761,8 +3802,8 @@ export class Game {
         ctx.stroke();
       }
 
-      ctx.strokeStyle = "rgba(0,0,0,0.45)";
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = e.elite ? "#e8c547" : "rgba(0,0,0,0.45)";
+      ctx.lineWidth = e.elite ? 2.5 : 1.5;
       ctx.stroke();
       ctx.save();
       ctx.globalAlpha = 0.35;
@@ -3844,7 +3885,7 @@ export class Game {
         }
       }
 
-      const barW = boss ? e.radius * 2.8 : e.radius * 2.2;
+      const barW = (boss ? e.radius * 2.8 : e.radius * 2.2) * (e.elite ? 1.35 : 1);
       const barH = boss ? 6 : 4;
       const bx = e.x - barW / 2;
       const by = e.y - e.radius - (boss ? 14 : 10);
@@ -3858,10 +3899,21 @@ export class Game {
             ? "#c47ae0"
             : e.kind === "challenger"
               ? "#e8c547"
-              : pct > 0.4
-                ? "#5ecf8a"
-                : "#e85d4a";
+              : e.elite
+                ? pct > 0.4
+                  ? "#e8c547"
+                  : "#a8892e"
+                : pct > 0.4
+                  ? "#5ecf8a"
+                  : "#e85d4a";
       ctx.fillRect(bx, by, barW * pct, barH);
+      if (e.elite) {
+        const marked =
+          this.difficulty === "endless" &&
+          !this.custom &&
+          endlessMutator(this.wave) === "marked";
+        drawCrown(ctx, e.x, by - (marked ? 12 : 2));
+      }
 
       if (this.difficulty !== "hard" && e.kind === "tank") {
         ctx.beginPath();
