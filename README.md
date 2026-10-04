@@ -28,7 +28,7 @@ Open the URL Vite prints (default: `http://localhost:3847`).
 4. Use the **Shovel** once per wave to move a tower or sell it for 50% of gold invested. Coins still stored in a Midas Bank are returned in full.
 5. Press **Start Wave** when you are ready. Normal and Hard end on the last wave of the road you picked. The last enemy of that wave is the Final Boss. **Endless** keeps going until your lives hit 0.
 
-A **Mint** costs 100 gold. It prints gold only while a wave is running, and it stops between waves. That timer is the same in Normal, Hard, and Endless. Income and payout-rate upgrades still raise each tick. **Midas Bank** is the Mint's special: it takes coins off your gold, and when the next wave starts it pays 25% of what is stored. That payout leaves the bank. Selling returns whatever remains.
+A **Mint** costs 100 gold. It prints gold only while a wave is running, and it stops between waves. That timer is the same in Normal, Hard, and Endless. **Income** and **Payout Rate** still raise each tick, and those two upgrades cost more than a normal tower upgrade: 70, then 140, then 210. **Midas Bank** is the Mint's special: it takes coins off your gold, and when the next wave starts it pays 25% of what is stored. That payout leaves the bank. Selling returns whatever remains.
 
 **Normal mode** tanks regenerate. If a tank takes no damage for 3 seconds, it restores all of its health. A dashed green ring marks tanks, and a second bar under the health bar fills until the heal. Other enemies do not regenerate. Endless uses the same tank regen.
 

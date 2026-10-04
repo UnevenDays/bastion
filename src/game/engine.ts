@@ -38,6 +38,7 @@ import {
   glacierCooldown,
   makeFlyer,
   mintIncome,
+  mintUpgradeCost,
   MACE_PERIOD,
   maceCount,
   maceSweepHits,
@@ -283,12 +284,10 @@ export class Game {
       : 0;
     const given = def.support ? bannerBonus(t) : null;
     const received = this.bannerBuffFor(t);
-    const dCost =
-      t.damageLevel < MAX_UPGRADE
-        ? upgradeCost(def.cost, t.damageLevel)
-        : null;
-    const sCost =
-      t.speedLevel < MAX_UPGRADE ? upgradeCost(def.cost, t.speedLevel) : null;
+    const priced = (level: number) =>
+      t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
+    const dCost = t.damageLevel < MAX_UPGRADE ? priced(t.damageLevel) : null;
+    const sCost = t.speedLevel < MAX_UPGRADE ? priced(t.speedLevel) : null;
     const durationCost =
       t.kind === "frost" && t.special && t.durationLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.durationLevel)
@@ -669,7 +668,7 @@ export class Game {
       stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;
 
-    const cost = upgradeCost(def.cost, level);
+    const cost = t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
     if (this.gold < cost) return false;
 
     this.gold -= cost;

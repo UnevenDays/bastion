@@ -531,6 +531,14 @@ export function upgradeCost(baseCost: number, currentLevel: number): number {
   return Math.round(baseCost * 0.55 * (currentLevel + 1));
 }
 
+/**
+ * Mint Income and Payout Rate cost more than a normal tower upgrade.
+ * A 100-gold Mint pays 70, 140, then 210, instead of 55, 110, then 165.
+ */
+export function mintUpgradeCost(currentLevel: number): number {
+  return Math.round(TOWER_DEFS.mint.cost * 0.7 * (currentLevel + 1));
+}
+
 /** How far Glacier Field reaches. Area ranks widen it. */
 export function glacierRange(damageLevel: number): number {
   return TOWER_DEFS.frost.range * 1.12 * (1 + damageLevel * 0.18);
