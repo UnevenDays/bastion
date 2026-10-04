@@ -5,6 +5,12 @@ A browser tower defense game. **Classic** is the main game. **Minigames** holds 
 - **Classic** — roadside towers, upgrades, shovel, and bosses
 - **Minigames → Dungeon Crawler** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
 
+## Play
+
+Open the game at [https://unevendays.github.io/bastion/](https://unevendays.github.io/bastion/).
+
+The source lives in [UnevenDays/bastion](https://github.com/UnevenDays/bastion). A push to `main` builds the game and publishes that address. No login is required to play.
+
 ## Play locally
 
 ```bash
@@ -13,20 +19,6 @@ npm run dev
 ```
 
 Open the URL Vite prints (default: `http://localhost:3847`).
-
-## Netlify
-
-The live site is [https://incandescent-kataifi-3629f2.netlify.app](https://incandescent-kataifi-3629f2.netlify.app). Netlify asks for your team login before the game loads.
-
-`netlify.toml` builds with `npm run build` and publishes the `dist` folder. To put this version on that site, download `bastion_breach_site.zip` from the agent artifacts and upload it with [Netlify Drop](https://app.netlify.com/drop) while you are logged in. Drop it onto the existing site so the address stays the same.
-
-From a machine that is logged into Netlify:
-
-```bash
-npm install
-npm run build
-npx netlify-cli deploy --prod --dir=dist --site=incandescent-kataifi-3629f2
-```
 
 ## How to play
 
