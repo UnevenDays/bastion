@@ -61,6 +61,7 @@ import {
   startingGold,
   startingLives,
   stormGuaranteesHit,
+  stormHitChance,
   SNIPER_SUPPLY_GOLD,
   SNIPER_SUPPLY_LIVES,
   supplyDropCost,
@@ -145,6 +146,8 @@ export interface SelectedTowerInfo {
   slowDuration: number;
   /** Seconds between Glacier pulses. 0 for other towers. */
   pulse: number;
+  /** Storm lock-on chance, including Hit Chance ranks. 0 for other towers. */
+  hitChance: number;
   /** Another banner is already a Grand Banner, so this one cannot buy it. */
   grandTaken: boolean;
 }
@@ -293,10 +296,12 @@ export class Game {
       t.kind === "mint" ? mintUpgradeCost(level) : upgradeCost(def.cost, level);
     const dCost = t.damageLevel < MAX_UPGRADE ? priced(t.damageLevel) : null;
     const sCost = t.speedLevel < MAX_UPGRADE ? priced(t.speedLevel) : null;
-    const offersArea =
-      (t.kind === "frost" && t.special) || (t.kind === "banner" && !t.special);
+    const offersExtra =
+      (t.kind === "frost" && t.special) ||
+      (t.kind === "banner" && !t.special) ||
+      t.kind === "storm";
     const durationCost =
-      offersArea && t.durationLevel < MAX_UPGRADE
+      offersExtra && t.durationLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.durationLevel)
         : null;
     const grandTaken = t.kind === "banner" && !t.special && this.grandBannerStanding(t);
@@ -356,6 +361,7 @@ export class Game {
         t.kind === "frost" && t.special
           ? Math.round(glacierCooldown(t.speedLevel) * 100) / 100
           : 0,
+      hitChance: t.kind === "storm" ? stormHitChance(t.durationLevel) : 0,
     };
   }
 
@@ -674,9 +680,11 @@ export class Game {
     if (!t) return false;
 
     const def = TOWER_DEFS[t.kind];
-    const offersArea =
-      (t.kind === "frost" && t.special) || (t.kind === "banner" && !t.special);
-    if (stat === "duration" && !offersArea) return false;
+    const offersExtra =
+      (t.kind === "frost" && t.special) ||
+      (t.kind === "banner" && !t.special) ||
+      t.kind === "storm";
+    if (stat === "duration" && !offersExtra) return false;
     const level =
       stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;
@@ -817,8 +825,20 @@ export class Game {
     this.waveInProgress = true;
     this.spawnQueue = this.queuedSpawns();
     this.spawnTimer = 0.2;
+    this.armStorms();
     this.payInvestmentBanks();
     this.emitHud();
+  }
+
+  /** Ready the lightning and the first cloud when a wave begins. */
+  private armStorms(): void {
+    const arm = (tower: Tower) => {
+      if (tower.kind !== "storm") return;
+      tower.cooldown = 0;
+      if (tower.special) tower.summonTimer = 0;
+    };
+    for (const tower of this.towers) arm(tower);
+    if (this.carrying) arm(this.carrying);
   }
 
   /** Each wave, a Midas Bank pays 25% of stored coins, and that gold leaves the bank. */
@@ -1415,6 +1435,7 @@ export class Game {
   }
 
   private updateStorm(t: Tower, dt: number): void {
+    if (!this.waveInProgress) return;
     const stats = this.effectiveStats(t);
     const tx = t.col * CELL + CELL / 2;
     const ty = t.row * CELL + CELL / 2;
@@ -1425,7 +1446,7 @@ export class Game {
       t.cooldown = 1 / Math.max(0.05, stats.fireRate);
     }
 
-    if (!t.special || !this.waveInProgress) return;
+    if (!t.special) return;
     t.summonTimer = Math.max(0, t.summonTimer - dt);
     if (t.summonTimer > 0) return;
     this.summonCloud(t);
@@ -1436,7 +1457,9 @@ export class Game {
   private fireStorm(t: Tower, damage: number, tx: number, ty: number): void {
     const living = this.enemies.filter((e) => e.hp > 0);
     const allowed = this.towerIsStrongest(t);
-    const sure = stormGuaranteesHit(Math.random()) && living.length > 0;
+    const sure =
+      stormGuaranteesHit(Math.random(), stormHitChance(t.durationLevel)) &&
+      living.length > 0;
     if (sure) {
       const foe = living[Math.floor(Math.random() * living.length)]!;
       this.damageEnemy(foe, damage, allowed);
@@ -1486,6 +1509,7 @@ export class Game {
   }
 
   private updateClouds(dt: number): void {
+    if (!this.waveInProgress) return;
     const next: CloudAlly[] = [];
     for (const c of this.clouds) {
       if (!this.cloudOwnerLive(c.owner) || c.hp <= 0) {
@@ -2063,6 +2087,7 @@ export class Game {
     if (this.spawnQueue > 0 || this.enemies.length > 0) return;
 
     this.waveInProgress = false;
+    this.clouds = [];
     this.gold += 25 + this.wave * 5;
     this.shovelReady = true; // one shovel action available again
     for (const tower of this.towers) {
@@ -2558,6 +2583,7 @@ export class Game {
       ctx.fillStyle = t.kind === "banner" && t.special ? "#ffe08a" : def.color;
       this.drawTowerGlyph(ctx, cx, cy, t.kind, t.special && t.kind === "mint", asleep);
       ctx.restore();
+      this.drawStormMarker(ctx, t);
       if (t.silenced > 0) {
         ctx.save();
         ctx.fillStyle = "rgba(8, 12, 10, 0.55)";
@@ -2784,6 +2810,33 @@ export class Game {
     ctx.fillStyle = "rgba(255,255,255,0.55)";
     ctx.beginPath();
     ctx.arc(-1, -1, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** A small cloud orbiting a Storm that has Cloud Allies. */
+  private drawStormMarker(ctx: CanvasRenderingContext2D, t: Tower): void {
+    if (t.kind !== "storm" || !t.special) return;
+    const cx = t.col * CELL + CELL / 2;
+    const cy = t.row * CELL + CELL / 2;
+    const ang = this.pulse * 1.7;
+    const x = cx + Math.cos(ang) * 16;
+    const y = cy - 12 + Math.sin(ang * 2) * 3;
+    ctx.save();
+    ctx.fillStyle = "rgba(244, 251, 255, 0.95)";
+    ctx.beginPath();
+    ctx.ellipse(x, y, 7, 4.2, 0, 0, Math.PI * 2);
+    ctx.ellipse(x - 5, y + 1.2, 4.2, 3, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + 5, y + 1.2, 4.2, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#7ec8ff";
+    ctx.beginPath();
+    ctx.moveTo(x + 1.2, y - 2.4);
+    ctx.lineTo(x - 1.6, y + 0.2);
+    ctx.lineTo(x + 0.2, y + 0.2);
+    ctx.lineTo(x - 0.6, y + 2.6);
+    ctx.lineTo(x + 2.2, y - 0.2);
+    ctx.closePath();
     ctx.fill();
     ctx.restore();
   }

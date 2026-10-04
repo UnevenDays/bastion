@@ -118,25 +118,24 @@ export const CHOMP_SLEEP = 25;
 /** Seconds removed from the nap by each sleep upgrade. */
 export const CHOMP_SLEEP_STEP = 5;
 
-/** Chance a Storm strike locks onto a living enemy instead of a random spot. */
+/** Chance a Storm strike locks onto a living enemy. Hit Chance ranks raise it. */
 export const STORM_SURE_HIT = 0.25;
+/** Extra lock-on chance from each Hit Chance rank. */
+export const STORM_HIT_STEP = 0.12;
 /** Pixel radius of a lightning sticker that lands on a random point. */
 export const STORM_SPLASH = 40;
 
-/** Cloud Allies join the path on this timer, only while a wave is running. */
+/** Cloud Allies join the path on this timer. */
 export const CLOUD_INTERVAL = 15;
 /** A Storm keeps at most this many living clouds. */
 export const CLOUD_CAP = 5;
-/** Five times a wave-1 grunt's health. */
-export const CLOUD_HP = BASIC_GRUNT_HP * 5;
-/**
- * One cloud strike equals a wave-1 grunt's health, so that grunt falls in one hit.
- * Cloud health is five times that same 40.
- */
-export const CLOUD_DAMAGE = BASIC_GRUNT_HP;
-export const CLOUD_SPEED = 90;
+/** Cloud health. A step under the old five-grunt shell. */
+export const CLOUD_HP = 150;
+/** Cloud strike. A wave-1 grunt has 40, so one hit leaves it standing. */
+export const CLOUD_DAMAGE = 26;
+export const CLOUD_SPEED = 72;
 export const CLOUD_REACH = 28;
-export const CLOUD_HIT_INTERVAL = 0.75;
+export const CLOUD_HIT_INTERVAL = 1;
 
 /** Path as grid cell coordinates the enemies walk through. */
 export const PATH: { col: number; row: number }[] = [
@@ -251,7 +250,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0.85,
     color: "#7ec8ff",
     projectileSpeed: 0,
-    description: "Random lightning stickers. 25% of strikes always hit",
+    description: "Random lightning. Hit Chance raises how often it locks on",
     storm: true,
   },
   pyro: {
@@ -350,9 +349,9 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   storm: {
     name: "Cloud Allies",
-    description: "Every 15 seconds, a cloud ally fights on the path. 200 health and 40 damage",
+    description: "A cloud ally on the path every 15 seconds. 150 health and 26 damage",
     costMultiplier: 1,
-    cost: 150,
+    cost: 200,
   },
   pyro: {
     name: "Inner Flame",
@@ -434,12 +433,17 @@ export function specialCost(kind: TowerKind): number {
   return Math.round(TOWER_DEFS[kind].cost * special.costMultiplier);
 }
 
-/** True when this roll is one of the guaranteed Storm hits. */
-export function stormGuaranteesHit(roll: number): boolean {
-  return roll < STORM_SURE_HIT;
+/** Lock-on chance for a Storm, including Hit Chance ranks. */
+export function stormHitChance(hitLevel: number): number {
+  return STORM_SURE_HIT + hitLevel * STORM_HIT_STEP;
 }
 
-/** Cloud strike before banner bonuses. Damage upgrades raise it. Health stays 200. */
+/** True when this roll is one of the Storm strikes that lock onto an enemy. */
+export function stormGuaranteesHit(roll: number, chance = STORM_SURE_HIT): boolean {
+  return roll < chance;
+}
+
+/** Cloud strike before banner bonuses. Damage upgrades raise it. */
 export function cloudStrikeDamage(damageLevel: number): number {
   return CLOUD_DAMAGE * damageMultiplier(damageLevel);
 }

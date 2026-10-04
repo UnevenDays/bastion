@@ -46,7 +46,7 @@ Waves 1–5 use the old health curve. From wave 6 the pack's health is multiplie
 | Mint   | Midas Bank — deposit coins; each wave pays 25% and that gold leaves the bank |
 | Wasp   | Drone Wing (264g) — three mini drones at a quarter of the wasp's damage |
 | Banner | Grand Banner — map-wide buff. Three banners, one Grand. Area widens a normal Banner by 0.6 cells a rank |
-| Storm  | Cloud Allies — every 15 seconds a cloud fights on the path. 150 gold |
+| Storm  | Cloud Allies (200g) — clouds with 150 health and 26 damage. Hit Chance raises the lock-on |
 | Pyro   | Inner Flame — smaller radius, and that interior burns everything inside |
 | Mace   | Two More Maces — two extra maces join the spin |
 | Sniper | Supply Drop — 1 life and 35 gold, once each wave, and the price rises |
@@ -63,7 +63,7 @@ The **Nuke** costs 200 gold. It explodes the moment you place it, then it is gon
 
 The **Pyro** costs 60 gold. Its range is shorter than the other shooters. A shot deals fire damage, and a target that is not already burning takes that hit again as extra damage. The burn then ticks for a few seconds. A slow, including Frost, puts the fire out. **Inner Flame** shrinks the radius further and deals burn damage to every enemy in that interior.
 
-The **Storm** costs 45 gold. It has no range circle and no aim. It sticks lightning on random spots across the map. One in four strikes is guaranteed to hit a living enemy; the rest only hurt enemies standing in the splash. **Cloud Allies** costs 150 gold. While a wave is running, the tower summons a cloud at the path entrance every 15 seconds, up to five at once. Each cloud has **200 health** (five times a wave-1 grunt's 40) and hits for **40**, so that grunt falls in one strike. Enemies hit the cloud back. Damage upgrades raise the lightning and the cloud's hits. The 15 second timer does not change. Selling the Storm dismisses its clouds.
+The **Storm** costs 45 gold. It has no range circle and no aim. It sticks lightning on random spots across the map. **25%** of strikes lock onto a living enemy, and each **Hit Chance** rank adds 12%, up to 61%. The rest only hurt enemies standing in the splash. **Cloud Allies** costs 200 gold. The tower summons a cloud at the path entrance every 15 seconds, up to five at once. Each cloud has **150 health** and hits for **26**. Enemies hit the cloud back. Damage upgrades raise the lightning and the cloud's hits. A small cloud circles the tower. Selling the Storm dismisses its clouds.
 
 The **Banner** does not shoot. Towers standing in its range gain damage and attack speed (20% each at base; damage and speed upgrades raise that side). **Area** widens that circle by 0.6 cells a rank, from 2.6 to 4.4. The field holds **3** banners. **Grand Banner** applies the same buff to every tower on the map, and only one Grand Banner can stand at a time. Its flag is the brighter gold, and it covers the whole field, so Area is closed on that one. Several banners stack, up to +60% damage and +60% attack speed.
 
