@@ -169,7 +169,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   archer: {
     kind: "archer",
     name: "Archer",
-    cost: 50,
+    cost: 45,
     range: 2.6,
     damage: 12,
     fireRate: 1.4,
@@ -180,7 +180,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   cannon: {
     kind: "cannon",
     name: "Cannon",
-    cost: 80,
+    cost: 45,
     range: 2.2,
     damage: 35,
     fireRate: 0.55,
@@ -314,7 +314,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   archer: {
     name: "Hawk Eye",
-    description: "Bigger range + attack aura, less shot damage",
+    description: "Bigger range, less shot damage",
     costMultiplier: 1.25,
   },
   cannon: {
@@ -596,8 +596,6 @@ export function combatStats(t: Tower): CombatStats {
     if (t.kind === "archer") {
       range *= 1.5;
       damage *= 0.6;
-      // Aura scales slightly with damage upgrades
-      auraDamage = 5 + t.damageLevel * 2.5;
     } else if (t.kind === "cannon") {
       damage *= 1.65;
       range *= 0.62;

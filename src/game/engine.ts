@@ -1208,7 +1208,7 @@ export class Game {
       const stats = this.effectiveStats(t);
       const rangePx = def.sniper ? Number.POSITIVE_INFINITY : stats.range * CELL;
 
-      // Continuous auras (archer damage / frost freeze)
+      // Continuous fields: Frost freeze, and Pyro's inner burn. Hawk Eye does not deal aura damage.
       if (stats.auraDamage > 0 || stats.auraFreeze) {
         const allowed = this.towerIsStrongest(t);
         for (const e of this.enemies) {
