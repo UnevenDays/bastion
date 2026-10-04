@@ -180,7 +180,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
   cannon: {
     kind: "cannon",
     name: "Cannon",
-    cost: 45,
+    cost: 80,
     range: 2.2,
     damage: 35,
     fireRate: 0.55,
