@@ -98,6 +98,8 @@ export interface SelectedTowerInfo {
   damage: number;
   fireRate: number;
   range: number;
+  /** Cannon blast radius in cells. 0 for other towers. */
+  splash: number;
   special: boolean;
   specialName: string;
   specialDescription: string;
@@ -298,6 +300,7 @@ export class Game {
       damage: Math.round(stats.damage),
       fireRate: Math.round(stats.fireRate * 100) / 100,
       range: Math.round(stats.range * 10) / 10,
+      splash: Math.round(stats.splash * 100) / 100,
       special: t.special,
       specialName: special.name,
       specialDescription: special.description,

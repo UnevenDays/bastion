@@ -186,8 +186,8 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 0.55,
     color: "#c47a3a",
     projectileSpeed: 300,
-    splash: 1.1,
-    description: "Slow splash damage",
+    splash: 0.95,
+    description: "Tight splash. Damage upgrades widen the blast",
   },
   frost: {
     kind: "frost",
@@ -319,7 +319,7 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   cannon: {
     name: "Focus Charge",
-    description: "Much more damage, shorter blast range",
+    description: "More damage, shorter range, fires faster",
     costMultiplier: 1.35,
   },
   frost: {
@@ -574,8 +574,9 @@ export function combatStats(t: Tower): CombatStats {
 
   let range = def.range;
   let damage = def.damage * damageMultiplier(t.damageLevel);
-  const fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
+  let fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
   let splash = def.splash ?? 0;
+  if (t.kind === "cannon") splash *= 1 + t.damageLevel * 0.14;
   let slow = def.slow ?? 0;
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
@@ -599,7 +600,7 @@ export function combatStats(t: Tower): CombatStats {
     } else if (t.kind === "cannon") {
       damage *= 1.65;
       range *= 0.62;
-      splash *= 0.9;
+      fireRate *= 1.25;
     } else if (t.kind === "frost") {
       damage = 0;
       firesProjectiles = false;

@@ -797,6 +797,22 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(t.targeting, t.inverted);
+    } else if (t.kind === "cannon") {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG +${Math.round(t.buffRate * 100)}% SPD`
+          : "";
+      upgradeStats.textContent = `DMG ${t.damage} · Blast ${t.splash} · SPD ${t.fireRate}/s · RNG ${t.range}${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Area Damage Max" : `+ Area Damage (${t.damageCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? "Focus Charge hits harder, reaches less far, and fires faster. Area Damage widens the blast and raises its damage."
+        : "The blast is tight. Area Damage widens it and hits harder. Focus Charge adds damage, shortens range, and fires faster.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting, t.inverted);
     } else if (t.kind === "chomp") {
       const buffLine =
         t.buffRate > 0 ? ` · Banner shortens the nap` : "";

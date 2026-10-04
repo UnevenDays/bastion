@@ -41,7 +41,7 @@ Waves 1–5 use the old health curve. From wave 6 the pack's health is multiplie
 | Tower  | Special upgrade                                      |
 |--------|------------------------------------------------------|
 | Archer | Hawk Eye — bigger range, less shot damage. The aura does not deal damage. 45 gold |
-| Cannon | Focus Charge — more damage, shorter range. 45 gold |
+| Cannon | 45 gold. A tight blast. Area Damage widens it and hits harder. Focus Charge adds damage, shortens range, and fires faster |
 | Frost  | Glacier Field — area freeze. Damage upgrades are refunded |
 | Mint   | Midas Bank — deposit coins; each wave pays 25% and that gold leaves the bank |
 | Wasp   | Drone Wing — three mini drones that hunt until their target falls |
