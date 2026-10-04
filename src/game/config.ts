@@ -198,7 +198,7 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     fireRate: 1.0,
     color: "#5a9eb8",
     projectileSpeed: 360,
-    slow: 0.45,
+    slow: 0.52,
     slowDuration: 1.6,
     description: "Slows enemies on hit",
   },
@@ -324,8 +324,9 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
   },
   frost: {
     name: "Glacier Field",
-    description: "Area freeze. Damage upgrades are refunded",
-    costMultiplier: 1.3,
+    description: "Pulses a chill. Upgrade its area, how long the chill lasts, and how soon it pulses again",
+    costMultiplier: 1,
+    cost: 180,
   },
   mint: {
     name: "Midas Bank",
@@ -530,6 +531,24 @@ export function upgradeCost(baseCost: number, currentLevel: number): number {
   return Math.round(baseCost * 0.55 * (currentLevel + 1));
 }
 
+/** How far Glacier Field reaches. Area ranks widen it. */
+export function glacierRange(damageLevel: number): number {
+  return TOWER_DEFS.frost.range * 1.12 * (1 + damageLevel * 0.18);
+}
+
+/** Seconds a Glacier pulse keeps enemies slowed. */
+export function glacierDuration(durationLevel: number): number {
+  return 1 + durationLevel * 0.45;
+}
+
+/** Seconds between Glacier pulses. Cooldown ranks shorten the wait. */
+export function glacierCooldown(speedLevel: number): number {
+  return 2.6 / (1 + speedLevel * 0.22);
+}
+
+/** Glacier chill. Enemies move at this fraction of their speed. */
+export const GLACIER_SLOW = 0.4;
+
 export function damageMultiplier(damageLevel: number): number {
   return 1 + damageLevel * 0.4;
 }
@@ -605,9 +624,10 @@ export function combatStats(t: Tower): CombatStats {
       damage = 0;
       firesProjectiles = false;
       auraFreeze = true;
-      range *= 1.15;
-      slow = 0.28;
-      slowDuration = 0.4;
+      range = glacierRange(t.damageLevel);
+      slow = GLACIER_SLOW;
+      slowDuration = glacierDuration(t.durationLevel);
+      fireRate = 1 / glacierCooldown(t.speedLevel);
     } else if (t.kind === "pyro") {
       range *= PYRO_SPECIAL_RANGE;
       auraDamage = 8 + t.damageLevel * 3.5;

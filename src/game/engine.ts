@@ -35,6 +35,7 @@ import {
   soakArmor,
   type EndlessMutator,
   enemyForWave,
+  glacierCooldown,
   makeFlyer,
   mintIncome,
   MACE_PERIOD,
@@ -82,7 +83,7 @@ import type {
 } from "./types";
 
 export type GamePhase = "ready" | "playing" | "won" | "lost";
-export type UpgradeStat = "damage" | "speed";
+export type UpgradeStat = "damage" | "speed" | "duration";
 export type ToolMode = "build" | "shovel";
 
 export interface SelectedTowerInfo {
@@ -133,6 +134,15 @@ export interface SelectedTowerInfo {
   bites: number;
   /** Seconds left before a sapper lets this tower work again. */
   silenced: number;
+  /** Next Glacier duration rank price. Null when that tower is not a Glacier or the rank is maxed. */
+  durationCost: number | null;
+  canAffordDuration: boolean;
+  /** Fraction of normal speed while this tower's chill holds. */
+  slow: number;
+  /** Seconds the chill lasts. */
+  slowDuration: number;
+  /** Seconds between Glacier pulses. 0 for other towers. */
+  pulse: number;
 }
 
 export interface HudSnapshot {
@@ -279,6 +289,10 @@ export class Game {
         : null;
     const sCost =
       t.speedLevel < MAX_UPGRADE ? upgradeCost(def.cost, t.speedLevel) : null;
+    const durationCost =
+      t.kind === "frost" && t.special && t.durationLevel < MAX_UPGRADE
+        ? upgradeCost(def.cost, t.durationLevel)
+        : null;
     const dropCost = def.sniper ? supplyDropCost(t.supplyUses) : 0;
     const spCost = def.sniper
       ? t.supplyUsed
@@ -326,6 +340,14 @@ export class Game {
         : 0,
       bites: def.chomp ? chompBiteCount(t.special) : 0,
       silenced: t.silenced,
+      durationCost,
+      canAffordDuration: durationCost !== null && this.gold >= durationCost,
+      slow: Math.round(stats.slow * 100) / 100,
+      slowDuration: Math.round(stats.slowDuration * 100) / 100,
+      pulse:
+        t.kind === "frost" && t.special
+          ? Math.round(glacierCooldown(t.speedLevel) * 100) / 100
+          : 0,
     };
   }
 
@@ -607,6 +629,7 @@ export class Game {
         supplyUses: 0,
         supplyUsed: false,
         silenced: 0,
+        durationLevel: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -624,6 +647,7 @@ export class Game {
       supplyUses: 0,
       supplyUsed: false,
       silenced: 0,
+      durationLevel: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -640,8 +664,9 @@ export class Game {
     if (!t) return false;
 
     const def = TOWER_DEFS[t.kind];
-    if (stat === "damage" && t.kind === "frost" && t.special) return false;
-    const level = stat === "damage" ? t.damageLevel : t.speedLevel;
+    if (stat === "duration" && !(t.kind === "frost" && t.special)) return false;
+    const level =
+      stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;
 
     const cost = upgradeCost(def.cost, level);
@@ -650,7 +675,8 @@ export class Game {
     this.gold -= cost;
     t.invested += cost;
     if (stat === "damage") t.damageLevel += 1;
-    else t.speedLevel += 1;
+    else if (stat === "speed") t.speedLevel += 1;
+    else t.durationLevel += 1;
 
     const cx = t.col * CELL + CELL / 2;
     const cy = t.row * CELL + CELL / 2;
@@ -1211,41 +1237,43 @@ export class Game {
       const stats = this.effectiveStats(t);
       const rangePx = def.sniper ? Number.POSITIVE_INFINITY : stats.range * CELL;
 
-      // Continuous fields: Frost freeze, and Pyro's inner burn. Hawk Eye does not deal aura damage.
-      if (stats.auraDamage > 0 || stats.auraFreeze) {
+      if (stats.auraFreeze) {
+        t.cooldown = Math.max(0, t.cooldown - dt);
+        if (t.cooldown > 0) continue;
+        t.cooldown = glacierCooldown(t.speedLevel);
         const allowed = this.towerIsStrongest(t);
-        for (const e of this.enemies) {
-          if (dist({ x: tx, y: ty }, e) > rangePx) continue;
-          if (this.markedWave() && !allowed) continue;
-          if (stats.auraDamage > 0) {
-            this.damageEnemy(e, stats.auraDamage * dt, allowed);
-          }
-          if (t.kind === "pyro" && e.hp > 0 && e.slowTimer <= 0) {
-            e.burnTimer = Math.max(e.burnTimer, PYRO_BURN_TIME);
-            e.burnDps = Math.max(e.burnDps, pyroBurnDps(stats.damage));
-            e.burnFromStrongest = allowed;
-          }
-          if (stats.auraFreeze) {
+        if (!this.markedWave() || allowed) {
+          for (const e of this.enemies) {
+            if (dist({ x: tx, y: ty }, e) > rangePx) continue;
             e.speed = e.baseSpeed * stats.slow;
             e.slowTimer = Math.max(e.slowTimer, stats.slowDuration);
             e.burnTimer = 0;
             e.burnDps = 0;
+            e.burnFromStrongest = false;
+          }
+        }
+        this.burst(tx, ty, "rgba(126, 200, 224, 0.85)", 8);
+        continue;
+      }
+
+      // Pyro's inner burn. Hawk Eye does not deal aura damage.
+      if (stats.auraDamage > 0) {
+        const allowed = this.towerIsStrongest(t);
+        for (const e of this.enemies) {
+          if (dist({ x: tx, y: ty }, e) > rangePx) continue;
+          if (this.markedWave() && !allowed) continue;
+          this.damageEnemy(e, stats.auraDamage * dt, allowed);
+          if (t.kind === "pyro" && e.hp > 0 && e.slowTimer <= 0) {
+            e.burnTimer = Math.max(e.burnTimer, PYRO_BURN_TIME);
+            e.burnDps = Math.max(e.burnDps, pyroBurnDps(stats.damage));
+            e.burnFromStrongest = allowed;
           }
         }
       }
 
       t.cooldown = Math.max(0, t.cooldown - dt);
       if (t.cooldown > 0) continue;
-      if (!stats.firesProjectiles) {
-        // Frost glacier still "pulses" visually via cooldown for particles
-        if (stats.auraFreeze) {
-          t.cooldown = 0.5;
-          if (Math.random() < 0.4) {
-            this.burst(tx, ty, "rgba(126, 200, 224, 0.8)", 3);
-          }
-        }
-        continue;
-      }
+      if (!stats.firesProjectiles) continue;
 
       const best = this.pickTarget(
         { x: tx, y: ty },

@@ -135,6 +135,8 @@ export interface Tower {
   supplyUsed: boolean;
   /** Seconds left shut off by a sapper. The tower does nothing while this is above zero. */
   silenced: number;
+  /** Glacier Field chill-duration ranks. Other towers leave this at 0. */
+  durationLevel: number;
 }
 
 export interface Enemy {

@@ -147,6 +147,7 @@ app.innerHTML = `
       </div>
       <div id="bastion-upgrades" class="upgrade-actions">
         <button class="btn btn-upgrade" type="button" id="upgrade-damage">+ Damage</button>
+        <button class="btn btn-upgrade hidden" type="button" id="upgrade-duration">+ Chill</button>
         <button class="btn btn-upgrade" type="button" id="upgrade-speed">+ Attack Speed</button>
         <button class="btn btn-special" type="button" id="upgrade-special">Special</button>
         <button class="btn btn-special hidden" type="button" id="mint-deposit">Bank 25g</button>
@@ -280,6 +281,8 @@ const bastionUpgrades = document.querySelector<HTMLElement>("#bastion-upgrades")
 const dungeonUpgrades = document.querySelector<HTMLElement>("#dungeon-upgrades")!;
 const upgradeDamageBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-damage")!;
+const upgradeDurationBtn =
+  document.querySelector<HTMLButtonElement>("#upgrade-duration")!;
 const upgradeSpeedBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-speed")!;
 const upgradeSpecialBtn =
@@ -708,6 +711,7 @@ function syncBastionHud(hud: HudSnapshot): void {
   if (hud.selectedTower && !hud.carrying) {
     const t = hud.selectedTower;
     upgradeBar.classList.remove("hidden");
+    upgradeDurationBtn.classList.add("hidden");
     upgradeTitle.textContent = t.special
       ? `${t.name} · ${t.specialName}`
       : `${t.name} selected`;
@@ -827,6 +831,20 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(t.targeting, t.inverted);
+    } else if (t.kind === "frost" && t.special) {
+      upgradeDurationBtn.classList.remove("hidden");
+      upgradeStats.textContent = `Moves at ${Math.round(t.slow * 100)}% speed · Area ${t.range} · Chill ${t.slowDuration}s · Pulse ${t.pulse}s`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Area Max" : `+ Area (${t.damageCost}g)`;
+      upgradeDurationBtn.textContent =
+        t.durationCost === null ? "Chill Max" : `+ Chill (${t.durationCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Cooldown Max" : `+ Shorter Cooldown (${t.speedCost}g)`;
+      hintEl.textContent =
+        "Glacier Field pulses a chill. Area widens the circle. Chill makes the slow last longer. Shorter Cooldown makes the next pulse come sooner. Damage ranks are refunded when you buy it.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting, t.inverted);
     } else {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0
@@ -834,13 +852,11 @@ function syncBastionHud(hud: HudSnapshot): void {
           : "";
       upgradeStats.textContent = t.flying
         ? `DMG ${t.damage} · SPD ${t.fireRate}/s · Hunts the whole map${buffLine}`
-        : `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}${buffLine}`;
-      const glacier = t.kind === "frost" && t.special;
-      upgradeDamageBtn.textContent = glacier
-        ? "Damage refunded"
-        : t.damageCost === null
-          ? "Damage Max"
-          : `+ Damage (${t.damageCost}g)`;
+        : t.kind === "frost"
+          ? `DMG ${t.damage} · SPD ${t.fireRate}/s · Slow ${Math.round(t.slow * 100)}% speed for ${t.slowDuration}s · RNG ${t.range}${buffLine}`
+          : `DMG ${t.damage} · SPD ${t.fireRate}/s · RNG ${t.range}${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Damage Max" : `+ Damage (${t.damageCost}g)`;
       upgradeSpeedBtn.textContent =
         t.speedCost === null ? "Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
       hintEl.textContent = t.flying
@@ -851,9 +867,9 @@ function syncBastionHud(hud: HudSnapshot): void {
           ? t.special
             ? "Inner Flame shrinks the radius and burns every enemy inside it. A slow still puts the fire out."
             : "Short range. A target that is not already burning takes extra damage. A slow removes the fire."
-        : glacier
-          ? "Glacier Field freezes in an area and refunds every damage upgrade on this tower."
-          : `${t.specialName}: ${t.specialDescription}`;
+          : t.kind === "frost"
+            ? "Shots slow enemies to 52% speed for 1.6 seconds. Glacier Field costs 180 and pulses a wider chill."
+            : `${t.specialName}: ${t.specialDescription}`;
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(t.targeting, t.inverted);
@@ -865,9 +881,10 @@ function syncBastionHud(hud: HudSnapshot): void {
         "A sapper stopped on this tower. It stays shut off for a few seconds, then it works again.";
     }
 
-    const glacierLocked = t.kind === "frost" && t.special;
     upgradeDamageBtn.disabled =
-      !started || glacierLocked || t.damageCost === null || !t.canAffordDamage;
+      !started || t.damageCost === null || !t.canAffordDamage;
+    upgradeDurationBtn.disabled =
+      !started || t.durationCost === null || !t.canAffordDuration;
     upgradeSpeedBtn.disabled =
       !started || t.speedCost === null || !t.canAffordSpeed;
     upgradeSpecialBtn.textContent =
@@ -1306,6 +1323,9 @@ lcancelBtn.addEventListener("click", () => lawn.clearSelection());
 
 upgradeDamageBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.upgradeSelected("damage");
+});
+upgradeDurationBtn.addEventListener("click", () => {
+  if (started && activeMode === "bastion") bastion.upgradeSelected("duration");
 });
 upgradeSpeedBtn.addEventListener("click", () => {
   if (started && activeMode === "bastion") bastion.upgradeSelected("speed");
