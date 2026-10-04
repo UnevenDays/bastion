@@ -91,13 +91,14 @@ import {
   upgradeCost,
   waveEnemyCount,
 } from "./config";
-import { campaignById, type CampaignLevel } from "./campaign";
+import { campaignById, openSideSpurs, type CampaignLevel, type LevelWarrant } from "./campaign";
 import { blobShadow, paintBoardLight, paintCrew, paintTag, paintWideRoad, speckleTile, type CrewKind } from "./paint";
 import { customEnemyAt, customSpawnCount, normalizeLevel, type CustomLevel } from "./level";
 import type {
   DeathRecap,
   Difficulty,
   Enemy,
+  EnemyDef,
   EnemyKind,
   Flyer,
   Particle,
@@ -225,6 +226,8 @@ export interface HudSnapshot {
   elites: boolean;
   /** Warrant chosen for this road. Empty on an editor level. */
   warrantName: string;
+  /** That company's trick. Empty on an editor level. */
+  warrantGimmick: string;
   /** Banners on the field, plus one the shovel is holding. */
   banners: number;
   /** The gate at the exit is the selected character. */
@@ -367,6 +370,8 @@ export class Game {
   private custom: CustomLevel | null = null;
   private campaign: CampaignLevel = campaignById("road");
   private warrantIndex = 0;
+  private roadCells: { col: number; row: number }[] = PATH.map((p) => ({ col: p.col, row: p.row }));
+  private spurs: { leave: number; rejoin: number; points: Vec2[] }[] = [];
   private water = new Set<string>();
   private treeSet = new Set<string>();
   private treeCells: { col: number; row: number }[] = [];
@@ -549,6 +554,7 @@ export class Game {
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
           : "none",
       warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
+      warrantGimmick: this.custom ? "" : (this.activeWarrant()?.gimmick ?? ""),
       banners: this.bannerTotal(),
       gateSelected: this.bastionSelected,
       gateLives: this.lives,
@@ -1122,6 +1128,7 @@ export class Game {
     this.tutorialAccept = false;
     this.tutorialBlockWave = false;
     this.resetGate();
+    this.refreshSpurs();
     this.emitHud();
   }
 
@@ -1244,11 +1251,58 @@ export class Game {
   }
 
   private usePath(path: { col: number; row: number }[]): void {
+    this.roadCells = path.map((p) => ({ col: p.col, row: p.row }));
     this.pathSet = new Set(path.map((p) => pathKey(p.col, p.row)));
     this.waypoints = path.map((p) => ({
       x: p.col * CELL + CELL / 2,
       y: p.row * CELL + CELL / 2,
     }));
+    this.spurs = [];
+  }
+
+  /** Side lanes for a company that opens them. Editor roads stay on one path. */
+  private refreshSpurs(): void {
+    const company = this.company();
+    const blocked = new Set<string>([...this.water, ...this.treeSet]);
+    const built = company?.side ? openSideSpurs(this.roadCells, blocked) : [];
+    this.pathSet = new Set(this.roadCells.map((p) => pathKey(p.col, p.row)));
+    this.spurs = built.map((spur) => ({
+      leave: spur.leave,
+      rejoin: spur.rejoin,
+      points: [
+        this.waypoints[spur.leave]!,
+        ...spur.cells.map((cell) => ({
+          x: cell.col * CELL + CELL / 2,
+          y: cell.row * CELL + CELL / 2,
+        })),
+        this.waypoints[spur.rejoin]!,
+      ],
+    }));
+    for (const spur of built) {
+      for (const cell of spur.cells) this.pathSet.add(pathKey(cell.col, cell.row));
+    }
+  }
+
+  private company(): LevelWarrant | undefined {
+    if (this.custom) return undefined;
+    return this.activeWarrant();
+  }
+
+  /** Bosses keep their own health and speed. The company dresses the pack. */
+  private dress(def: EnemyDef): EnemyDef {
+    const company = this.company();
+    if (!company) return def;
+    if (def.kind === "boss" || def.kind === "finalBoss" || def.kind === "challenger") return def;
+    const hp = company.hp ? Math.round(def.hp * company.hp) : def.hp;
+    const speed = company.speed ? Math.max(8, Math.round(def.speed * company.speed)) : def.speed;
+    if (hp === def.hp && speed === def.speed) return def;
+    return { ...def, hp, speed };
+  }
+
+  private walksSide(kind: EnemyKind, summoned: boolean): boolean {
+    if (!this.company()?.side) return false;
+    if (kind === "fast") return true;
+    return kind === "normal" && summoned;
   }
 
   private queuedSpawns(): number {
@@ -1463,6 +1517,11 @@ export class Game {
       cracked: false,
       leavesWeaker,
       elite: def.elite === true,
+      side: false,
+      spur: -1,
+      spurIndex: 0,
+      spurProgress: 0,
+      nextSpur: 0,
     };
   }
 
@@ -1473,26 +1532,31 @@ export class Game {
       if (e.kind !== "spawner" || e.hp <= 0) continue;
       e.spawnTimer -= dt;
       if (e.spawnTimer > 0) continue;
-      e.spawnTimer = 3.2;
+      const company = this.company();
+      e.spawnTimer = company?.brood ?? 3.2;
       const scale = 1 + (this.wave - 1) * 0.15;
-      spawned.push(
-        this.makeEnemy(
-          {
+      const broodHp = company?.broodHp ?? 1;
+      const births = company?.twins ? 2 : 1;
+      for (let n = 0; n < births; n++) {
+        const child = this.makeEnemy(
+          this.dress({
             kind: "normal",
-            hp: Math.round(22 * scale),
+            hp: Math.round(22 * scale * broodHp),
             speed: NORMAL_SPEED + 8,
             reward:
               this.difficulty === "endless" && endlessDrought(this.wave) ? 0 : 3,
             radius: 9,
             color: "#9aaa4a",
             leakDamage: 1,
-          },
+          }),
           e.pathIndex,
-          Math.min(0.9, e.progress + 0.05),
+          Math.min(0.9, e.progress + 0.05 + n * 0.04),
           e.x,
           e.y,
-        ),
-      );
+        );
+        child.side = this.walksSide("normal", true);
+        spawned.push(child);
+      }
       this.burst(e.x, e.y, "#6a7a3a", 6);
     }
     if (spawned.length) {
@@ -1525,7 +1589,9 @@ export class Game {
       def.kind !== "challenger" &&
       def.kind !== "splitter" &&
       def.kind !== "splitling";
-    this.enemies.push(this.makeEnemy(def, 0, 0, start.x, start.y, leavesWeaker));
+    const enemy = this.makeEnemy(this.dress(def), 0, 0, start.x, start.y, leavesWeaker);
+    enemy.side = this.walksSide(def.kind, false);
+    this.enemies.push(enemy);
     this.spawnQueue -= 1;
     const interval = spawnInterval(this.wave, this.difficulty);
     this.spawnTimer =
@@ -1571,27 +1637,9 @@ export class Game {
 
       const holding = e.hp > 0 && this.tickSapper(e, dt);
 
-      let remaining = holding ? 0 : e.speed * dt;
-      while (remaining > 0 && e.pathIndex < this.waypoints.length - 1) {
-        const a = this.waypoints[e.pathIndex];
-        const b = this.waypoints[e.pathIndex + 1];
-        const segLen = dist(a, b);
-        const distLeft = (1 - e.progress) * segLen;
-        if (remaining >= distLeft) {
-          remaining -= distLeft;
-          e.pathIndex += 1;
-          e.progress = 0;
-          e.x = b.x;
-          e.y = b.y;
-        } else {
-          e.progress += remaining / segLen;
-          e.x = a.x + (b.x - a.x) * e.progress;
-          e.y = a.y + (b.y - a.y) * e.progress;
-          remaining = 0;
-        }
-      }
+      if (!holding) this.moveEnemy(e, e.speed * dt);
 
-      if (e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
+      if (e.spur < 0 && e.pathIndex >= this.waypoints.length - 1 && e.progress >= 0) {
         this.recordLeak(e.kind);
         this.lives -= e.leakDamage;
         this.gateFlash = 0.45;
@@ -2436,11 +2484,17 @@ export class Game {
     return endlessArmor(this.wave);
   }
 
+  /** Company armor. Bosses are left bare, and an editor road has none. */
+  private companySoak(e: Enemy): number {
+    if (isBossKind(e.kind) || e.kind === "challenger") return 0;
+    return this.company()?.soak ?? 0;
+  }
+
   /** HP loss resets the normal-mode regen clock. Slows alone do not. */
   private damageEnemy(e: Enemy, amount: number, strongest = false): void {
     if (amount <= 0 || e.hp <= 0) return;
     if (this.markedWave() && !strongest) return;
-    const dealt = soakArmor(amount, this.armorValue(e));
+    const dealt = soakArmor(amount, this.armorValue(e) + this.companySoak(e));
     if (dealt <= 0) return;
     e.hp -= dealt;
     e.sinceDamage = 0;
@@ -2449,9 +2503,12 @@ export class Game {
 
   /** A Desert Husk drops its shell at half health and sprints. */
   private crackHusk(e: Enemy): void {
-    if (e.kind !== "husk" || e.cracked || e.hp <= 0 || e.hp > e.maxHp * 0.5) return;
+    const crackAt = this.company()?.crack ?? 0.5;
+    if (e.kind !== "husk" || e.cracked || e.hp <= 0 || e.hp > e.maxHp * crackAt) return;
     e.cracked = true;
-    const sprint = Math.max(HUSK_SPRINT, Math.round(e.baseSpeed * 3.2));
+    const sprint = Math.round(
+      Math.max(HUSK_SPRINT, Math.round(e.baseSpeed * 3.2)) * (this.company()?.sprint ?? 1),
+    );
     if (e.slowTimer > 0 && e.baseSpeed > 0) {
       const ratio = e.speed / e.baseSpeed;
       e.baseSpeed = sprint;
@@ -2489,10 +2546,11 @@ export class Game {
 
     const tower = this.towerBeside(e.x, e.y);
     if (!tower) return false;
-    tower.silenced = SAPPER_SILENCE;
+    const silence = this.company()?.silence ?? SAPPER_SILENCE;
+    tower.silenced = silence;
     e.sapperCol = tower.col;
     e.sapperRow = tower.row;
-    e.sapperLeft = SAPPER_SILENCE;
+    e.sapperLeft = silence;
     this.burst(
       tower.col * CELL + CELL / 2,
       tower.row * CELL + CELL / 2,
@@ -2505,7 +2563,7 @@ export class Game {
 
   /** Closest tower within reach. A tower that is still working wins over one already shut off. */
   private towerBeside(x: number, y: number): Tower | null {
-    const reach = SAPPER_REACH * CELL;
+    const reach = (this.company()?.reach ?? SAPPER_REACH) * CELL;
     let best: Tower | null = null;
     let bestDist = reach;
     let bestFresh = false;
@@ -2525,14 +2583,107 @@ export class Game {
     return best;
   }
 
-  /** A living thief takes a little loose gold once a second. */
+  private moveEnemy(e: Enemy, remaining: number): void {
+    let guard = 0;
+    while (remaining > 0 && guard < 12) {
+      guard += 1;
+      if (e.spur >= 0) {
+        remaining = this.walkSpur(e, remaining);
+        continue;
+      }
+      if (e.pathIndex >= this.waypoints.length - 1) return;
+      const a = this.waypoints[e.pathIndex];
+      const b = this.waypoints[e.pathIndex + 1];
+      if (!a || !b) return;
+      const segLen = dist(a, b);
+      if (segLen <= 0) {
+        e.pathIndex += 1;
+        e.progress = 0;
+        this.tryEnterSpur(e);
+        continue;
+      }
+      const distLeft = (1 - e.progress) * segLen;
+      if (remaining >= distLeft) {
+        remaining -= distLeft;
+        e.pathIndex += 1;
+        e.progress = 0;
+        e.x = b.x;
+        e.y = b.y;
+        this.tryEnterSpur(e);
+      } else {
+        e.progress += remaining / segLen;
+        e.x = a.x + (b.x - a.x) * e.progress;
+        e.y = a.y + (b.y - a.y) * e.progress;
+        remaining = 0;
+      }
+    }
+  }
+
+  /** Walk a side lane and rejoin the road. Returns distance still to walk. */
+  private walkSpur(e: Enemy, remaining: number): number {
+    const spur = this.spurs[e.spur];
+    if (!spur) {
+      e.spur = -1;
+      return remaining;
+    }
+    while (remaining > 0 && e.spurIndex < spur.points.length - 1) {
+      const a = spur.points[e.spurIndex];
+      const b = spur.points[e.spurIndex + 1];
+      if (!a || !b) break;
+      const segLen = dist(a, b);
+      if (segLen <= 0) {
+        e.spurIndex += 1;
+        e.spurProgress = 0;
+        continue;
+      }
+      const distLeft = (1 - e.spurProgress) * segLen;
+      if (remaining >= distLeft) {
+        remaining -= distLeft;
+        e.spurIndex += 1;
+        e.spurProgress = 0;
+        e.x = b.x;
+        e.y = b.y;
+      } else {
+        e.spurProgress += remaining / segLen;
+        e.x = a.x + (b.x - a.x) * e.spurProgress;
+        e.y = a.y + (b.y - a.y) * e.spurProgress;
+        return 0;
+      }
+    }
+    if (e.spurIndex >= spur.points.length - 1) {
+      e.pathIndex = spur.rejoin;
+      e.progress = 0;
+      const back = this.waypoints[spur.rejoin];
+      if (back) {
+        e.x = back.x;
+        e.y = back.y;
+      }
+      e.spur = -1;
+      e.nextSpur += 1;
+    }
+    return remaining;
+  }
+
+  private tryEnterSpur(e: Enemy): void {
+    if (!e.side || e.spur >= 0 || e.progress !== 0) return;
+    const spur = this.spurs[e.nextSpur];
+    if (!spur || spur.leave !== e.pathIndex) return;
+    e.spur = e.nextSpur;
+    e.spurIndex = 0;
+    e.spurProgress = 0;
+  }
+
+  /** A living thief takes a little loose gold once a second, unless the company says otherwise. */
   private tickTheft(e: Enemy, dt: number): boolean {
     if (e.kind !== "thief" || e.hp <= 0) return false;
+    const company = this.company();
+    const every = company?.stealEvery ?? 1;
+    const purse = company?.steal ?? THIEF_STEAL;
     e.stealTimer += dt;
     let stole = false;
-    while (e.stealTimer >= 1) {
-      e.stealTimer -= 1;
-      const take = Math.min(THIEF_STEAL, this.gold);
+    while (e.stealTimer >= every) {
+      e.stealTimer -= every;
+      const take = Math.min(purse, this.gold);
       if (take <= 0) continue;
       this.gold -= take;
       e.stolen += take;
@@ -2545,7 +2696,7 @@ export class Game {
   private onEnemyDeath(e: Enemy, spawned: Enemy[]): void {
     const purse = e.kind === "thief" ? banditQuickBonus(e.reward, e.age) : 0;
     this.gold += e.reward + purse;
-    if (e.kind === "thief") this.gold += thiefRefund(e.stolen);
+    if (e.kind === "thief") this.gold += thiefRefund(e.stolen, this.company()?.refund);
     if (purse > 0) this.burst(e.x, e.y - e.radius - 6, "#fff1a8", 14);
     const burstColor =
       e.kind === "challenger"
@@ -2571,11 +2722,13 @@ export class Game {
     );
 
     if (e.kind === "splitter") {
+      const company = this.company();
+      const count = company?.children ?? 2;
       this.spawnOffspring(
         e,
         spawned,
-        splitlingFrom(e.maxHp, this.wave, this.difficulty),
-        [-0.08, 0.08],
+        splitlingFrom(e.maxHp, this.wave, this.difficulty, company?.childHp ?? 0.35),
+        count >= 3 ? [-0.12, 0, 0.12] : [-0.08, 0.08],
       );
       return;
     }
@@ -2945,6 +3098,18 @@ export class Game {
 
   private drawPath(ctx: CanvasRenderingContext2D): void {
     paintWideRoad(ctx, this.waypoints, this.campaign.road, CELL);
+    for (const spur of this.spurs) {
+      paintWideRoad(
+        ctx,
+        spur.points,
+        {
+          edge: "#c4a15a",
+          fill: "#6e5428",
+          dash: "rgba(255, 220, 140, 0.75)",
+        },
+        CELL,
+      );
+    }
   }
 
   private drawTrees(ctx: CanvasRenderingContext2D): void {
@@ -3745,8 +3910,10 @@ export class Game {
         ctx.fill();
       }
 
-      const from = this.waypoints[e.pathIndex] ?? { x: e.x, y: e.y };
-      const to = this.waypoints[Math.min(e.pathIndex + 1, this.waypoints.length - 1)] ?? from;
+      const route = e.spur >= 0 ? this.spurs[e.spur]?.points : this.waypoints;
+      const step = e.spur >= 0 ? e.spurIndex : e.pathIndex;
+      const from = route?.[step] ?? { x: e.x, y: e.y };
+      const to = route?.[Math.min(step + 1, (route?.length ?? 1) - 1)] ?? from;
       paintCrew(ctx, e.x, e.y, e.radius, e.color, crewFor(e.kind), {
         faceLeft: to.x < from.x - 0.5,
         walk: this.pulse * 8 + e.id,

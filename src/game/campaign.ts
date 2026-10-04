@@ -1,4 +1,4 @@
-import { PATH, TOTAL_WAVES } from "./config";
+import { COLS, PATH, ROWS, TOTAL_WAVES } from "./config";
 import type { PatternKind } from "./types";
 
 export interface CampaignCell {
@@ -45,6 +45,46 @@ export interface LevelWarrant {
   name: string;
   /** Spawn order. The first kind leads. One to four, with no repeats. */
   enemies: WarrantEnemies;
+  /** The company's trick, written on the warrant button. */
+  gimmick: string;
+  /** Gold a bandit takes each steal. */
+  steal?: number;
+  /** Seconds between steals. */
+  stealEvery?: number;
+  /** Share of stolen gold returned on a kill. */
+  refund?: number;
+  /** Pack health multiplier. Bosses are left out. */
+  hp?: number;
+  /** Pack speed multiplier. Bosses are left out. */
+  speed?: number;
+  /** Damage soaked off each hit. */
+  soak?: number;
+  /** Seconds a sapper shuts a tower off. */
+  silence?: number;
+  /** Cells off the road a sapper can reach. */
+  reach?: number;
+  /** Children a splitter leaves. */
+  children?: number;
+  /** Splitling health as a fraction of the parent. */
+  childHp?: number;
+  /** Seconds between nest summons. */
+  brood?: number;
+  /** The nest summons two at once. */
+  twins?: boolean;
+  /** Summon health multiplier. */
+  broodHp?: number;
+  /** Fast enemies and summons walk side paths. */
+  side?: boolean;
+  /** A husk cracks at this fraction of health. */
+  crack?: number;
+  /** Extra multiplier on the cracked sprint. */
+  sprint?: number;
+}
+
+export interface SideSpur {
+  leave: number;
+  rejoin: number;
+  cells: CampaignCell[];
 }
 
 type WarrantEnemies =
@@ -95,9 +135,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     road: DIRT,
     wash: "",
     warrants: [
-      { id: "red-column", name: "Red Column", enemies: ["normal", "fast", "tank", "sapper"] },
-      { id: "cutpurse", name: "Cutpurse Line", enemies: ["normal", "thief", "splitter"] },
-      { id: "runner-nest", name: "Runner Nest", enemies: ["fast", "spawner"] },
+      { id: "red-column", name: "Red Column", enemies: ["normal", "fast", "tank", "sapper"], gimmick: "Soaks 4 damage off every hit.", soak: 4 },
+      { id: "cutpurse", name: "Cutpurse Line", enemies: ["normal", "thief", "splitter"], gimmick: "Bandits steal 3 gold a second.", steal: 3 },
+      { id: "runner-nest", name: "Runner Nest", enemies: ["fast", "spawner"], gimmick: "Runners and summons take side paths.", side: true },
     ],
   },
   {
@@ -122,9 +162,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     road: DIRT,
     wash: "",
     warrants: [
-      { id: "sprinters", name: "Sprinters", enemies: ["fast", "thief"] },
-      { id: "iron-fold", name: "Iron Fold", enemies: ["tank", "splitter", "normal"] },
-      { id: "breach-crew", name: "Breach Crew", enemies: ["sapper", "fast", "tank", "thief"] },
+      { id: "sprinters", name: "Sprinters", enemies: ["fast", "thief"], gimmick: "The pack moves 30% faster.", speed: 1.3 },
+      { id: "iron-fold", name: "Iron Fold", enemies: ["tank", "splitter", "normal"], gimmick: "The pack has 30% more health.", hp: 1.3 },
+      { id: "breach-crew", name: "Breach Crew", enemies: ["sapper", "fast", "tank", "thief"], gimmick: "A sapper shuts a tower off for 6 seconds.", silence: 6 },
     ],
   },
   {
@@ -171,9 +211,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     road: DIRT,
     wash: "",
     warrants: [
-      { id: "bog-shields", name: "Bog Shields", enemies: ["tank", "spawner", "normal"] },
-      { id: "reed-split", name: "Reed Split", enemies: ["normal", "splitter", "sapper"] },
-      { id: "flood-purse", name: "Flood Purse", enemies: ["thief", "tank", "fast", "spawner"] },
+      { id: "bog-shields", name: "Bog Shields", enemies: ["tank", "spawner", "normal"], gimmick: "Soaks 6 damage off every hit.", soak: 6 },
+      { id: "reed-split", name: "Reed Split", enemies: ["normal", "splitter", "sapper"], gimmick: "A splitter leaves three children.", children: 3 },
+      { id: "flood-purse", name: "Flood Purse", enemies: ["thief", "tank", "fast", "spawner"], gimmick: "Bandits steal every half second.", stealEvery: 0.5 },
     ],
   },
   {
@@ -200,9 +240,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     road: DIRT,
     wash: "",
     warrants: [
-      { id: "long-split", name: "Long Split", enemies: ["splitter", "fast", "normal"] },
-      { id: "bulwark", name: "Bulwark", enemies: ["tank"] },
-      { id: "hole-hive", name: "Hole and Hive", enemies: ["sapper", "spawner", "thief"] },
+      { id: "long-split", name: "Long Split", enemies: ["splitter", "fast", "normal"], gimmick: "Splitter children keep half the parent's health.", childHp: 0.5 },
+      { id: "bulwark", name: "Bulwark", enemies: ["tank"], gimmick: "Tanks have 50% more health and move slower.", hp: 1.5, speed: 0.85 },
+      { id: "hole-hive", name: "Hole and Hive", enemies: ["sapper", "spawner", "thief"], gimmick: "The nest summons every 2 seconds.", brood: 2 },
     ],
   },
   {
@@ -250,9 +290,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
     wash: "rgba(255, 186, 196, 0.08)",
     warrants: [
-      { id: "petal-rush", name: "Petal Rush", enemies: ["fast", "normal", "thief"] },
-      { id: "bloom-nest", name: "Bloom Nest", enemies: ["splitter", "spawner"] },
-      { id: "root-crew", name: "Root Crew", enemies: ["tank", "sapper", "splitter", "thief"] },
+      { id: "petal-rush", name: "Petal Rush", enemies: ["fast", "normal", "thief"], gimmick: "The pack moves 25% faster.", speed: 1.25 },
+      { id: "bloom-nest", name: "Bloom Nest", enemies: ["splitter", "spawner"], gimmick: "The nest summons two at a time.", twins: true },
+      { id: "root-crew", name: "Root Crew", enemies: ["tank", "sapper", "splitter", "thief"], gimmick: "Sappers reach 2.2 cells off the road.", reach: 2.2 },
     ],
   },
   {
@@ -283,9 +323,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
     wash: "rgba(170, 196, 206, 0.07)",
     warrants: [
-      { id: "stone-line", name: "Stone Line", enemies: ["tank", "normal", "splitter", "sapper"] },
-      { id: "dust-pockets", name: "Dust Pockets", enemies: ["thief", "splitter"] },
-      { id: "pit-hive", name: "Pit Hive", enemies: ["spawner", "tank"] },
+      { id: "stone-line", name: "Stone Line", enemies: ["tank", "normal", "splitter", "sapper"], gimmick: "The pack has 25% more health.", hp: 1.25 },
+      { id: "dust-pockets", name: "Dust Pockets", enemies: ["thief", "splitter"], gimmick: "Bandits steal 2 gold, and a kill returns none of it.", steal: 2, refund: 0 },
+      { id: "pit-hive", name: "Pit Hive", enemies: ["spawner", "tank"], gimmick: "Nest summons have double health.", broodHp: 2 },
     ],
   },
   {
@@ -316,9 +356,9 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
     wash: "rgba(16, 14, 36, 0.2)",
     warrants: [
-      { id: "lantern-thieves", name: "Lantern Bandits", enemies: ["thief", "sapper", "fast"] },
-      { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"] },
-      { id: "single-spark", name: "Single Spark", enemies: ["fast"] },
+      { id: "lantern-thieves", name: "Lantern Bandits", enemies: ["thief", "sapper", "fast"], gimmick: "Bandits steal 2 gold, and the pack is faster.", steal: 2, speed: 1.2 },
+      { id: "full-dark", name: "Full Dark", enemies: ["spawner", "splitter", "normal", "tank"], gimmick: "The pack has more health, and summons come sooner.", hp: 1.15, brood: 2.2 },
+      { id: "single-spark", name: "Single Spark", enemies: ["fast"], gimmick: "The runners move 45% faster.", speed: 1.45 },
     ],
   },
   {
@@ -349,13 +389,74 @@ export const CAMPAIGN: CampaignLevel[] = [
     },
     wash: "rgba(214, 168, 92, 0.12)",
     warrants: [
-      { id: "husk-line", name: "Husk Line", enemies: ["husk"] },
-      { id: "dry-wind", name: "Dry Wind", enemies: ["husk", "fast", "thief"] },
-      { id: "shell-breach", name: "Shell Breach", enemies: ["husk", "sapper", "tank", "splitter"] },
+      { id: "husk-line", name: "Husk Line", enemies: ["husk"], gimmick: "A Desert Husk cracks at 70% health.", crack: 0.7 },
+      { id: "dry-wind", name: "Dry Wind", enemies: ["husk", "fast", "thief"], gimmick: "The pack is faster, and a cracked husk sprints harder.", speed: 1.2, sprint: 1.25 },
+      { id: "shell-breach", name: "Shell Breach", enemies: ["husk", "sapper", "tank", "splitter"], gimmick: "Sappers silence for 6 seconds, and a husk cracks at 60% health.", silence: 6, crack: 0.6 },
     ],
   },
 ];
 
 export function campaignById(id: string): CampaignLevel {
   return CAMPAIGN.find((level) => level.id === id) ?? CAMPAIGN[0]!;
+}
+
+function cellKey(cell: CampaignCell): string {
+  return `${cell.col},${cell.row}`;
+}
+
+/**
+ * Two short lanes beside a straight stretch. Fast enemies leave the road,
+ * walk the lane, and rejoin a couple of tiles ahead.
+ */
+export function openSideSpurs(
+  path: readonly CampaignCell[],
+  blocked: ReadonlySet<string>,
+): SideSpur[] {
+  const occupied = new Set(path.map(cellKey));
+  for (const key of blocked) occupied.add(key);
+  const spurs: SideSpur[] = [];
+  let i = 2;
+  while (i < path.length - 4 && spurs.length < 2) {
+    const here = path[i];
+    const next = path[i + 1];
+    const after = path[i + 2];
+    if (!here || !next || !after) break;
+    const dirCol = Math.sign(next.col - here.col);
+    const dirRow = Math.sign(next.row - here.row);
+    const straight =
+      Math.sign(after.col - next.col) === dirCol &&
+      Math.sign(after.row - next.row) === dirRow &&
+      Math.abs(next.col - here.col) + Math.abs(next.row - here.row) === 1 &&
+      Math.abs(after.col - next.col) + Math.abs(after.row - next.row) === 1;
+    if (!straight) {
+      i += 1;
+      continue;
+    }
+    const perps = [
+      { col: -dirRow, row: dirCol },
+      { col: dirRow, row: -dirCol },
+    ];
+    let placed = false;
+    for (const perp of perps) {
+      const cells = [0, 1, 2].map((step) => ({
+        col: path[i + step]!.col + perp.col,
+        row: path[i + step]!.row + perp.row,
+      }));
+      const free = cells.every(
+        (cell) =>
+          cell.col >= 0 &&
+          cell.row >= 0 &&
+          cell.col < COLS &&
+          cell.row < ROWS &&
+          !occupied.has(cellKey(cell)),
+      );
+      if (!free) continue;
+      for (const cell of cells) occupied.add(cellKey(cell));
+      spurs.push({ leave: i, rejoin: i + 2, cells });
+      placed = true;
+      break;
+    }
+    i += placed ? 6 : 1;
+  }
+  return spurs;
 }

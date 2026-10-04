@@ -514,8 +514,8 @@ export function cloudStrikeBack(enemyMaxHp: number): number {
 }
 
 /** Gold returned when a thief dies. A leak pays nothing back. */
-export function thiefRefund(stolen: number): number {
-  return Math.floor(Math.max(0, stolen) * THIEF_REFUND);
+export function thiefRefund(stolen: number, rate = THIEF_REFUND): number {
+  return Math.floor(Math.max(0, stolen) * rate);
 }
 
 /** Extra gold when a bandit dies quickly. A zero bounty pays no purse. */
@@ -1183,11 +1183,12 @@ export function splitlingFrom(
   parentHp: number,
   wave: number,
   difficulty: Difficulty = "normal",
+  hpFraction = 0.35,
 ): EnemyDef {
   return applyHard(
     {
       kind: "splitling",
-      hp: Math.max(12, Math.round(parentHp * 0.35)),
+      hp: Math.max(12, Math.round(parentHp * hpFraction)),
       speed: NORMAL_SPEED,
       reward: 3 + Math.floor(wave / 3),
       radius: 8,

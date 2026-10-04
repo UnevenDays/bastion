@@ -564,7 +564,7 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
         ["Refund", "20% of what it took, if you kill it"],
         ["Quick purse", `+${BANDIT_QUICK_GOLD} gold within ${BANDIT_QUICK_SECONDS}s`],
       ],
-      about: "Faster than a runner, and tougher than a grunt. It picks up gold while it lives. A leak keeps that gold. A kill returns a fifth of it. Kill it within 4 seconds and it drops 8 extra gold. A coin shows over its head while that purse is still open.",
+      about: "Faster than a runner, and tougher than a grunt. It picks up 1 gold a second while it lives. A company can steal more, or more often, and Dust Pockets returns none of it. A leak keeps that gold. A kill returns a fifth of it, unless the company says otherwise. Kill it within 4 seconds and it drops 8 extra gold. A coin shows over its head while that purse is still open.",
       pairsTitle: "Answer them with",
       pairs: [
         { id: "frost", name: "Frost", note: "Slow it before it has seconds to steal." },

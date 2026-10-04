@@ -122,7 +122,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant sends one to four enemy kinds. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, and Night Watch fog each fight the line.</p>
+            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, and Night Watch fog each fight the line.</p>
             <p class="roster-note" id="roster-note"></p>
             <div class="level-picker" id="level-picker" role="group" aria-label="Level"></div>
             <p class="warrant-label">Warrant</p>
@@ -670,7 +670,7 @@ function currentAlmanacQuery() {
   const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
   const warrant = level.warrants[warrantByLevel.get(level.id) ?? 0] ?? level.warrants[0]!;
   const faced = new Set<string>();
-  let roadLabel = `${level.name} · ${warrant.name}`;
+  let roadLabel = `${level.name} · ${warrant.name}. ${warrant.gimmick}`;
   if (editor) {
     roadLabel = "This level";
     if (activeLevel) {
@@ -982,6 +982,7 @@ function syncBastionHud(hud: HudSnapshot): void {
   }
 
   warrantBadge.textContent = hud.warrantName;
+  warrantBadge.title = hud.warrantGimmick;
   warrantBadge.classList.toggle("hidden", !started || hud.custom || !hud.warrantName);
 
   const lesson = tutorialIndex !== null ? TUTORIAL_STEPS[tutorialIndex] : null;
@@ -1735,7 +1736,7 @@ function paintWarrants(): void {
     .map((warrant, index) => {
       return `<button class="warrant-btn${index === picked ? " selected" : ""}" type="button" data-warrant="${index}">
         <span class="level-name">${warrant.name}</span>
-        <span class="level-meta">${patternList(warrant.enemies)}</span>
+        <span class="level-meta">${warrant.gimmick}</span>
       </button>`;
     })
     .join("");
@@ -1743,7 +1744,7 @@ function paintWarrants(): void {
   const huskNote = warrant.enemies.includes("husk")
     ? " A Desert Husk cracks at half health and sprints."
     : "";
-  warrantBlurb.textContent = `${level.blurb} ${warrant.name} sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  warrantBlurb.textContent = `${level.blurb} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
   if (!started) {
     bastion.beginRun(chosenDifficulty, level.id, picked);
   }

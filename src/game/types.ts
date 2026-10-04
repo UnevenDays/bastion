@@ -196,6 +196,14 @@ export interface Enemy {
   cracked: boolean;
   /** Gold crown. More health than this kind, and more gold when it dies. */
   elite: boolean;
+  /** This enemy peels onto side paths. */
+  side: boolean;
+  /** Index into the open side paths while detouring. -1 on the main road. */
+  spur: number;
+  spurIndex: number;
+  spurProgress: number;
+  /** Next side path this enemy has not taken yet. */
+  nextSpur: number;
 }
 
 export interface Projectile {
