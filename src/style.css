@@ -979,9 +979,9 @@ body {
   margin: 0;
   padding: 8px 12px;
   border-radius: 8px;
-  background: #fff6e8;
-  color: #1a1408;
-  border: 1px solid #e8c547;
+  background: #1c5c38;
+  color: #ffe56a;
+  border: 1px solid #3d9a62;
   font-size: 0.92rem;
   line-height: 1.35;
   text-align: center;
@@ -1050,9 +1050,9 @@ body {
   margin: 0;
   padding: 10px 14px;
   border-radius: 8px;
-  background: #fff6e8;
-  color: #1a1408;
-  border: 1px solid #e8c547;
+  background: #1c5c38;
+  color: #ffe56a;
+  border: 1px solid #3d9a62;
   text-align: center;
   line-height: 1.45;
   font-size: 0.98rem;
@@ -1716,6 +1716,16 @@ body {
 #end-overlay.lost .overlay-card .death-recap p,
 #end-overlay.lost .overlay-card .death-recap p:last-child {
   color: #1a1408;
+}
+
+#death-tip,
+#end-overlay.lost #death-tip {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #1c5c38;
+  color: #ffe56a;
+  border: 1px solid #3d9a62;
 }
 
 #end-overlay.lost .mode-btn {
