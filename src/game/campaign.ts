@@ -30,6 +30,8 @@ export interface CampaignLevel {
   rocks: boolean;
   /** Auto aim uses a shorter range. */
   fog: boolean;
+  /** Railroad. Empty on roads without a train. Towers cannot stand on it. */
+  track: CampaignCell[];
   grass: [string, string];
   pattern: TilePattern;
   /** Edge, fill, and center dash of the road. */
@@ -131,6 +133,11 @@ function march(corners: CampaignCell[]): CampaignCell[] {
   return out;
 }
 
+/** A straight railroad across one row, edge to edge. */
+function railRow(row: number): CampaignCell[] {
+  return Array.from({ length: COLS }, (_, col) => ({ col, row }));
+}
+
 export const CAMPAIGN: CampaignLevel[] = [
   {
     id: "road",
@@ -142,6 +149,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: false,
+    track: [],
     grass: ["#1e3a28", "#1a3324"],
     pattern: "tufts",
     road: DIRT,
@@ -157,7 +165,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "switchback",
     name: "Switchback",
     waves: 14,
-    blurb: "The road folds back on itself. Fourteen waves.",
+    blurb: "The road folds back on itself. Fourteen waves. Rails cross the grass, and from wave 5 a train runs them once a wave.",
     path: march([
       { col: 0, row: 8 },
       { col: 11, row: 8 },
@@ -170,6 +178,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: false,
+    track: railRow(6),
     grass: ["#3a3424", "#322c20"],
     pattern: "stripes",
     road: DIRT,
@@ -223,6 +232,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: false,
+    track: [],
     grass: ["#163830", "#12322c"],
     pattern: "marsh",
     road: DIRT,
@@ -251,7 +261,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "causeway",
     name: "Causeway",
     waves: 18,
-    blurb: "A long loop that ends in the middle. Eighteen waves.",
+    blurb: "A long loop that ends in the middle. Eighteen waves. Rails cross the grass, and from wave 5 a train runs them once a wave.",
     path: march([
       { col: 0, row: 1 },
       { col: 15, row: 1 },
@@ -266,6 +276,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: false,
+    track: railRow(3),
     grass: ["#2a3038", "#242a32"],
     pattern: "cobble",
     road: DIRT,
@@ -317,6 +328,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     ],
     rocks: false,
     fog: false,
+    track: [],
     grass: ["#243528", "#1c2c22"],
     pattern: "blossom",
     road: {
@@ -354,6 +366,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: true,
     fog: false,
+    track: [],
     grass: ["#2a3134", "#23292c"],
     pattern: "slate",
     road: {
@@ -400,6 +413,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: true,
+    track: [],
     grass: ["#1b1d30", "#141626"],
     pattern: "embers",
     road: {
@@ -422,7 +436,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     id: "desert",
     name: "Desert",
     waves: 26,
-    blurb: "Twenty-six waves. Sand dunes, and the Desert Husk.",
+    blurb: "Twenty-six waves. Sand dunes, rails, and the Desert Husk. From wave 5 a train runs the line once a wave.",
     path: march([
       { col: 0, row: 2 },
       { col: 15, row: 2 },
@@ -437,6 +451,7 @@ export const CAMPAIGN: CampaignLevel[] = [
     trees: [],
     rocks: false,
     fog: false,
+    track: railRow(4),
     grass: ["#6b4e2e", "#5c4126"],
     pattern: "dunes",
     road: {

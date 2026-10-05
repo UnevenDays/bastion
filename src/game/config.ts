@@ -62,6 +62,16 @@ export function gateRepairCost(lives: number, maxLives: number): number {
 export const FOG_AUTO_RANGE = 0.65;
 /** Orchard. A trunk blocks a shot inside this many pixels of its center. */
 export const TREE_TRUNK = 15;
+/** First wave a railroad sends its train. Then once every wave. */
+export const TRAIN_FIRST_WAVE = 5;
+/** Seconds after the wave starts before the train enters. */
+export const TRAIN_DELAY = 1.6;
+/** Train speed in pixels per second. */
+export const TRAIN_SPEED = 220;
+/** Nose to tail, in pixels. */
+export const TRAIN_LENGTH = 168;
+/** Half the width of the engine and cars. A shot or an enemy inside this is hit. */
+export const TRAIN_HALF = 16;
 /** Quarry. Seconds into a wave before the first rock, then the gap between rocks. */
 export const QUARRY_ROCK_FIRST = 5;
 export const QUARRY_ROCK_EVERY = 7;

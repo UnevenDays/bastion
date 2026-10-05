@@ -101,6 +101,7 @@ export function campaignPreview(
   difficulty: Difficulty,
   lastWave: number,
   portalOpens = false,
+  trainCrosses = false,
 ): string {
   let extra = "";
   if (difficulty !== "endless" && wave === lastWave) extra += " The final boss closes the wave.";
@@ -108,6 +109,7 @@ export function campaignPreview(
   else if (difficulty === "endless" && isChallengerWave(wave)) extra += " A challenger closes the wave.";
   if (waveSendsElites(wave, difficulty, lastWave)) extra += " Some wear a crown.";
   if (portalOpens) extra += " A new portal sends more of the lead.";
+  if (trainCrosses) extra += " A train crosses the rails.";
   return leadLine(wave, roster, false, extra);
 }
 

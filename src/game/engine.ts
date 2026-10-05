@@ -29,6 +29,11 @@ import {
   QUARRY_ROCK_STUN,
   QUARRY_ROCK_WARN,
   TREE_TRUNK,
+  TRAIN_DELAY,
+  TRAIN_FIRST_WAVE,
+  TRAIN_HALF,
+  TRAIN_LENGTH,
+  TRAIN_SPEED,
   gateReinforceCost,
   gateRepairCost,
   PATH,
@@ -229,6 +234,8 @@ export interface HudSnapshot {
   hasRocks: boolean;
   /** Night Watch fog shortens Auto range. */
   hasFog: boolean;
+  /** This road has a railroad. From wave 5 a train crosses once a wave. */
+  hasTrack: boolean;
   /** Blue portals on this road. 0 on the original road and on an editor level. */
   portalTotal: number;
   /** A later portal opens on this wave, or on the next one between waves. */
@@ -424,6 +431,12 @@ export class Game {
   private water = new Set<string>();
   private treeSet = new Set<string>();
   private treeCells: { col: number; row: number }[] = [];
+  private trackSet = new Set<string>();
+  private trackCells: { col: number; row: number }[] = [];
+  /** One train on the rails. Null while the line is empty. */
+  private train: { dist: number; reverse: boolean } | null = null;
+  private trainTimer = 0;
+  private trainSpawned = false;
   private fallingRocks: { col: number; row: number; eta: number }[] = [];
   private rockTimer = QUARRY_ROCK_FIRST;
   private grassA = "#1e3a28";
@@ -619,6 +632,7 @@ export class Game {
       hasTrees: !this.custom && this.treeCells.length > 0,
       hasRocks: !this.custom && this.campaign.rocks,
       hasFog: !this.custom && this.campaign.fog,
+      hasTrack: !this.custom && this.trackCells.length > 0,
       portalTotal: this.custom ? 0 : this.portals.length,
       portalOpens: this.portalOpensOn(this.shownWave()),
       portalSoon: this.portalSoonText(),
@@ -1158,6 +1172,12 @@ export class Game {
     this.armStorms();
     this.payInvestmentBanks();
     if (!this.custom && this.campaign.rocks) this.rockTimer = QUARRY_ROCK_FIRST;
+    this.train = null;
+    this.trainSpawned = false;
+    this.trainTimer =
+      !this.custom && this.trackCells.length > 0 && this.wave >= TRAIN_FIRST_WAVE
+        ? TRAIN_DELAY
+        : 0;
     this.emitHud();
   }
 
@@ -1205,6 +1225,9 @@ export class Game {
     this.particles = [];
     this.clouds = [];
     this.poison = [];
+    this.train = null;
+    this.trainTimer = 0;
+    this.trainSpawned = false;
     this.stickers = [];
     this.craters.clear();
     this.blastFlash = 0;
@@ -1294,6 +1317,8 @@ export class Game {
     this.eventId = null;
     this.applyCampaign(campaignById("road"));
     this.water.clear();
+    this.trackCells = [];
+    this.trackSet.clear();
     this.usePath(next.path);
     this.restart("normal");
     this.gold = next.gold;
@@ -1309,6 +1334,8 @@ export class Game {
     this.eventId = "hallow";
     this.applyCampaign(campaignById("road"));
     this.water.clear();
+    this.trackCells = [];
+    this.trackSet.clear();
     this.usePath(next.path);
     this.restart("normal");
     this.gold = next.gold;
@@ -1357,6 +1384,8 @@ export class Game {
     this.water = new Set(level.water.map((p) => pathKey(p.col, p.row)));
     this.treeCells = level.trees.map((p) => ({ col: p.col, row: p.row }));
     this.treeSet = new Set(this.treeCells.map((p) => pathKey(p.col, p.row)));
+    this.trackCells = level.track.map((p) => ({ col: p.col, row: p.row }));
+    this.trackSet = new Set(this.trackCells.map((p) => pathKey(p.col, p.row)));
     this.grassA = level.grass[0];
     this.grassB = level.grass[1];
   }
@@ -1374,7 +1403,7 @@ export class Game {
   /** Side lanes for a company that opens them. Editor roads stay on one path. */
   private refreshSpurs(): void {
     const company = this.company();
-    const blocked = new Set<string>([...this.water, ...this.treeSet]);
+    const blocked = new Set<string>([...this.water, ...this.treeSet, ...this.trackSet]);
     const built = company?.side ? openSideSpurs(this.roadCells, blocked) : [];
     this.pathSet = new Set(this.roadCells.map((p) => pathKey(p.col, p.row)));
     this.spurs = built.map((spur) => ({
@@ -1498,6 +1527,7 @@ export class Game {
       this.difficulty,
       this.campaign.waves,
       this.portalOpensOn(wave),
+      !this.custom && this.trackCells.length > 0 && wave >= TRAIN_FIRST_WAVE,
     );
   }
 
@@ -1677,6 +1707,7 @@ export class Game {
     this.pulse += dt;
     this.spawnEnemies(dt);
     this.updateEnemies(dt);
+    this.updateTrain(dt);
     this.updateSpawners(dt);
     this.updateRocks(dt);
     this.updateTowers(dt);
@@ -2376,9 +2407,9 @@ export class Game {
     return e.pathIndex + e.progress;
   }
 
-  /** Water and Orchard trees refuse a tower. */
+  /** Water, Orchard trees, and railroad tiles refuse a tower. */
   private blockedGround(key: string): boolean {
-    return this.water.has(key) || this.treeSet.has(key);
+    return this.water.has(key) || this.treeSet.has(key) || this.trackSet.has(key);
   }
 
   /** Night Watch fog shortens Auto aim. Other aim, and towers with no aim, keep full range. */
@@ -2405,6 +2436,154 @@ export class Game {
   private treeBlocks(from: Vec2, to: Vec2): boolean {
     if (this.custom || this.treeCells.length === 0) return false;
     return shotBlockedByTrees(from, to, this.treeCells);
+  }
+
+  /** Points along the rails, extended to the map edge. */
+  private railPoints(): Vec2[] {
+    const cells = this.trackCells;
+    if (cells.length < 2) return [];
+    const pts = cells.map((cell) => ({
+      x: cell.col * CELL + CELL / 2,
+      y: cell.row * CELL + CELL / 2,
+    }));
+    const first = pts[0]!;
+    const second = pts[1]!;
+    const last = pts[pts.length - 1]!;
+    const prev = pts[pts.length - 2]!;
+    const sx = Math.sign(second.x - first.x);
+    const sy = Math.sign(second.y - first.y);
+    const ex = Math.sign(last.x - prev.x);
+    const ey = Math.sign(last.y - prev.y);
+    return [
+      { x: first.x - sx * (CELL / 2), y: first.y - sy * (CELL / 2) },
+      ...pts,
+      { x: last.x + ex * (CELL / 2), y: last.y + ey * (CELL / 2) },
+    ];
+  }
+
+  private railLength(points: Vec2[]): number {
+    let total = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      total += Math.hypot(points[i + 1]!.x - points[i]!.x, points[i + 1]!.y - points[i]!.y);
+    }
+    return total;
+  }
+
+  private pointAlong(points: Vec2[], dist: number): { x: number; y: number; angle: number } | null {
+    if (points.length < 2) return null;
+    let left = Math.max(0, dist);
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]!;
+      const b = points[i + 1]!;
+      const seg = Math.hypot(b.x - a.x, b.y - a.y);
+      if (seg < 0.001) continue;
+      if (left <= seg) {
+        const t = left / seg;
+        return {
+          x: a.x + (b.x - a.x) * t,
+          y: a.y + (b.y - a.y) * t,
+          angle: Math.atan2(b.y - a.y, b.x - a.x),
+        };
+      }
+      left -= seg;
+    }
+    const a = points[points.length - 2]!;
+    const b = points[points.length - 1]!;
+    return { x: b.x, y: b.y, angle: Math.atan2(b.y - a.y, b.x - a.x) };
+  }
+
+  /** A distance from the entering end, flipped when the train runs backward. */
+  private sampleRail(
+    points: Vec2[],
+    length: number,
+    dist: number,
+    reverse: boolean,
+  ): { x: number; y: number; angle: number } | null {
+    const d = reverse ? length - dist : dist;
+    const point = this.pointAlong(points, d);
+    if (!point) return null;
+    if (reverse) return { ...point, angle: point.angle + Math.PI };
+    return point;
+  }
+
+  /** The train body currently on the map, nose first in the direction of travel. */
+  private trainSpan(): { x: number; y: number; angle: number }[] {
+    if (!this.train) return [];
+    const points = this.railPoints();
+    const length = this.railLength(points);
+    const nose = this.train.dist;
+    const tail = nose - TRAIN_LENGTH;
+    const start = Math.max(0, tail);
+    const end = Math.min(length, nose);
+    if (end - start < 2) return [];
+    const samples: { x: number; y: number; angle: number }[] = [];
+    for (let d = start; d <= end; d += 8) {
+      const point = this.sampleRail(points, length, d, this.train.reverse);
+      if (point) samples.push(point);
+    }
+    const tip = this.sampleRail(points, length, end, this.train.reverse);
+    if (tip) samples.push(tip);
+    return samples;
+  }
+
+  private trainBlocks(ax: number, ay: number, bx: number, by: number): boolean {
+    for (const point of this.trainSpan()) {
+      if (distToSegment(point.x, point.y, ax, ay, bx, by) <= TRAIN_HALF) return true;
+    }
+    return false;
+  }
+
+  /** One train each wave from wave 5. It flattens anyone on the rails and stops shots. */
+  private updateTrain(dt: number): void {
+    if (this.custom || this.trackCells.length < 2) {
+      this.train = null;
+      return;
+    }
+    if (this.train) {
+      this.train.dist += TRAIN_SPEED * dt;
+      this.stompTrain();
+      this.puffTrain();
+      const length = this.railLength(this.railPoints());
+      if (this.train.dist > length + TRAIN_LENGTH) this.train = null;
+      return;
+    }
+    if (!this.waveInProgress || this.wave < TRAIN_FIRST_WAVE || this.trainSpawned) return;
+    this.trainTimer -= dt;
+    if (this.trainTimer > 0) return;
+    this.trainSpawned = true;
+    this.train = { dist: -TRAIN_LENGTH, reverse: this.wave % 2 === 0 };
+  }
+
+  /** A stomp removes the enemy. It does not pay gold or leave children. */
+  private stompTrain(): void {
+    const span = this.trainSpan();
+    if (!span.length) return;
+    let crushed = false;
+    this.enemies = this.enemies.filter((enemy) => {
+      if (enemy.hp <= 0) return false;
+      const reach = TRAIN_HALF + enemy.radius * 0.25;
+      const hit = span.some((point) => dist(point, enemy) <= reach);
+      if (!hit) return true;
+      crushed = true;
+      this.burst(enemy.x, enemy.y, "#6a6258", 10);
+      this.burst(enemy.x, enemy.y - 6, "#c8bba8", 6);
+      return false;
+    });
+    if (crushed) this.emitHud();
+  }
+
+  private puffTrain(): void {
+    if (!this.train || Math.random() > 0.45) return;
+    const span = this.trainSpan();
+    const nose = span[span.length - 1];
+    if (!nose) return;
+    const stack = 22;
+    this.burst(
+      nose.x - Math.cos(nose.angle) * 8,
+      nose.y - Math.sin(nose.angle) * 8 - stack,
+      "#d9d3c7",
+      4,
+    );
   }
 
   /** Quarry: a shadow, then a rock that shuts one tower off. */
@@ -2639,8 +2818,15 @@ export class Game {
         p.vy = Math.sin(angle) * speed;
       }
 
+      const fromX = p.x;
+      const fromY = p.y;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+
+      if (this.trainBlocks(fromX, fromY, p.x, p.y)) {
+        this.burst(p.x, p.y, "#e7eef6", 5);
+        continue;
+      }
 
       let hit = false;
       if (target && dist(p, target) < target.radius + 6) {
@@ -3188,6 +3374,7 @@ export class Game {
     ctx.clearRect(0, 0, this.width, this.height);
     this.drawTerrain(ctx);
     this.drawPath(ctx);
+    this.drawTrack(ctx);
     this.drawFog(ctx);
     this.drawTutorialGround(ctx);
     paintBoardLight(ctx, this.width, this.height);
@@ -3197,6 +3384,7 @@ export class Game {
     this.drawRocks(ctx);
     this.drawCarryingGhost(ctx);
     this.drawEnemies(ctx);
+    this.drawTrain(ctx);
     this.drawPoison(ctx);
     this.drawClouds(ctx);
     this.drawFlyers(ctx);
@@ -3490,6 +3678,143 @@ export class Game {
         CELL,
       );
     }
+  }
+
+  private drawTrack(ctx: CanvasRenderingContext2D): void {
+    const points = this.railPoints();
+    if (points.length < 2) return;
+    const length = this.railLength(points);
+    ctx.save();
+    ctx.lineCap = "butt";
+    ctx.strokeStyle = "#3a342c";
+    ctx.lineWidth = 30;
+    ctx.beginPath();
+    ctx.moveTo(points[0]!.x, points[0]!.y);
+    for (const point of points.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    ctx.strokeStyle = "#2a2622";
+    ctx.lineWidth = 22;
+    ctx.stroke();
+
+    for (let dist = 6; dist < length; dist += 16) {
+      const tie = this.pointAlong(points, dist);
+      if (!tie) continue;
+      ctx.save();
+      ctx.translate(tie.x, tie.y);
+      ctx.rotate(tie.angle);
+      ctx.fillStyle = "#6a4630";
+      ctx.fillRect(-3.5, -13, 7, 26);
+      ctx.fillStyle = "#8a6244";
+      ctx.fillRect(-3.5, -13, 7, 2);
+      ctx.restore();
+    }
+
+    ctx.lineWidth = 2.4;
+    for (const side of [-7, 7]) {
+      ctx.beginPath();
+      const start = this.pointAlong(points, 0);
+      if (!start) continue;
+      const ox = Math.cos(start.angle + Math.PI / 2) * side;
+      const oy = Math.sin(start.angle + Math.PI / 2) * side;
+      ctx.moveTo(start.x + ox, start.y + oy);
+      for (let dist = 12; dist <= length; dist += 12) {
+        const point = this.pointAlong(points, dist);
+        if (!point) continue;
+        const px = Math.cos(point.angle + Math.PI / 2) * side;
+        const py = Math.sin(point.angle + Math.PI / 2) * side;
+        ctx.lineTo(point.x + px, point.y + py);
+      }
+      ctx.strokeStyle = "#b7c0c8";
+      ctx.stroke();
+      ctx.strokeStyle = "#6d767e";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.lineWidth = 2.4;
+    }
+    ctx.restore();
+  }
+
+  private drawTrain(ctx: CanvasRenderingContext2D): void {
+    if (!this.train) return;
+    const points = this.railPoints();
+    const length = this.railLength(points);
+    const nose = Math.min(length, this.train.dist);
+    const tail = Math.max(0, this.train.dist - TRAIN_LENGTH);
+    if (nose - tail < 8) return;
+    const cars: { kind: "box" | "box2" | "engine"; at: number }[] = [
+      { kind: "box2", at: tail + 28 },
+      { kind: "box", at: tail + 78 },
+      { kind: "engine", at: nose - 36 },
+    ];
+    for (const car of cars) {
+      const min = car.kind === "engine" ? tail : tail + 8;
+      const max = car.kind === "engine" ? nose : nose - 8;
+      if (car.at < min || car.at > max) continue;
+      const point = this.sampleRail(points, length, car.at, this.train.reverse);
+      if (!point) continue;
+      this.drawTrainCar(ctx, point.x, point.y, point.angle, car.kind);
+    }
+  }
+
+  private drawTrainCar(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    angle: number,
+    kind: "box" | "box2" | "engine",
+  ): void {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 24, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#1c1a18";
+    for (const wheel of [-16, -6, 6, 16]) {
+      ctx.beginPath();
+      ctx.arc(wheel, 10, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#8d928f";
+      ctx.beginPath();
+      ctx.arc(wheel, 10, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#1c1a18";
+    }
+    if (kind === "engine") {
+      ctx.fillStyle = "#2c241c";
+      ctx.fillRect(-30, -12, 16, 22);
+      ctx.fillStyle = "#3d4650";
+      ctx.beginPath();
+      ctx.roundRect(-16, -11, 36, 20, 6);
+      ctx.fill();
+      ctx.fillStyle = "#d7dde4";
+      ctx.fillRect(-26, -8, 8, 6);
+      ctx.fillStyle = "#1c1a18";
+      ctx.fillRect(6, -20, 6, 10);
+      ctx.fillStyle = "#5c656c";
+      ctx.fillRect(4, -22, 10, 3);
+      ctx.fillStyle = "#ffe08a";
+      ctx.beginPath();
+      ctx.arc(22, -2, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#8a2e22";
+      ctx.beginPath();
+      ctx.moveTo(20, 8);
+      ctx.lineTo(32, 2);
+      ctx.lineTo(20, -4);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillStyle = kind === "box" ? "#7a3b2c" : "#3d5344";
+      ctx.fillRect(-26, -12, 52, 22);
+      ctx.fillStyle = kind === "box" ? "#9a5340" : "#54725c";
+      ctx.fillRect(-26, -12, 52, 4);
+      ctx.strokeStyle = "#241812";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-8, -6, 14, 14);
+    }
+    ctx.restore();
   }
 
   private drawTrees(ctx: CanvasRenderingContext2D): void {

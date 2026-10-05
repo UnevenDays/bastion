@@ -138,7 +138,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, and Night Watch fog each fight the line.</p>
+            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, Night Watch fog, and the rails on Switchback, Causeway, and Desert each fight the line.</p>
             <p class="roster-note" id="roster-note"></p>
             <p class="warrant-advice" id="warrant-advice"></p>
             <button class="btn btn-ghost change-towers" type="button" id="change-towers">Change towers</button>
@@ -557,7 +557,8 @@ const LOAD_TIPS = [
   "A Sapper stops on one tower and shuts it off for 4 seconds.",
   "From wave 15, Endless alternates Armor and Marked every five waves.",
   "Marked enemies ignore every tower that is not set to Strongest.",
-  "Marsh water cannot hold a tower. The other roads leave the grass open.",
+  "Marsh water cannot hold a tower. Rails on Switchback, Causeway, and Desert cannot either.",
+  "From wave 5 a train crosses those rails once a wave. It stops shots and flattens anyone on the line.",
   "The Shovel can move or sell one tower each wave.",
   "A Mint prints gold only while a wave is running.",
   "The Nuke leaves a crater. Nothing can be built there for the rest of the run.",
@@ -1919,15 +1920,27 @@ function terrainTags(level: (typeof CAMPAIGN)[number]): string {
   if (level.trees.length > 0) tags.push("trees");
   if (level.rocks) tags.push("rocks");
   if (level.fog) tags.push("fog");
+  if (level.track.length > 0) tags.push("rails");
   return tags.length ? ` · ${tags.join(", ")}` : "";
 }
 
-function terrainNote(hud: { hasWater: boolean; hasTrees: boolean; hasRocks: boolean; hasFog: boolean }): string {
+function terrainNote(hud: {
+  hasWater: boolean;
+  hasTrees: boolean;
+  hasRocks: boolean;
+  hasFog: boolean;
+  hasTrack: boolean;
+}): string {
   const notes: string[] = [];
   if (hud.hasWater) notes.push("Water puddles cannot hold a tower.");
   if (hud.hasTrees) notes.push("Trees block shots that pass through their trunks.");
   if (hud.hasRocks) notes.push("Rocks fall during a wave and shut a tower off.");
   if (hud.hasFog) notes.push("Fog shortens Auto range. Other aim keeps full range.");
+  if (hud.hasTrack) {
+    notes.push(
+      "Rails cannot hold a tower. From wave 5 a train crosses once a wave, stops shots, and flattens anyone on the line.",
+    );
+  }
   return notes.length ? ` ${notes.join(" ")}` : "";
 }
 
