@@ -363,6 +363,18 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     description: "Detonates at once. Almost destroys everything. Wrecks a 3×3",
     nuke: true,
   },
+  pumpkin: {
+    kind: "pumpkin",
+    name: "Pumpkin Shoot",
+    cost: 100,
+    range: 2.3,
+    damage: 18,
+    fireRate: 0.65,
+    color: "#e8882a",
+    projectileSpeed: 260,
+    splash: 1,
+    description: "Lobs a pumpkin. The splash is area damage",
+  },
 };
 
 export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
@@ -429,6 +441,12 @@ export const SPECIAL_UPGRADES: Record<TowerKind, SpecialUpgradeDef> = {
     name: "Detonation",
     description: "The placement is the blast. The tower does not stay to be upgraded",
     costMultiplier: 1,
+  },
+  pumpkin: {
+    name: "Poison Cloud",
+    description: "After the splash, a poison cloud stays and deals extra damage over time",
+    costMultiplier: 1,
+    cost: 150,
   },
 };
 
@@ -668,6 +686,8 @@ export interface CombatStats {
   damage: number;
   fireRate: number;
   splash: number;
+  /** Splash damage for Pumpkin Shoot. 0 for other towers. */
+  splashDamage: number;
   slow: number;
   slowDuration: number;
   auraDamage: number;
@@ -675,6 +695,26 @@ export interface CombatStats {
   firesProjectiles: boolean;
   color: string;
   projectileSpeed: number;
+}
+
+/** Base area damage of a Pumpkin Shoot splash, before ranks. */
+export const PUMPKIN_AREA_DAMAGE = 12;
+/** How long a Poison Cloud stays after the splash. */
+export const PUMPKIN_POISON_TIME = 2.4;
+
+/** Splash radius in cells. Area Size ranks widen it. */
+export function pumpkinSplashRadius(sizeLevel: number): number {
+  return (TOWER_DEFS.pumpkin.splash ?? 1) * (1 + sizeLevel * 0.28);
+}
+
+/** Damage dealt to every enemy in the splash. Area Damage ranks raise it. */
+export function pumpkinAreaDamage(areaLevel: number): number {
+  return PUMPKIN_AREA_DAMAGE * (1 + areaLevel * 0.5);
+}
+
+/** Poison left in the cloud, per second, from the splash that made it. */
+export function pumpkinPoisonDps(areaDamage: number): number {
+  return areaDamage * 0.6;
 }
 
 export function combatStats(t: Tower): CombatStats {
@@ -687,6 +727,7 @@ export function combatStats(t: Tower): CombatStats {
       damage: 0,
       fireRate: 1 / income.interval,
       splash: 0,
+      splashDamage: 0,
       slow: 0,
       slowDuration: 0,
       auraDamage: 0,
@@ -708,6 +749,8 @@ export function combatStats(t: Tower): CombatStats {
   let fireRate = def.fireRate * fireRateMultiplier(t.speedLevel);
   let splash = def.splash ?? 0;
   if (t.kind === "cannon") splash *= 1 + t.damageLevel * 0.14;
+  if (t.kind === "pumpkin") splash = pumpkinSplashRadius(t.durationLevel);
+  const splashDamage = t.kind === "pumpkin" ? pumpkinAreaDamage(t.areaLevel) : 0;
   let slow = def.slow ?? 0;
   let slowDuration = def.slowDuration ?? 0;
   let auraDamage = 0;
@@ -751,6 +794,7 @@ export function combatStats(t: Tower): CombatStats {
     damage,
     fireRate,
     splash,
+    splashDamage,
     slow,
     slowDuration,
     auraDamage,

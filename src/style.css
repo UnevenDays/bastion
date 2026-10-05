@@ -21,6 +21,7 @@
   --tower-mace: #8d9aab;
   --tower-sniper: #d1c08a;
   --tower-chomp: #c4493a;
+  --tower-pumpkin: #e8882a;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "Sora", sans-serif;
 }
@@ -774,6 +775,10 @@ body {
 }
 .swatch.chomp {
   background: var(--tower-chomp);
+}
+
+.swatch.pumpkin {
+  background: var(--tower-pumpkin);
 }
 .swatch.sunbloom {
   background: #e8c547;
@@ -1654,6 +1659,7 @@ body {
 
 #mint-deposit.hidden,
 #mint-deposit-all.hidden,
+#upgrade-area.hidden,
 #upgrade-duration.hidden,
 #upgrade-speed.hidden,
 #sell-btn.hidden {

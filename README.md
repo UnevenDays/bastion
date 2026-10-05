@@ -89,7 +89,7 @@ Each enemy is a figure you can tell apart: a spear, a shield, a mask, a shell, a
 
 ### Event
 
-The **Event** tab sits beside the level editor. **Hallow Gate** is a six-wave night road: lanterns, wisps, coffins, tricks, crows, cauldrons, and a Pumpkin King. A coffin heals if nothing hits it. A trick steals gold. Clear the yard and the lives still on the gate become event tickets, at least 1. The ticket bar on that tab holds 24, and it stays in this browser.
+The **Event** tab sits beside the level editor. **Hallow Gate** is a six-wave night road: lanterns, wisps, coffins, tricks, crows, cauldrons, and a Pumpkin King. A coffin heals if nothing hits it. A trick steals gold. Clear the yard and the lives still on the gate become event tickets, at least 1. The ticket bar on that tab holds 24, and it stays in this browser. Filling the bar unlocks **Pumpkin Shoot**. It joins the bench without using a draft slot. It lobs a pumpkin: attack damage hits the enemy you aimed at, and area damage hits everyone in the splash. Area Size widens that splash. Attack Speed makes it lob faster. **Poison Cloud** stays where the splash landed and keeps dealing damage.
 
 ### Level editor
 

@@ -33,11 +33,15 @@ import {
   SNIPER_SUPPLY_BASE,
   SNIPER_SUPPLY_GOLD,
   SNIPER_SUPPLY_LIVES,
+  PUMPKIN_AREA_DAMAGE,
+  PUMPKIN_POISON_TIME,
   SPECIAL_UPGRADES,
   THIEF_HP,
   THIEF_STEAL,
   TOWER_DEFS,
   gateReinforceCost,
+  pumpkinPoisonDps,
+  pumpkinSplashRadius,
   specialCost,
   stormDamageUpgradeCost,
   stormHitChance,
@@ -79,6 +83,8 @@ export interface AlmanacQuery {
   mode: "bastion" | "dungeon" | "lawn";
   bench: readonly TowerKind[];
   benchLimited: boolean;
+  /** The ticket bar is full, so Pumpkin Shoot is on the bench. */
+  pumpkin: boolean;
   built: Partial<Record<TowerKind, number>>;
   volley: boolean;
   faced: readonly string[];
@@ -109,6 +115,11 @@ function towerPlace(
 ): Pick<AlmanacEntry, "place" | "placeLabel"> {
   const built = query.built[kind] ?? 0;
   const builtNote = built > 0 ? ` · built ${built}` : "";
+  if (kind === "pumpkin") {
+    return query.pumpkin
+      ? { place: "yours", placeLabel: `Unlocked${builtNote}` }
+      : { place: "armory", placeLabel: "Fill the ticket bar" };
+  }
   if (!query.benchLimited || query.bench.includes(kind)) {
     return {
       place: "yours",
@@ -141,6 +152,7 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
   const sniper = TOWER_DEFS.sniper;
   const chomp = TOWER_DEFS.chomp;
   const nuke = TOWER_DEFS.nuke;
+  const pumpkin = TOWER_DEFS.pumpkin;
   const hit = Math.round(stormHitChance(0) * 100);
   const hitMax = Math.round(stormHitChance(3) * 100);
   const cloudBonus = Math.round(CLOUD_DAMAGE_FINAL * 100);
@@ -428,6 +440,33 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
         { id: "archer", name: "Archer", note: "The bow clears the sliver the blast leaves." },
         { id: "storm", name: "Storm", note: "Lightning finishes enemies scattered across the map." },
         { id: "boss", name: "Boss", note: "Spend it when a boss and a pack share the road." },
+      ],
+    },
+    {
+      id: "pumpkin",
+      name: pumpkin.name,
+      color: pumpkin.color,
+      role: "Splash",
+      ...towerPlace(query, "pumpkin"),
+      stats: [
+        ["Cost", gold(pumpkin.cost)],
+        ["Attack damage", String(pumpkin.damage)],
+        ["Area damage", String(PUMPKIN_AREA_DAMAGE)],
+        ["Area size", `${pumpkin.splash} cells, then ${Math.round(pumpkinSplashRadius(3) * 100) / 100} at the last rank`],
+        ["Rate", rate(pumpkin.fireRate)],
+        ["Range", String(pumpkin.range)],
+        [
+          SPECIAL_UPGRADES.pumpkin.name,
+          `${gold(specialCost("pumpkin"))} · cloud for ${PUMPKIN_POISON_TIME}s at ${pumpkinPoisonDps(PUMPKIN_AREA_DAMAGE)} damage a second`,
+        ],
+      ],
+      about:
+        "A full event-ticket bar puts Pumpkin Shoot on the bench. It does not take a draft slot. The lob hits the enemy you aimed at for the attack damage, and everyone in the splash takes the area damage. Area Size widens the splash. Poison Cloud stays where that splash landed and keeps dealing damage. A slow does not put the cloud out.",
+      pairsTitle: "Works with",
+      pairs: [
+        { id: "frost", name: "Frost", note: "A chill holds the pack inside the splash and the cloud." },
+        { id: "banner", name: "Banner", note: "The buff raises the hit, the splash, and the cloud." },
+        { id: "splitter", name: "Splitter", note: "The splash and the cloud catch the parent and the children." },
       ],
     },
   ];

@@ -54,6 +54,8 @@ import {
   type EndlessMutator,
   enemyForWave,
   glacierCooldown,
+  pumpkinPoisonDps,
+  PUMPKIN_POISON_TIME,
   makeFlyer,
   mintIncome,
   mintUpgradeCost,
@@ -127,7 +129,7 @@ const LEAK_ORDER: readonly EnemyKind[] = [
 ];
 
 export type GamePhase = "ready" | "playing" | "won" | "lost";
-export type UpgradeStat = "damage" | "speed" | "duration";
+export type UpgradeStat = "damage" | "speed" | "duration" | "area";
 export type ToolMode = "build" | "shovel";
 
 export interface SelectedTowerInfo {
@@ -145,6 +147,11 @@ export interface SelectedTowerInfo {
   range: number;
   /** Cannon blast radius in cells. 0 for other towers. */
   splash: number;
+  /** Pumpkin area damage. 0 for other towers. */
+  areaDamage: number;
+  /** Next Pumpkin area-damage rank price. Null when this is not a Pumpkin or the rank is maxed. */
+  areaCost: number | null;
+  canAffordArea: boolean;
   special: boolean;
   specialName: string;
   specialDescription: string;
@@ -457,6 +464,18 @@ export class Game {
   particles: Particle[] = [];
   /** Cloud allies summoned by a Storm special. They march the path and fight. */
   clouds: CloudAlly[] = [];
+  /** Poison left by a Pumpkin Shoot special. */
+  private poison: {
+    x: number;
+    y: number;
+    radius: number;
+    dps: number;
+    life: number;
+    maxLife: number;
+    strongest: boolean;
+  }[] = [];
+  /** Full ticket bar. Pumpkin Shoot can be built. */
+  private pumpkinUnlocked = false;
 
   private stickers: LightningSticker[] = [];
 
@@ -509,10 +528,15 @@ export class Game {
     const offersExtra =
       (t.kind === "frost" && t.special) ||
       (t.kind === "banner" && !t.special) ||
-      t.kind === "storm";
+      t.kind === "storm" ||
+      t.kind === "pumpkin";
     const durationCost =
       offersExtra && t.durationLevel < MAX_UPGRADE
         ? upgradeCost(def.cost, t.durationLevel)
+        : null;
+    const areaCost =
+      t.kind === "pumpkin" && t.areaLevel < MAX_UPGRADE
+        ? upgradeCost(def.cost, t.areaLevel)
         : null;
     const grandTaken = t.kind === "banner" && !t.special && this.grandBannerStanding(t);
     const dropCost = def.sniper ? supplyDropCost(t.supplyUses) : 0;
@@ -537,6 +561,9 @@ export class Game {
       fireRate: Math.round(stats.fireRate * 100) / 100,
       range: Math.round(this.aimRange(t, stats.range) * 10) / 10,
       splash: Math.round(stats.splash * 100) / 100,
+      areaDamage: Math.round(stats.splashDamage),
+      areaCost,
+      canAffordArea: areaCost !== null && this.gold >= areaCost,
       special: t.special,
       specialName: special.name,
       specialDescription: special.description,
@@ -650,7 +677,15 @@ export class Game {
     this.emitHud();
   }
 
+  /** The ticket bar is full, so Pumpkin Shoot may be built. */
+  setPumpkinUnlocked(on: boolean): void {
+    this.pumpkinUnlocked = on;
+    if (!on && this.selected === "pumpkin") this.selected = this.firstRosterKind();
+    this.emitHud();
+  }
+
   private kindAllowed(kind: TowerKind): boolean {
+    if (kind === "pumpkin") return this.pumpkinUnlocked;
     return this.roster === null || this.roster.has(kind);
   }
 
@@ -919,6 +954,7 @@ export class Game {
         supplyUsed: false,
         silenced: 0,
         durationLevel: 0,
+        areaLevel: 0,
       }).interval * 0.35 : 0,
       damageLevel: 0,
       speedLevel: 0,
@@ -937,6 +973,7 @@ export class Game {
       supplyUsed: false,
       silenced: 0,
       durationLevel: 0,
+      areaLevel: 0,
     };
     this.towers.push(tower);
     this.towerOccupied.add(key);
@@ -956,10 +993,18 @@ export class Game {
     const offersExtra =
       (t.kind === "frost" && t.special) ||
       (t.kind === "banner" && !t.special) ||
-      t.kind === "storm";
+      t.kind === "storm" ||
+      t.kind === "pumpkin";
     if (stat === "duration" && !offersExtra) return false;
+    if (stat === "area" && t.kind !== "pumpkin") return false;
     const level =
-      stat === "damage" ? t.damageLevel : stat === "speed" ? t.speedLevel : t.durationLevel;
+      stat === "damage"
+        ? t.damageLevel
+        : stat === "speed"
+          ? t.speedLevel
+          : stat === "area"
+            ? t.areaLevel
+            : t.durationLevel;
     if (level >= MAX_UPGRADE) return false;
 
     const cost =
@@ -975,6 +1020,7 @@ export class Game {
     t.invested += cost;
     if (stat === "damage") t.damageLevel += 1;
     else if (stat === "speed") t.speedLevel += 1;
+    else if (stat === "area") t.areaLevel += 1;
     else t.durationLevel += 1;
 
     const cx = t.col * CELL + CELL / 2;
@@ -1158,6 +1204,7 @@ export class Game {
     this.projectiles = [];
     this.particles = [];
     this.clouds = [];
+    this.poison = [];
     this.stickers = [];
     this.craters.clear();
     this.blastFlash = 0;
@@ -1636,6 +1683,7 @@ export class Game {
     this.updateGate(dt);
     this.updateClouds(dt);
     this.updateProjectiles(dt);
+    this.updatePoison(dt);
     this.updateParticles(dt);
     this.checkWaveEnd();
   }
@@ -1906,6 +1954,7 @@ export class Game {
       damage: stats.damage * (1 + buff.damage),
       fireRate: stats.fireRate * (1 + buff.rate),
       auraDamage: stats.auraDamage * (1 + buff.damage),
+      splashDamage: stats.splashDamage * (1 + buff.damage),
     };
   }
 
@@ -2032,6 +2081,9 @@ export class Game {
         fire: t.kind === "pyro",
         heavy: def.sniper,
         strongest: this.towerIsStrongest(t),
+        pumpkin: t.kind === "pumpkin",
+        areaDamage: stats.splashDamage,
+        poison: t.kind === "pumpkin" && t.special,
       });
       t.cooldown = 1 / stats.fireRate;
     }
@@ -2545,6 +2597,34 @@ export class Game {
     }
   }
 
+  /** A Poison Cloud keeps hurting whoever stays in the splash. */
+  private updatePoison(dt: number): void {
+    const next = [];
+    let hurt = false;
+    for (const cloud of this.poison) {
+      cloud.life -= dt;
+      if (cloud.life <= 0) continue;
+      next.push(cloud);
+      for (const e of this.enemies) {
+        if (e.hp <= 0) continue;
+        if (dist(cloud, e) > cloud.radius + e.radius * 0.35) continue;
+        const before = e.hp;
+        this.damageEnemy(e, cloud.dps * dt, cloud.strongest);
+        if (e.hp < before) hurt = true;
+      }
+    }
+    this.poison = next;
+    if (!hurt) return;
+    const spawned: Enemy[] = [];
+    this.enemies = this.enemies.filter((e) => {
+      if (e.hp > 0) return true;
+      this.onEnemyDeath(e, spawned);
+      return false;
+    });
+    if (spawned.length) this.enemies.push(...spawned);
+    this.emitHud();
+  }
+
   private updateProjectiles(dt: number): void {
     const next: Projectile[] = [];
     for (const p of this.projectiles) {
@@ -2601,7 +2681,10 @@ export class Game {
         this.burst(e.x, e.y, "#8a938c", 3);
         continue;
       }
-      if (p.fire) this.applyFire(e, p.damage, p.strongest);
+      if (p.pumpkin) {
+        const direct = e === primary ? p.damage : 0;
+        this.damageEnemy(e, direct + (p.areaDamage ?? 0), p.strongest);
+      } else if (p.fire) this.applyFire(e, p.damage, p.strongest);
       else this.damageEnemy(e, p.damage, p.strongest);
       if (p.slow > 0) {
         e.speed = e.baseSpeed * p.slow;
@@ -2611,6 +2694,18 @@ export class Game {
         e.burnFromStrongest = false;
       }
       this.burst(e.x, e.y, p.color, p.splash > 0 ? 6 : 4);
+    }
+
+    if (p.poison && (p.areaDamage ?? 0) > 0 && p.splash > 0) {
+      this.poison.push({
+        x: primary.x,
+        y: primary.y,
+        radius: p.splash,
+        dps: pumpkinPoisonDps(p.areaDamage ?? 0),
+        life: PUMPKIN_POISON_TIME,
+        maxLife: PUMPKIN_POISON_TIME,
+        strongest: p.strongest,
+      });
     }
 
     const spawned: Enemy[] = [];
@@ -3036,6 +3131,7 @@ export class Game {
 
     this.waveInProgress = false;
     this.clouds = [];
+    this.poison = [];
     const mended = Math.min(this.maxLives, this.lives + GATE_AUTO_REPAIR);
     if (mended > this.lives) {
       this.lives = mended;
@@ -3101,6 +3197,7 @@ export class Game {
     this.drawRocks(ctx);
     this.drawCarryingGhost(ctx);
     this.drawEnemies(ctx);
+    this.drawPoison(ctx);
     this.drawClouds(ctx);
     this.drawFlyers(ctx);
     this.drawProjectiles(ctx);
@@ -3838,7 +3935,7 @@ export class Game {
 
       const nameY = cy + size + 2;
       paintTag(ctx, def.name, cx, nameY);
-      const ranks = t.damageLevel + t.speedLevel;
+      const ranks = t.damageLevel + t.speedLevel + t.areaLevel + (t.kind === "pumpkin" ? t.durationLevel : 0);
       if (t.silenced > 0) paintTag(ctx, "Off", cx, nameY + 11, "#e85d4a");
       else if (ranks > 0) paintTag(ctx, `Up ${ranks}`, cx, nameY + 11, "#e8c547");
     });
@@ -3892,6 +3989,22 @@ export class Game {
       ctx.lineTo(1.5, 0);
       ctx.closePath();
       ctx.fill();
+    } else if (kind === "pumpkin") {
+      ctx.beginPath();
+      ctx.ellipse(0, 1, 7, 5.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#6a3a12";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -4);
+      ctx.lineTo(0, 6);
+      ctx.moveTo(-3.5, -1);
+      ctx.quadraticCurveTo(0, 2, -3.5, 5);
+      ctx.moveTo(3.5, -1);
+      ctx.quadraticCurveTo(0, 2, 3.5, 5);
+      ctx.stroke();
+      ctx.fillStyle = "#3d8a32";
+      ctx.fillRect(-1.2, -8, 2.4, 4);
     } else if (kind === "nuke") {
       ctx.beginPath();
       ctx.arc(0, 2, 6, 0, Math.PI * 2);
@@ -4360,6 +4473,29 @@ export class Game {
     }
   }
 
+  private drawPoison(ctx: CanvasRenderingContext2D): void {
+    for (const cloud of this.poison) {
+      const fade = Math.max(0.25, cloud.life / cloud.maxLife);
+      ctx.save();
+      ctx.globalAlpha = 0.42 * fade;
+      const wash = ctx.createRadialGradient(
+        cloud.x,
+        cloud.y,
+        cloud.radius * 0.15,
+        cloud.x,
+        cloud.y,
+        cloud.radius,
+      );
+      wash.addColorStop(0, "rgba(176, 230, 80, 0.95)");
+      wash.addColorStop(1, "rgba(36, 84, 18, 0.15)");
+      ctx.fillStyle = wash;
+      ctx.beginPath();
+      ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
   private drawProjectiles(ctx: CanvasRenderingContext2D): void {
     for (const p of this.projectiles) {
       ctx.save();
@@ -4377,6 +4513,24 @@ export class Game {
         ctx.fillRect(-9, -2.4, 16, 4.8);
         ctx.fillStyle = "#f4e7b5";
         ctx.fillRect(4, -1.4, 4, 2.8);
+        ctx.restore();
+        continue;
+      }
+      if (p.pumpkin) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.fillStyle = "#e8882a";
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 7, 5.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#6a3a12";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, -4);
+        ctx.lineTo(0, 5);
+        ctx.stroke();
+        ctx.fillStyle = "#3d8a32";
+        ctx.fillRect(-1.1, -8, 2.2, 3.5);
         ctx.restore();
         continue;
       }

@@ -163,11 +163,11 @@ app.innerHTML = `
               <div class="ticket-track" id="ticket-track" role="progressbar" aria-valuemin="0" aria-valuemax="24" aria-valuenow="0" aria-label="Event tickets">
                 <div class="ticket-fill" id="ticket-fill"></div>
               </div>
-              <p class="ticket-note" id="ticket-note">Clear Hallow Gate. The lives still on the gate become tickets.</p>
+              <p class="ticket-note" id="ticket-note">Clear Hallow Gate. The lives still on the gate become tickets. A full bar unlocks Pumpkin Shoot.</p>
             </div>
             <div class="event-card">
               <span class="minigame-name">Hallow Gate</span>
-              <span class="minigame-meta">Six waves. The yard is dark, and the last wave is the Pumpkin King.</span>
+              <span class="minigame-meta">Six waves. Fill the ticket bar and Pumpkin Shoot joins your bench.</span>
             </div>
           </div>
           <div id="panel-minigames" class="menu-panel hidden">
@@ -224,6 +224,7 @@ app.innerHTML = `
       </div>
       <div id="bastion-upgrades" class="upgrade-actions">
         <button class="btn btn-upgrade" type="button" id="upgrade-damage">+ Damage</button>
+        <button class="btn btn-upgrade hidden" type="button" id="upgrade-area">+ Area Damage</button>
         <button class="btn btn-upgrade hidden" type="button" id="upgrade-duration">+ Chill</button>
         <button class="btn btn-upgrade" type="button" id="upgrade-speed">+ Attack Speed</button>
         <button class="btn btn-special" type="button" id="upgrade-special">Special</button>
@@ -402,6 +403,8 @@ const bastionUpgrades = document.querySelector<HTMLElement>("#bastion-upgrades")
 const dungeonUpgrades = document.querySelector<HTMLElement>("#dungeon-upgrades")!;
 const upgradeDamageBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-damage")!;
+const upgradeAreaBtn =
+  document.querySelector<HTMLButtonElement>("#upgrade-area")!;
 const upgradeDurationBtn =
   document.querySelector<HTMLButtonElement>("#upgrade-duration")!;
 const upgradeSpeedBtn =
@@ -569,6 +572,7 @@ const LOAD_TIPS = [
   "The almanac lists your bench, the enemies on the road, and which towers work together.",
   "The tutorial puts one Archer on the first bend and shows the range over both roads.",
   "Hallow Gate pays event tickets for the lives still on the gate.",
+  "Fill the ticket bar and Pumpkin Shoot joins your bench.",
   "The line above Start Wave names who leads the next pack.",
   "The draft names what to bring for the warrant you picked.",
 ];
@@ -698,6 +702,7 @@ function paintDraft(): void {
   paintDraftAdvice();
   draftContinue.disabled = loadout.length === 0;
   draftGrid.innerHTML = (Object.keys(TOWER_DEFS) as TowerKind[])
+    .filter((kind) => kind !== "pumpkin")
     .map((kind) => {
       const def = TOWER_DEFS[kind];
       const on = loadout.includes(kind);
@@ -757,6 +762,7 @@ function currentAlmanacQuery() {
     mode,
     bench: loadout,
     benchLimited: mode === "bastion" && !editor && loadout.length > 0,
+    pumpkin: pumpkinUnlocked(),
     built: started && mode === "bastion" ? bastion.placedCounts() : {},
     volley: started && mode === "bastion" ? bastion.gateHasVolley() : false,
     faced: [...faced],
@@ -797,14 +803,24 @@ function paintRosterNote(): void {
       : `Added: ${names.join(", ")}.`;
 }
 
+function pumpkinUnlocked(): boolean {
+  return loadTickets(localStorage) >= TICKET_CAP;
+}
+
 function applyTowerRoster(): void {
   const limited = started && activeMode === "bastion" && menuView !== "editor" && loadout.length > 0;
+  const unlocked = pumpkinUnlocked();
   const names = rosterNames();
   benchLine.classList.toggle("hidden", !limited);
-  benchLine.textContent = limited ? `Added: ${names.join(", ")}` : "";
+  benchLine.textContent = limited
+    ? unlocked
+      ? `Added: ${names.join(", ")}. Pumpkin Shoot is unlocked.`
+      : `Added: ${names.join(", ")}.`
+    : "";
   for (const kind of Object.keys(TOWER_DEFS) as TowerKind[]) {
     const btn = document.querySelector<HTMLButtonElement>(`#btn-${kind}`)!;
-    const hide = limited && !loadout.includes(kind);
+    const reward = kind === "pumpkin" && unlocked;
+    const hide = (kind === "pumpkin" && !unlocked) || (limited && !loadout.includes(kind) && !reward);
     btn.classList.toggle("out-of-loadout", hide);
     btn.style.display = hide ? "none" : "";
   }
@@ -947,10 +963,11 @@ function paintTickets(): void {
   ticketTrackEl.setAttribute("aria-valuenow", String(total));
   ticketNoteEl.textContent =
     total >= TICKET_CAP
-      ? "The ticket bar is full."
+      ? "The ticket bar is full. Pumpkin Shoot is on your bench."
       : total > 0
-        ? "Another clear adds the lives still on the gate."
-        : "Clear Hallow Gate. The lives still on the gate become tickets.";
+        ? "Another clear adds the lives still on the gate. A full bar unlocks Pumpkin Shoot."
+        : "Clear Hallow Gate. The lives still on the gate become tickets. A full bar unlocks Pumpkin Shoot.";
+  bastion.setPumpkinUnlocked(total >= TICKET_CAP);
 }
 
 function ticketPhrase(count: number): string {
@@ -1164,6 +1181,7 @@ function syncBastionHud(hud: HudSnapshot): void {
     const t = hud.selectedTower;
     upgradeBar.classList.remove("hidden");
     upgradeDurationBtn.classList.add("hidden");
+    upgradeAreaBtn.classList.add("hidden");
     upgradeSpeedBtn.classList.remove("hidden");
     sellBtn.classList.remove("hidden");
     upgradeTitle.textContent = t.special
@@ -1268,6 +1286,28 @@ function syncBastionHud(hud: HudSnapshot): void {
       mintDepositBtn.classList.add("hidden");
       mintDepositAllBtn.classList.add("hidden");
       syncTargeting(t.targeting, t.inverted);
+    } else if (t.kind === "pumpkin") {
+      const buffLine =
+        t.buffDamage > 0 || t.buffRate > 0
+          ? ` · Banner +${Math.round(t.buffDamage * 100)}% DMG +${Math.round(t.buffRate * 100)}% SPD`
+          : "";
+      upgradeStats.textContent = `Hit ${t.damage} · Area ${t.areaDamage} · Size ${t.splash} · SPD ${t.fireRate}/s · RNG ${t.range}${buffLine}`;
+      upgradeDamageBtn.textContent =
+        t.damageCost === null ? "Attack Damage Max" : `+ Attack Damage (${t.damageCost}g)`;
+      upgradeAreaBtn.classList.remove("hidden");
+      upgradeAreaBtn.textContent =
+        t.areaCost === null ? "Area Damage Max" : `+ Area Damage (${t.areaCost}g)`;
+      upgradeDurationBtn.classList.remove("hidden");
+      upgradeDurationBtn.textContent =
+        t.durationCost === null ? "Area Size Max" : `+ Area Size (${t.durationCost}g)`;
+      upgradeSpeedBtn.textContent =
+        t.speedCost === null ? "Attack Speed Max" : `+ Attack Speed (${t.speedCost}g)`;
+      hintEl.textContent = t.special
+        ? "Pumpkin Shoot lobs a pumpkin. The enemy you aimed at takes the attack damage, and everyone in the splash takes the area damage. Poison Cloud stays there and keeps dealing damage."
+        : "Pumpkin Shoot lobs a pumpkin. Attack Damage hits the one you aimed at. Area Damage hits everyone in the splash. Area Size widens that splash. Poison Cloud leaves a cloud that keeps hurting.";
+      mintDepositBtn.classList.add("hidden");
+      mintDepositAllBtn.classList.add("hidden");
+      syncTargeting(t.targeting, t.inverted);
     } else if (t.kind === "cannon") {
       const buffLine =
         t.buffDamage > 0 || t.buffRate > 0
@@ -1349,6 +1389,7 @@ function syncBastionHud(hud: HudSnapshot): void {
 
     upgradeDamageBtn.disabled =
       !started || t.damageCost === null || !t.canAffordDamage;
+    upgradeAreaBtn.disabled = !started || t.areaCost === null || !t.canAffordArea;
     upgradeDurationBtn.disabled =
       !started || t.durationCost === null || !t.canAffordDuration;
     upgradeSpeedBtn.disabled =
@@ -1370,6 +1411,7 @@ function syncBastionHud(hud: HudSnapshot): void {
   } else if (hud.gateSelected && !hud.carrying) {
     upgradeBar.classList.remove("hidden");
     upgradeDurationBtn.classList.remove("hidden");
+    upgradeAreaBtn.classList.add("hidden");
     upgradeSpeedBtn.classList.add("hidden");
     sellBtn.classList.add("hidden");
     mintDepositBtn.classList.add("hidden");
@@ -1411,6 +1453,10 @@ function syncBastionHud(hud: HudSnapshot): void {
       hintEl.textContent = hud.shovelReady
         ? "Shovel ready: click a tower to pick it up, then move or sell."
         : "Shovel already used this wave.";
+    } else if (hud.selected === "pumpkin") {
+      hintEl.textContent =
+        "Pumpkin Shoot lobs a pumpkin. Attack Damage hits the one you aimed at. Area Damage hits the splash. Area Size widens it. Poison Cloud keeps hurting after the splash." +
+        terrainNote(hud);
     } else if (hud.selected === "chomp") {
       hintEl.textContent =
         "Chomp swallows an enemy, then sleeps for 25 seconds. One upgrade widens the bite. The other shortens the nap. Double Bite swallows two." +
@@ -1680,8 +1726,10 @@ function showEndIfNeeded(
     endMsg.textContent =
       event === "hallow"
         ? eventGrant.gained > 0
-          ? `The Pumpkin King fell. You earned ${ticketPhrase(eventGrant.gained)}. The Event tab bar reads ${eventGrant.total} of ${TICKET_CAP}.`
-          : `The Pumpkin King fell. The ticket bar is already full at ${TICKET_CAP}.`
+          ? eventGrant.total >= TICKET_CAP
+            ? `The Pumpkin King fell. You earned ${ticketPhrase(eventGrant.gained)}. The bar is full, and Pumpkin Shoot joins your bench.`
+            : `The Pumpkin King fell. You earned ${ticketPhrase(eventGrant.gained)}. The Event tab bar reads ${eventGrant.total} of ${TICKET_CAP}.`
+          : `The Pumpkin King fell. The ticket bar is already full, and Pumpkin Shoot is on your bench.`
         : mode === "lawn"
           ? "The last shambler fell before it reached the house."
           : mode === "dungeon"
@@ -2040,6 +2088,9 @@ upgradeDamageBtn.addEventListener("click", () => {
   if (!started || activeMode !== "bastion") return;
   if (!bastion.repairGate()) bastion.upgradeSelected("damage");
 });
+upgradeAreaBtn.addEventListener("click", () => {
+  if (started && activeMode === "bastion") bastion.upgradeSelected("area");
+});
 upgradeDurationBtn.addEventListener("click", () => {
   if (!started || activeMode !== "bastion") return;
   if (!bastion.reinforceGate()) bastion.upgradeSelected("duration");
@@ -2100,6 +2151,7 @@ lwaveBtn.addEventListener("click", () => {
 });
 
 function startChosen(): void {
+  bastion.setPumpkinUnlocked(pumpkinUnlocked());
   started = true;
   savedThisRun = false;
   pendingScore = null;

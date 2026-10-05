@@ -24,7 +24,8 @@ export type TowerKind =
   | "mace"
   | "sniper"
   | "chomp"
-  | "nuke";
+  | "nuke"
+  | "pumpkin";
 
 /** Who a tower prefers. Auto means the nearest enemy. */
 export type TargetMode = "auto" | "first" | "last" | "strongest" | "weakest";
@@ -144,8 +145,10 @@ export interface Tower {
   supplyUsed: boolean;
   /** Seconds left shut off by a sapper. The tower does nothing while this is above zero. */
   silenced: number;
-  /** Glacier Field chill-duration ranks. Other towers leave this at 0. */
+  /** Glacier Field chill-duration ranks. Pumpkin Shoot uses this for area size. */
   durationLevel: number;
+  /** Pumpkin Shoot area-damage ranks. Other towers leave this at 0. */
+  areaLevel: number;
 }
 
 export interface Enemy {
@@ -228,6 +231,12 @@ export interface Projectile {
   heavy?: boolean;
   /** Fired by a tower set to Strongest, without Invert. */
   strongest: boolean;
+  /** Pumpkin lob. The aimed enemy takes attack damage, and the splash takes area damage. */
+  pumpkin?: boolean;
+  /** Area-damage portion of a pumpkin splash. */
+  areaDamage?: number;
+  /** Poison Cloud special. A cloud stays where the splash landed. */
+  poison?: boolean;
 }
 
 export interface Particle {
