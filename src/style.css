@@ -971,10 +971,15 @@ body {
 }
 
 .hint {
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fff6e8;
+  color: #1a1408;
+  border: 1px solid #e8c547;
+  font-size: 0.92rem;
+  line-height: 1.35;
   text-align: center;
-  padding: 2px 0;
 }
 
 .hint.hidden,
@@ -1027,12 +1032,24 @@ body {
   text-align: center;
 }
 
-.gate-tip,
 .home-lead {
   max-width: 38rem;
   text-align: center;
   color: var(--text-muted);
   line-height: 1.5;
+  font-size: 0.98rem;
+}
+
+.gate-tip {
+  width: min(38rem, 100%);
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fff6e8;
+  color: #1a1408;
+  border: 1px solid #e8c547;
+  text-align: center;
+  line-height: 1.45;
   font-size: 0.98rem;
 }
 
@@ -1686,16 +1703,13 @@ body {
 }
 
 #end-overlay.lost .death-recap {
-  background: #fffdf8;
-  border-color: #e8b4a4;
+  background: #fff6e8;
+  border-color: #e8c547;
 }
 
-#end-overlay.lost .overlay-card .death-recap p {
-  color: #1a1408;
-}
-
+#end-overlay.lost .overlay-card .death-recap p,
 #end-overlay.lost .overlay-card .death-recap p:last-child {
-  color: #8a4b12;
+  color: #1a1408;
 }
 
 #end-overlay.lost .mode-btn {
