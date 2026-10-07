@@ -40,6 +40,7 @@ import {
   THIEF_STEAL,
   TOWER_DEFS,
   gateReinforceCost,
+  packScale,
   pumpkinPoisonDps,
   pumpkinSplashRadius,
   specialCost,
@@ -198,7 +199,7 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
       about: "A fast single-target bow. Damage ranks add 40% of the base shot. Hawk Eye reaches farther and hits lighter. Its circle does not deal damage.",
       pairsTitle: "Works with",
       pairs: [
-        { id: "frost", name: "Frost", note: "Slowed enemies stay inside the 2.6 range long enough for several shots." },
+        { id: "frost", name: "Frost", note: "Slowed enemies stay inside the bow's range long enough for several shots." },
         { id: "banner", name: "Banner", note: "The bow is already quick, so the attack-speed buff piles up." },
         { id: "cannon", name: "Cannon", note: "The blast opens a pack. The bow finishes whoever is left standing." },
         { id: "runner", name: "Runner", note: "Place the bow early on the road. Runners are thin and die in a few shots." },
@@ -480,7 +481,7 @@ function classicBook(query: AlmanacQuery): AlmanacBook {
       role: "Pack",
       ...enemyPlace(query, "normal", false),
       stats: [
-        ["Wave 1 health", String(BASIC_GRUNT_HP)],
+        ["Wave 1 health", String(Math.round(BASIC_GRUNT_HP * packScale(1)))],
         ["Speed", "Rises a little each wave"],
         ["Leak", "1 life"],
         ["Bounty", "6, then a little more"],

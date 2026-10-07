@@ -4093,6 +4093,8 @@ export class Game {
       return;
     }
 
+    const reach = !def.economy && def.range > 0 ? this.previewRange(this.selected, def.range) * CELL : 0;
+
     if (def.nuke) {
       for (let dc = -1; dc <= 1; dc++) {
         for (let dr = -1; dr <= 1; dr++) {
@@ -4109,25 +4111,44 @@ export class Game {
         }
       }
     } else {
-      ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.2)" : "rgba(232, 93, 74, 0.25)";
-      ctx.fillRect(col * CELL, row * CELL, CELL, CELL);
+      if (valid && reach > 0) {
+        for (const roadKey of this.pathSet) {
+          const [roadCol, roadRow] = roadKey.split(",").map(Number);
+          const px = roadCol * CELL + CELL / 2;
+          const py = roadRow * CELL + CELL / 2;
+          if (Math.hypot(px - cx, py - cy) > reach) continue;
+          ctx.fillStyle = "rgba(232, 197, 71, 0.42)";
+          ctx.fillRect(roadCol * CELL, roadRow * CELL, CELL, CELL);
+        }
+      }
+      ctx.fillStyle = valid ? "rgba(94, 207, 138, 0.38)" : "rgba(232, 93, 74, 0.32)";
+      ctx.fillRect(col * CELL + 3, row * CELL + 3, CELL - 6, CELL - 6);
+      ctx.strokeStyle = valid ? "#e8efe6" : "#e85d4a";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(col * CELL + 3, row * CELL + 3, CELL - 6, CELL - 6);
     }
 
-    if (!def.economy && def.range > 0) {
+    if (reach > 0) {
       ctx.beginPath();
-      ctx.arc(cx, cy, this.previewRange(this.selected, def.range) * CELL, 0, Math.PI * 2);
-      ctx.strokeStyle = valid
-        ? "rgba(232, 197, 71, 0.45)"
-        : "rgba(232, 93, 74, 0.4)";
-      ctx.lineWidth = 1.5;
+      ctx.arc(cx, cy, reach, 0, Math.PI * 2);
+      ctx.fillStyle = valid ? "rgba(232, 197, 71, 0.1)" : "rgba(232, 93, 74, 0.08)";
+      ctx.fill();
+      ctx.strokeStyle = valid ? "rgba(232, 197, 71, 0.95)" : "rgba(232, 93, 74, 0.8)";
+      ctx.lineWidth = 2;
       ctx.stroke();
     }
 
     ctx.fillStyle = valid ? def.color : "#666";
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = valid ? 0.92 : 0.55;
     this.drawTowerGlyph(ctx, cx, cy, this.selected);
     ctx.globalAlpha = 1;
-    paintTag(ctx, TOWER_DEFS[this.selected].name, cx, cy + 18);
+    paintTag(
+      ctx,
+      valid ? `${def.name} · ${def.cost}g` : this.gold < def.cost ? `Need ${def.cost}g` : def.name,
+      cx,
+      cy + 18,
+      valid ? "#ffe56a" : "#f0b0a4",
+    );
   }
 
   private drawCarryingGhost(ctx: CanvasRenderingContext2D): void {

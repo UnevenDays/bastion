@@ -40,7 +40,7 @@ export const GATE_REPAIR_EACH = 12;
 /** Extra gate lives from one Reinforce, and how many times it can be bought. */
 export const GATE_REINFORCE_LIVES = 4;
 export const GATE_REINFORCE_MAX = 3;
-/** Volley lets the warden shoot. A little under an Archer's 12 damage and 1.4 shots a second. */
+/** Volley lets the warden shoot. A little under an Archer's 14 damage and 1.55 shots a second. */
 export const GATE_VOLLEY_COST = 90;
 export const GATE_DAMAGE = 11;
 export const GATE_RATE = 1.25;
@@ -190,7 +190,7 @@ export const CLOUD_INTERVAL = 15;
 export const CLOUD_CAP = 5;
 /** Cloud health. A step under the old five-grunt shell. */
 export const CLOUD_HP = 150;
-/** Cloud strike. A wave-1 grunt has 40, so one hit leaves it standing. */
+/** Cloud strike. A wave-1 grunt has 29 health, so one hit leaves it standing. */
 export const CLOUD_DAMAGE = 26;
 /** Extra damage at the last Storm Damage rank. Lightning and cloud hits share it. */
 export const CLOUD_DAMAGE_FINAL = 0.55;
@@ -234,9 +234,9 @@ export const TOWER_DEFS: Record<TowerKind, TowerDef> = {
     kind: "archer",
     name: "Archer",
     cost: 45,
-    range: 2.6,
-    damage: 12,
-    fireRate: 1.4,
+    range: 3,
+    damage: 14,
+    fireRate: 1.55,
     color: "#4a9b6e",
     projectileSpeed: 420,
     description: "Fast single-target shots",
@@ -886,7 +886,8 @@ export function waveEnemyCount(
   wave: number,
   difficulty: Difficulty = "normal",
 ): number {
-  const base = 6 + wave * 2;
+  // Wave 1 is a short pack. Two Archers on the grass beside the road can finish it.
+  const base = wave === 1 ? 6 : 6 + wave * 2;
   if (difficulty === "hard") return base + 1 + Math.floor(wave / 3);
   if (difficulty === "endless") {
     return Math.max(base, Math.round(base * (1 + endlessRamp(wave))));
@@ -1064,8 +1065,20 @@ function applyElite(def: EnemyDef): EnemyDef {
   };
 }
 
-function fodderDef(kind: PatternKind, wave: number): EnemyDef {
+/**
+ * Pack health for this wave. The first three waves are lighter than the later curve
+ * so a two-Archer opening can hold a road, then the old scale takes over.
+ */
+export function packScale(wave: number): number {
   const scale = (1 + (wave - 1) * 0.22) * pressureMultiplier(wave);
+  if (wave <= 1) return scale * 0.72;
+  if (wave === 2) return scale * 0.86;
+  if (wave === 3) return scale * 0.93;
+  return scale;
+}
+
+function fodderDef(kind: PatternKind, wave: number): EnemyDef {
+  const scale = packScale(wave);
   if (kind === "sapper") {
     return {
       kind,
@@ -1258,7 +1271,7 @@ export function spawnInterval(
   wave: number,
   difficulty: Difficulty = "normal",
 ): number {
-  const base = Math.max(0.35, 0.85 - wave * 0.04);
+  const base = wave === 1 ? 1.05 : Math.max(0.35, 0.85 - wave * 0.04);
   if (difficulty === "hard") return Math.max(0.28, base * 0.85);
   return base;
 }
