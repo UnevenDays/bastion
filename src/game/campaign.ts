@@ -6,6 +6,9 @@ export interface CampaignCell {
   row: number;
 }
 
+/** Warrant index for a road with no company trick. */
+export const NO_WARRANT = -1;
+
 export type TilePattern =
   | "tufts"
   | "stripes"

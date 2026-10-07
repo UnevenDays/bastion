@@ -986,6 +986,26 @@ function legacyPattern(wave: number, index: number): PatternKind {
   return "normal";
 }
 
+/** Kinds a road sends when no company is picked, in the order they first appear. */
+export function plainWaveRoster(
+  wave: number,
+  difficulty: Difficulty = "normal",
+  lastWave = TOTAL_WAVES,
+): PatternKind[] {
+  const count = waveEnemyCount(wave, difficulty);
+  const kinds: PatternKind[] = [];
+  for (let index = 0; index < count; index++) {
+    const bossSlot =
+      (isBossWave(wave) && index === count - 1) ||
+      (difficulty !== "endless" && isFinalBossWave(wave, lastWave) && index === count - 1) ||
+      (difficulty === "endless" && isChallengerWave(wave) && index === count - 1);
+    if (bossSlot) continue;
+    const kind = legacyPattern(wave, index);
+    if (!kinds.includes(kind)) kinds.push(kind);
+  }
+  return kinds.length > 0 ? kinds : ["normal"];
+}
+
 /**
  * Waves 1–5 keep the old per-wave health curve.
  * From wave 6 the pack's health is multiplied again.

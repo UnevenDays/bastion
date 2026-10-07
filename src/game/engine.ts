@@ -96,9 +96,10 @@ import {
   banditQuickBonus,
   thiefRefund,
   upgradeCost,
+  plainWaveRoster,
   waveEnemyCount,
 } from "./config";
-import { campaignById, openSideSpurs, portalEnemyBonus, type CampaignLevel, type LevelWarrant } from "./campaign";
+import { campaignById, NO_WARRANT, openSideSpurs, portalEnemyBonus, type CampaignLevel, type LevelWarrant } from "./campaign";
 import { campaignPreview, customPreview } from "./preview";
 import { HALLOW_LEVEL, HALLOW_MARKS } from "./hallow";
 import { blobShadow, paintBoardLight, paintCrew, paintHallow, paintHallowMoon, paintHallowYard, paintPortal, paintTag, paintWideRoad, paintYardMark, speckleTile, type CrewKind, type HallowFigure } from "./paint";
@@ -640,8 +641,8 @@ export class Game {
         this.difficulty === "endless" && !this.custom
           ? endlessMutator(this.waveInProgress ? this.wave : this.wave + 1)
           : "none",
-      warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? ""),
-      warrantGimmick: this.custom ? "" : (this.activeWarrant()?.gimmick ?? ""),
+      warrantName: this.custom ? "" : (this.activeWarrant()?.name ?? "None"),
+      warrantGimmick: this.custom ? "" : (this.activeWarrant()?.gimmick ?? "No company trick."),
       preview: this.previewLine(),
       banners: this.bannerTotal(),
       gateSelected: this.bastionSelected,
@@ -1300,6 +1301,7 @@ export class Game {
   }
 
   private clampWarrant(index: number): number {
+    if (index === NO_WARRANT) return NO_WARRANT;
     const count = this.campaign.warrants.length || 1;
     if (!Number.isFinite(index)) return 0;
     const next = Math.floor(index);
@@ -1307,6 +1309,7 @@ export class Game {
   }
 
   private activeWarrant() {
+    if (this.warrantIndex === NO_WARRANT) return undefined;
     return this.campaign.warrants[this.warrantIndex] ?? this.campaign.warrants[0];
   }
 
@@ -1520,7 +1523,7 @@ export class Game {
       );
     }
     if (this.difficulty !== "endless" && wave > this.campaign.waves) return "";
-    const roster = this.activeWarrant()?.enemies ?? ["normal"];
+    const roster = this.activeWarrant()?.enemies ?? plainWaveRoster(wave, this.difficulty, this.campaign.waves);
     return campaignPreview(
       wave,
       roster,

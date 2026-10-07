@@ -15,7 +15,7 @@ import { mountEditor } from "./editorPanel";
 import { Game, type HudSnapshot } from "./game/engine";
 import { PLANTS, type PlantKind } from "./game/lawnConfig";
 import { LawnGame, type LawnHud } from "./game/lawnEngine";
-import { CAMPAIGN, portalNote } from "./game/campaign";
+import { CAMPAIGN, NO_WARRANT, portalNote } from "./game/campaign";
 import { draftAdvice } from "./game/preview";
 import { TICKET_CAP, grantTickets, hallowPayout, loadTickets } from "./game/hallow";
 import { loadScores, saveScore, type EndlessScore } from "./game/leaderboard";
@@ -138,7 +138,7 @@ app.innerHTML = `
           <h2 id="start-heading">Classic</h2>
 
           <div id="panel-classic" class="menu-panel">
-            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, and three warrants. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. Desert sends the Desert Husk. Marsh water, Orchard trees, Quarry rocks, Night Watch fog, and the rails on Switchback, Causeway, and Desert each fight the line.</p>
+            <p class="mode-blurb" id="start-desc">Eight roads. Each one has its own ground, three company warrants, and None. A warrant is a company: it sends one to four enemy kinds, and the button states its trick. None sends the plain pack and adds no trick. Desert's companies send the Desert Husk. Marsh water, Orchard trees, Quarry rocks, Night Watch fog, and the rails on Switchback, Causeway, and Desert each fight the line.</p>
             <p class="roster-note" id="roster-note"></p>
             <p class="warrant-advice" id="warrant-advice"></p>
             <button class="btn btn-ghost change-towers" type="button" id="change-towers">Change towers</button>
@@ -679,19 +679,45 @@ function runLoad(then: () => void): void {
   requestAnimationFrame(step);
 }
 
+function pickedWarrant(level: (typeof CAMPAIGN)[number]) {
+  const picked = warrantByLevel.get(level.id) ?? 0;
+  if (picked === NO_WARRANT) return null;
+  return level.warrants[picked] ?? level.warrants[0]!;
+}
+
+function warrantButtons(level: (typeof CAMPAIGN)[number], picked: number, draft: boolean): string {
+  const noneClass = picked === NO_WARRANT ? " selected" : "";
+  const companies = level.warrants
+    .map((item, index) => {
+      if (draft) {
+        return `<button class="draft-warrant-btn${index === picked ? " selected" : ""}" type="button" data-draft-warrant="${index}">${item.name}</button>`;
+      }
+      return `<button class="warrant-btn${index === picked ? " selected" : ""}" type="button" data-warrant="${index}">
+        <span class="level-name">${item.name}</span>
+        <span class="level-meta">${item.gimmick}</span>
+      </button>`;
+    })
+    .join("");
+  const none = draft
+    ? `<button class="draft-warrant-btn${noneClass}" type="button" data-draft-warrant="${NO_WARRANT}">None</button>`
+    : `<button class="warrant-btn${noneClass}" type="button" data-warrant="${NO_WARRANT}">
+        <span class="level-name">None</span>
+        <span class="level-meta">No company trick.</span>
+      </button>`;
+  return none + companies;
+}
+
 function paintDraftAdvice(): void {
   const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
   const picked = warrantByLevel.get(level.id) ?? 0;
-  const warrant = level.warrants[picked] ?? level.warrants[0]!;
-  const line = `${warrant.name} — ${draftAdvice(warrant)}`;
+  const warrant = pickedWarrant(level);
+  const line = warrant
+    ? `${warrant.name} — ${draftAdvice(warrant)}`
+    : "None — No company trick. The plain pack walks the road.";
   draftAdviceEl.textContent = line;
   warrantAdviceEl.textContent = line;
   draftLevel.value = level.id;
-  draftWarrant.innerHTML = level.warrants
-    .map((item, index) => {
-      return `<button class="draft-warrant-btn${index === picked ? " selected" : ""}" type="button" data-draft-warrant="${index}">${item.name}</button>`;
-    })
-    .join("");
+  draftWarrant.innerHTML = warrantButtons(level, picked, true);
 }
 
 function paintDraft(): void {
@@ -741,9 +767,11 @@ function currentAlmanacQuery() {
   const editor =
     mode === "bastion" && ((started && activeLevel !== null) || (menuOpen && menuView === "editor"));
   const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
-  const warrant = level.warrants[warrantByLevel.get(level.id) ?? 0] ?? level.warrants[0]!;
+  const warrant = pickedWarrant(level);
   const faced = new Set<string>();
-  let roadLabel = `${level.name} · ${warrant.name}. ${warrant.gimmick}`;
+  let roadLabel = warrant
+    ? `${level.name} · ${warrant.name}. ${warrant.gimmick}`
+    : `${level.name} · None. No company trick.`;
   if (editor) {
     roadLabel = "This level";
     if (activeLevel) {
@@ -752,7 +780,8 @@ function currentAlmanacQuery() {
       }
     }
   } else if (mode === "bastion") {
-    for (const kind of warrant.enemies) faced.add(kind);
+    const kinds = warrant?.enemies ?? ["normal", "fast", "tank", "thief", "splitter", "sapper", "spawner"];
+    for (const kind of kinds) faced.add(kind);
     if (level.portals.length > 1) {
       roadLabel += ` ${level.portals.length} blue portals. Later ones open along the road, and each adds 10% more enemies.`;
     }
@@ -1957,19 +1986,14 @@ function paintLevels(): void {
 function paintWarrants(): void {
   const level = CAMPAIGN.find((item) => item.id === chosenLevel) ?? CAMPAIGN[0]!;
   const picked = warrantByLevel.get(level.id) ?? 0;
-  warrantPicker.innerHTML = level.warrants
-    .map((warrant, index) => {
-      return `<button class="warrant-btn${index === picked ? " selected" : ""}" type="button" data-warrant="${index}">
-        <span class="level-name">${warrant.name}</span>
-        <span class="level-meta">${warrant.gimmick}</span>
-      </button>`;
-    })
-    .join("");
-  const warrant = level.warrants[picked] ?? level.warrants[0]!;
-  const huskNote = warrant.enemies.includes("husk")
+  warrantPicker.innerHTML = warrantButtons(level, picked, false);
+  const warrant = pickedWarrant(level);
+  const huskNote = warrant?.enemies.includes("husk")
     ? " A Desert Husk cracks at half health and sprints."
     : "";
-  warrantBlurb.textContent = `${level.blurb}${portalNote(level)} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`;
+  warrantBlurb.textContent = warrant
+    ? `${level.blurb}${portalNote(level)} ${warrant.name}: ${warrant.gimmick} It sends ${patternList(warrant.enemies)}. The first kind leads the line. Bosses still close waves 6 and 9, and the last wave of the road.${huskNote}`
+    : `${level.blurb}${portalNote(level)} None: no company trick. The plain pack walks the road. Grunts lead, and the other kinds arrive as the waves go on. Bosses still close waves 6 and 9, and the last wave of the road.`;
   paintDraftAdvice();
   if (!started) {
     bastion.beginRun(chosenDifficulty, level.id, picked);
