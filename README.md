@@ -4,6 +4,7 @@ A browser tower defense game. **Classic** is the main game. **Minigames** holds 
 
 - **Classic** — roadside towers, upgrades, shovel, and bosses
 - **Minigames → Dungeon Crawler** — place traps and monsters on a zigzag road; adventurers fight your monsters and try to escape
+- **Minigames → Kellerbar** — a separate bar game at [kellerbar/](https://unevendays.github.io/bastion/kellerbar/)
 
 ## Play
 

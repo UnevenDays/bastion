@@ -406,6 +406,7 @@ body {
 }
 
 .minigame-card {
+  display: block;
   width: 100%;
   text-align: left;
   padding: 12px 14px;
@@ -415,6 +416,8 @@ body {
   background: #1a2a1f;
   color: var(--text);
   cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
 }
 
 .minigame-card.selected {
