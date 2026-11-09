@@ -340,6 +340,11 @@ body {
   margin-bottom: -1px;
 }
 
+a.menu-tab {
+  text-decoration: none;
+  text-align: center;
+}
+
 .menu-tab:hover {
   color: var(--text);
 }
@@ -1102,6 +1107,11 @@ body {
   color: var(--text);
   cursor: pointer;
   font-family: var(--font-body);
+}
+
+a.home-choice {
+  display: block;
+  text-decoration: none;
 }
 
 .home-choice:hover,

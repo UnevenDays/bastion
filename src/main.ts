@@ -47,8 +47,12 @@ app.innerHTML = `
       </button>
       <button class="home-choice" type="button" id="home-minigames">
         <span class="home-choice-name">Minigames</span>
-        <span class="home-choice-meta">Dungeon Crawler, Sun Lawn, and Kellerbar</span>
+        <span class="home-choice-meta">Dungeon Crawler and Sun Lawn</span>
       </button>
+      <a class="home-choice" id="home-kellerbar" href="./kellerbar/index.html">
+        <span class="home-choice-name">Kellerbar</span>
+        <span class="home-choice-meta">White and blue bar. Lock them in the cellar.</span>
+      </a>
       <button class="home-choice" type="button" id="home-editor">
         <span class="home-choice-name">Level editor</span>
         <span class="home-choice-meta">Lay a road and choose its enemies</span>
@@ -132,6 +136,7 @@ app.innerHTML = `
           <div class="menu-tabs" role="tablist" aria-label="Menu">
             <button class="menu-tab selected" type="button" role="tab" id="tab-classic" aria-selected="true">Classic</button>
             <button class="menu-tab" type="button" role="tab" id="tab-minigames" aria-selected="false">Minigames</button>
+            <a class="menu-tab" id="tab-kellerbar" href="./kellerbar/index.html">Kellerbar</a>
             <button class="menu-tab" type="button" role="tab" id="tab-editor" aria-selected="false">Editor</button>
             <button class="menu-tab" type="button" role="tab" id="tab-event" aria-selected="false">Event</button>
           </div>
@@ -179,10 +184,6 @@ app.innerHTML = `
               <span class="minigame-name">Sun Lawn</span>
               <span class="minigame-meta">Five lanes. 30 seconds with no zombies, then the waves. 50 sun to start, 25 more every 20 seconds.</span>
             </button>
-            <a class="minigame-card" id="minigame-keller" href="./kellerbar/index.html">
-              <span class="minigame-name">Kellerbar</span>
-              <span class="minigame-meta">White and blue bar, stars all around. Lock the top-hatted Netanjahuuus in the cellar with a bat or a whip.</span>
-            </a>
           </div>
 
           <div class="mode-picker" role="group" aria-label="Difficulty">
